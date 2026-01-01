@@ -1,0 +1,12 @@
+{
+  "saveSuccess": "Saved successfully!",
+  "copySuccess": "Copied to clipboard!",
+  "refresh": "Refresh",
+  "save": "Save",
+  "saving": "Saving...",
+  "loading": "Loading...",
+  "refreshShortcut": "Refresh (Ctrl+R)",
+  "saveShortcut": "Save (Ctrl+S)",
+  "savingShortcut": "Saving...",
+  "copyShortcut": "Copy to clipboard"
+}

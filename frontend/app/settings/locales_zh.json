@@ -1,0 +1,23 @@
+{
+  "title": "设置",
+  "language": "语言",
+  "languageDescription": "选择应用程序界面语言",
+  "npmPath": "NPM 路径",
+  "npmNotInstalled": "NPM 未正确安装或配置，请从以下网址下载安装 Node.js (包含 NPM)：",
+  "npmInstalled": "NPM 已安装，版本：{{version}}",
+  "npmInstalledSimple": "NPM 已安装",
+  "nodejsWebsite": "nodejs.org",
+  "claudePath": "Claude Desktop 路径",
+  "claudeNotInstalled": "Claude Desktop 未正确安装或配置，请从以下网址下载安装：",
+  "claudeInstalled": "Claude Desktop 已安装，版本：{{version}}",
+  "claudeInstalledSimple": "Claude Desktop 已安装",
+  "claudeWebsite": "claude.com",
+  "selectNpmExecutable": "选择 NPM 可执行文件",
+  "selectClaudeApp": "选择 Claude Desktop 应用程序",
+  "configSaveSuccess": "配置保存成功",
+  "configSaveFailed": "保存配置失败：{{error}}",
+  "configSaveRetry": "保存配置失败，请重试",
+  "toolNotConfigured": "工具未正确配置",
+  "savingConfig": "正在保存...",
+  "saveFailedRetry": "保存失败，请重试"
+}

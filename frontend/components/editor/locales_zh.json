@@ -1,0 +1,12 @@
+{
+  "saveSuccess": "保存成功！",
+  "copySuccess": "已复制到剪贴板！",
+  "refresh": "刷新",
+  "save": "保存",
+  "saving": "保存中...",
+  "loading": "正在加载...",
+  "refreshShortcut": "刷新 (Ctrl+R)",
+  "saveShortcut": "保存 (Ctrl+S)",
+  "savingShortcut": "保存中...",
+  "copyShortcut": "复制到剪贴板"
+}

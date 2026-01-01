@@ -1,0 +1,740 @@
+{
+  "title": "项目列表",
+  "description": "查看和管理所有 Claude 项目",
+  "refresh": "刷新项目",
+  "refreshing": "刷新中...",
+  "scanProjects": "扫描项目",
+  "noProjects": "暂无项目",
+  "noProjectsDesc": "没有找到任何 Claude 项目，点击刷新按钮扫描项目。",
+  "loadFailed": "加载项目列表失败",
+  "unknownError": "未知错误",
+  "networkError": "网络错误",
+  "scanFailed": "扫描失败",
+  "scanError": "扫描项目时发生错误",
+  "scanComplete": "扫描完成",
+  "scanCompleteDesc": "项目列表已更新",
+  "refreshFailed": "刷新失败",
+  "detail": {
+    "loading": "加载项目详情中...",
+    "notFound": "项目不存在",
+    "notFoundDesc": "找不到指定的项目，请检查项目ID是否正确。",
+    "noPathInfo": "无路径信息",
+    "selectConfig": "请选择一个配置项",
+    "expandSidebar": "展开侧边栏",
+    "collapseSidebar": "折叠侧边栏",
+    "loadInfoFailed": "加载项目信息失败",
+    "loadDataFailed": "加载数据失败",
+    "back": "返回",
+    "switcher": {
+      "loading": "加载项目中...",
+      "noProjects": "暂无可用项目",
+      "selectProject": "选择项目",
+      "loadFailed": "加载项目失败"
+    },
+    "scopeSwitcher": {
+      "mixed": {
+        "label": "混合",
+        "description": "显示所有作用域"
+      },
+      "user": {
+        "label": "用户",
+        "description": "用户全局配置"
+      },
+      "project": {
+        "label": "项目",
+        "description": "项目配置"
+      },
+      "local": {
+        "label": "本地",
+        "description": "本地配置"
+      },
+      "plugin": {
+        "label": "插件",
+        "description": "插件资源"
+      }
+    },
+    "scopeBadge": {
+      "user": {
+        "label": "用户 (全局)",
+        "description": "用户全局配置，对所有项目生效",
+        "path": "~/.claude/settings.json"
+      },
+      "project": {
+        "label": "Project (项目)",
+        "description": "项目级配置，仅对当前项目生效",
+        "path": "${PROJECT}/.claude/settings.json"
+      },
+      "local": {
+        "label": "Local (本地)",
+        "description": "项目本地配置，对当前项目的本地实例生效",
+        "path": "${PROJECT}/.claude/settings.local.json"
+      },
+      "plugin": {
+        "label": "插件",
+        "description": "已启用插件提供的资源"
+      },
+      "noValue": "配置项为空，无法切换作用域",
+      "cannotChangeScope": "配置项为空或正在更新，无法切换作用域",
+      "currentScope": "当前作用域: {{scope}}，点击切换",
+      "selectScope": "请选择作用域",
+      "scopeMoved": "作用域已更新为 {{scope}}",
+      "moveScopeFailed": "更新作用域失败",
+      "unknownError": "未知错误",
+      "current": "当前"
+    },
+    "settings": {
+      "loadFailed": "加载设置失败",
+      "settingsNotFound": "设置文件不存在或为空",
+      "updateFailed": "更新失败",
+      "unknownError": "未知错误",
+      "updating": "正在更新设置...",
+      "environment": {
+        "title": "环境变量",
+        "description": "配置项目运行时需要的环境变量，如 API 密钥、HTTP_PROXY、代理设置等。",
+        "currentScope": "当前显示 {{scope}} 作用域的环境变量。",
+        "user": {
+          "title": "用户全局配置",
+          "path": "~/.claude/settings.json",
+          "description": "用户全局环境变量，所有项目共享",
+          "keyPlaceholder": "变量名 (如: HTTP_PROXY)",
+          "valuePlaceholder": "变量值 (如: http://proxy.example.com:8080)",
+          "validation": {
+            "emptyName": "变量名不能为空",
+            "invalidName": "变量名必须由大写字母、小写字母、数字和下划线组成，且以字母或下划线开头"
+          }
+        },
+        "project": {
+          "title": "Project（项目配置）",
+          "path": "${PROJECT}/.claude/settings.json",
+          "description": "项目级环境变量，本项目专用",
+          "keyPlaceholder": "变量名 (如: API_KEY)",
+          "valuePlaceholder": "变量值 (如: sk-xxxxxxxx)",
+          "validation": {
+            "emptyName": "变量名不能为空",
+            "invalidName": "变量名必须由大写字母、小写字母、数字和下划线组成，且以字母或下划线开头"
+          }
+        },
+        "local": {
+          "title": "Local（本地配置）",
+          "path": "${PROJECT}/.claude/settings.local.json",
+          "description": "本地环境变量，优先级最高，不提交到版本控制",
+          "keyPlaceholder": "变量名 (如: DATABASE_URL)",
+          "valuePlaceholder": "变量值 (如: postgresql://localhost:5432/db)",
+          "validation": {
+            "emptyName": "变量名不能为空",
+            "invalidName": "变量名必须由大写字母、小写字母、数字和下划线组成，且以字母或下划线开头"
+          }
+        }
+      },
+      "basic": {
+        "title": "基础设置",
+        "model": {
+          "title": "model",
+          "description": "指定 Claude 使用的 AI 模型，如 claude-sonnet-4-5-20250929",
+          "placeholder": "claude-sonnet-4-5-20250929"
+        },
+        "alwaysThinkingEnabled": {
+          "title": "alwaysThinkingEnabled",
+          "description": "让 Claude 在每次响应前都进行深入的思考和规划，启用后会影响响应速度"
+        }
+      },
+      "permissions": {
+        "title": "权限设置(permissions)",
+        "subtitle": "控制 Claude 的权限系统和访问限制",
+        "controlList": {
+          "title": "权限控制列表",
+          "description": "定义哪些操作被允许、询问或禁止",
+          "allow": {
+            "title": "allow",
+            "description": "这些操作将被允许执行，无需确认",
+            "placeholder": "输入权限描述"
+          },
+          "ask": {
+            "title": "ask",
+            "description": "这些操作将需要用户确认后执行",
+            "placeholder": "输入权限描述"
+          },
+          "deny": {
+            "title": "deny",
+            "description": "这些操作将被禁止执行",
+            "placeholder": "输入权限描述"
+          }
+        },
+        "modeConfig": {
+          "title": "权限模式配置",
+          "description": "控制权限系统的行为模式",
+          "defaultMode": {
+            "title": "defaultMode",
+            "description": "设置 Claude 的默认权限行为模式",
+            "placeholder": "请选择权限模式",
+            "notSet": "未设置",
+            "options": {
+              "default": "默认模式(default)",
+              "defaultDescription": "标准的权限行为模式",
+              "acceptEdits": "接受编辑(acceptEdits)",
+              "acceptEditsDescription": "自动接受编辑操作",
+              "plan": "规划模式(plan)",
+              "planDescription": "专注于规划和思考",
+              "bypassPermissions": "绕过权限(bypassPermissions)",
+              "bypassPermissionsDescription": "绕过权限限制"
+            }
+          },
+          "disableBypassPermissionsMode": {
+            "title": "disableBypassPermissionsMode",
+            "description": "控制是否禁用权限绕过功能",
+            "placeholder": "请选择绕过模式",
+            "notSet": "未设置",
+            "options": {
+              "disable": "禁用绕过",
+              "disableDescription": "禁用权限绕过功能"
+            }
+          }
+        },
+        "additionalDirectories": {
+          "title": "附加访问目录",
+          "description": "配置允许访问的额外路径",
+          "title2": "additionalDirectories",
+          "description2": "允许 Claude 访问的额外目录路径",
+          "placeholder": "输入目录路径，如: /path/to/directory"
+        }
+      },
+      "sandbox": {
+        "title": "沙盒设置(sandbox)",
+        "subtitle": "在受限环境中执行操作，提高安全性",
+        "enabled": {
+          "title": "enabled",
+          "description": "在受限环境中执行操作，提高安全性"
+        },
+        "enabledMessage": "沙盒模式已启用，以下设置将控制沙盒环境的具体行为",
+        "notEnabledTitle": "沙盒状态",
+        "notEnabledDescription": "当前沙盒模式的运行状态",
+        "notEnabledMessage": "沙盒模式未启用",
+        "notEnabledDetail": "启用沙盒模式后，您可以配置沙盒环境的具体行为，包括命令执行权限、网络访问限制等安全设置。",
+        "commandControl": {
+          "title": "命令执行控制",
+          "description": "控制沙盒环境中的命令执行行为",
+          "autoAllowBashIfSandboxed": {
+            "title": "autoAllowBashIfSandboxed",
+            "description": "在沙盒环境中自动允许 Bash 命令执行"
+          },
+          "allowUnsandboxedCommands": {
+            "title": "allowUnsandboxedCommands",
+            "description": "允许在无沙盒环境中执行特定命令"
+          },
+          "enableWeakerNestedSandbox": {
+            "title": "enableWeakerNestedSandbox",
+            "description": "在嵌套环境中使用较弱的沙盒限制"
+          }
+        },
+        "excludedCommands": {
+          "title": "排除命令列表",
+          "description": "配置在沙盒中无法执行的命令",
+          "title2": "excludedCommands",
+          "description2": "在沙盒中被排除执行的命令",
+          "placeholder": "输入命令名称，如: rm, sudo",
+          "validation": {
+            "emptyName": "命令名称不能为空",
+            "invalidName": "命令名称只能包含字母、数字、下划线和连字符"
+          }
+        },
+        "network": {
+          "title": "网络访问控制(network)",
+          "subtitle": "控制沙盒环境的网络访问权限",
+          "basicControl": {
+            "title": "网络基础控制",
+            "allowLocalBinding": {
+              "title": "allowLocalBinding",
+              "description": "允许在沙盒中绑定本地网络端口"
+            }
+          },
+          "proxyConfig": {
+            "title": "代理配置",
+            "httpProxyPort": {
+              "title": "httpProxyPort",
+              "description": "设置 HTTP 代理服务的端口号"
+            },
+            "socksProxyPort": {
+              "title": "socksProxyPort",
+              "description": "设置 SOCKS 代理服务的端口号"
+            }
+          },
+          "unixSocket": {
+            "title": "Unix 套接字",
+            "allowUnixSockets": {
+              "title": "allowUnixSockets",
+              "description": "允许在沙盒中使用的 Unix 套接字路径",
+              "placeholder": "输入 Unix 套接字路径，如: /tmp/docker.sock"
+            },
+            "validation": {
+              "emptyPath": "套接字路径不能为空",
+              "invalidPath": "请输入有效的 Unix 套接字路径（以 .sock 结尾）"
+            }
+          }
+        }
+      }
+    },
+    "editorTitle": {
+      "placeholder": "命令名称...",
+      "scope": "作用域",
+      "scope_user": "用户",
+      "scope_project": "项目",
+      "scope_local": "本地",
+      "scope_plugin": "插件",
+      "confirm": "确认",
+      "cancel": "取消",
+      "editTitle": "编辑标题"
+    }
+  },
+  "card": {
+    "noPathInfo": "无路径信息",
+    "lastActive": "最后活跃:"
+  },
+  "sidebar": {
+    "title": "Claude 配置",
+    "description": "管理 AI 助手配置",
+    "sections": {
+      "memory": {
+        "title": "Memory",
+        "description": "记忆配置"
+      },
+      "plugins": {
+        "title": "Plugins",
+        "description": "插件管理"
+      },
+      "mcpServers": {
+        "title": "MCP 服务器",
+        "description": "外部服务"
+      },
+      "commands": {
+        "title": "Commands",
+        "description": "命令工具"
+      },
+      "subAgents": {
+        "title": "Sub Agents",
+        "description": "AI 代理"
+      },
+      "hooks": {
+        "title": "Hooks",
+        "description": "事件钩子"
+      },
+      "skills": {
+        "title": "Skills",
+        "description": "技能包"
+      },
+      "settings": {
+        "title": "Settings",
+        "description": "系统设置"
+      }
+    }
+  },
+  "header": {
+    "memory": {
+      "title": "Claude Memory",
+      "description": "管理 Claude AI 的记忆文件和上下文配置"
+    },
+    "mcpServers": {
+      "title": "MCP 服务器",
+      "description": "配置和管理 Model Context Protocol (MCP) 服务器"
+    },
+    "commands": {
+      "title": "Commands 命令",
+      "description": "创建和管理自定义 Slash 命令"
+    },
+    "subAgents": {
+      "title": "Sub Agents 代理",
+      "description": "配置具有特定工具和权限的子代理"
+    },
+    "hooks": {
+      "title": "Hooks 钩子",
+      "description": "设置系统事件钩子和自动化触发器"
+    },
+    "skills": {
+      "title": "Skills 技能",
+      "description": "定义和加载可重用的 AI 技能包"
+    },
+    "plugins": {
+      "title": "Plugins 插件",
+      "description": "管理和配置 Claude 插件扩展"
+    },
+    "settings": {
+      "title": "Settings 设置",
+      "description": "全局应用设置和个性化配置"
+    }
+  },
+  "memory": {
+    "tabs": {
+      "projectClaudeMd": "CLAUDE.md",
+      "claudeDirClaudeMd": ".claude/CLAUDE.md",
+      "localClaudeMd": "CLAUDE.local.md",
+      "userGlobalClaudeMd": "~/.claude/CLAUDE.md"
+    },
+    "descriptions": {
+      "projectClaudeMd": "项目级别的 Claude 记忆文件",
+      "claudeDirClaudeMd": ".claude 目录下的私有记忆文件",
+      "localClaudeMd": "本地覆盖的记忆文件",
+      "userGlobalClaudeMd": "用户全局的 Claude 记忆文件"
+    },
+    "loadFailed": "加载 Memory 失败",
+    "saveSuccess": "保存成功",
+    "saveSuccessDesc": "{{name}} 已更新",
+    "saveFailed": "保存失败",
+    "scanFailed": "扫描 Claude Memory 失败",
+    "unsavedChanges": "当前有未保存的更改，确定要切换吗？",
+    "confirmSwitch": "确认切换"
+  },
+  "commands": {
+    "scanFailed": "扫描 Commands 失败",
+    "noSelection": "未选择命令",
+    "noSelectionDesc": "从上方下拉框选择一个命令进行编辑，或创建一个新命令以开始。",
+    "createNew": "创建新命令",
+    "pluginScopeTitle": "插件作用域",
+    "pluginScopeDesc": "插件作用域的命令由插件提供，请前往插件页面管理插件命令。",
+    "goToPlugins": "前往插件页面",
+    "loading": "正在加载命令配置...",
+    "refresh": "刷新命令列表",
+    "selectCommand": "选择命令...",
+    "noCommandsFound": "未找到命令",
+    "lastModified": "最后修改",
+    "delete": "删除",
+    "deleteConfirm": "确认删除",
+    "deleteConfirmMessage": "确定要删除命令 \"{{name}}\" 吗？",
+    "cancel": "取消",
+    "saveSuccess": "保存成功",
+    "saveSuccessDesc": "Command \"{{name}}\" 已更新",
+    "saveFailed": "保存失败",
+    "deleteSuccess": "删除成功",
+    "deleteSuccessDesc": "\"{{name}}\" 已成功删除",
+    "deleteFailed": "删除失败",
+    "loadFailed": "加载 Command 失败",
+    "renameFailed": "重命名失败",
+    "filter": {
+      "searchPlaceholder": "搜索命令..."
+    }
+  },
+  "skills": {
+    "scanFailed": "扫描 Skills 失败",
+    "noSelection": "未选择技能",
+    "noSelectionDesc": "从上方下拉框选择一个技能进行编辑，或创建一个新技能以开始。",
+    "createNew": "创建新技能",
+    "pluginScopeTitle": "插件作用域",
+    "pluginScopeDesc": "插件作用域的技能由插件提供，请前往插件页面管理插件技能。",
+    "goToPlugins": "前往插件页面",
+    "loading": "正在加载技能配置...",
+    "enterName": "请输入技能名称",
+    "enterContent": "请输入技能内容",
+    "newSkill": "New Skill",
+    "save": "保存",
+    "saving": "保存中...",
+    "saveSuccess": "保存成功",
+    "saveSuccessDesc": "Skill \"{{name}}\" 已更新",
+    "createSuccess": "创建成功",
+    "createSuccessDesc": "Skill \"{{name}}\" 已创建",
+    "createFailed": "创建失败",
+    "saveFailed": "保存失败",
+    "deleteSuccess": "删除成功",
+    "deleteSuccessDesc": "\"{{name}}\" 已成功删除",
+    "deleteFailed": "删除失败",
+    "loadFailed": "加载 Skill 失败",
+    "renameFailed": "重命名失败",
+    "missingParams": "缺少必要参数",
+    "lastModified": "最后修改",
+    "cancel": "取消",
+    "delete": "删除",
+    "deleteConfirm": "确认删除",
+    "deleteConfirmMessage": "确定要删除 skill \"{{name}}\" 吗？"
+  },
+  "subAgents": {
+    "scanFailed": "扫描 Agents 失败",
+    "noSelection": "未选择代理",
+    "noSelectionDesc": "从上方下拉框选择一个代理进行编辑，或创建一个新代理以开始。",
+    "createNew": "创建新代理",
+    "pluginScopeTitle": "插件作用域",
+    "pluginScopeDesc": "插件作用域的代理由插件提供，请前往插件页面管理插件代理。",
+    "goToPlugins": "前往插件页面",
+    "loading": "正在加载代理配置...",
+    "enterName": "请输入代理名称",
+    "enterContent": "请输入代理内容",
+    "newAgent": "New Agent",
+    "save": "保存",
+    "saving": "保存中...",
+    "createSuccess": "创建成功",
+    "createSuccessDesc": "Agent \"{{name}}\" 已创建",
+    "createFailed": "创建失败",
+    "deleteSuccess": "删除成功",
+    "deleteSuccessDesc": "\"{{name}}\" 已成功删除",
+    "deleteFailed": "删除失败",
+    "loadFailed": "加载 Agent 失败",
+    "renameFailed": "重命名失败",
+    "missingParams": "缺少必要参数",
+    "lastModified": "最后修改",
+    "cancel": "取消",
+    "delete": "删除",
+    "deleteConfirm": "确认删除",
+    "deleteConfirmMessage": "确定要删除代理 \"{{name}}\" 吗？"
+  },
+  "mcpServers": {
+    "scanFailed": "扫描 MCP 服务器失败",
+    "loadFailed": "加载 MCP 服务器配置失败",
+    "loadConfigFailed": "加载 MCP 服务器配置失败",
+    "addSuccess": "MCP 服务器添加成功",
+    "addFailed": "添加 MCP 服务器失败",
+    "alreadyExists": "MCP 服务器 \"{{name}}\" 已存在",
+    "updateSuccess": "MCP 服务器更新成功",
+    "updateFailed": "更新 MCP 服务器失败",
+    "deleteSuccess": "MCP 服务器删除成功",
+    "deleteFailed": "删除 MCP 服务器失败",
+    "enabled": "MCP 服务器 \"{{name}}\" 已启用",
+    "disabled": "MCP 服务器 \"{{name}}\" 已禁用",
+    "toggleFailed": "切换服务器状态失败",
+    "enableAllSuccess": "已启用所有项目 MCP 服务器",
+    "disableAllSuccess": "已禁用所有项目 MCP 服务器",
+    "toggleAllFailed": "切换所有项目 MCP 服务器状态失败",
+    "enableAllLabel": "启用所有项目 MCP 服务器",
+    "loading": "正在加载 MCP 服务器配置...",
+    "addServer": "添加 MCP 服务器",
+    "noServers": "暂无 MCP 服务器配置",
+    "noServersDesc": "添加第一个 MCP 服务器来开始使用模型上下文协议功能",
+    "addFirstServer": "添加第一个 MCP 服务器",
+    "filter": {
+      "searchPlaceholder": "搜索 MCP 服务器..."
+    }
+  },
+  "hooks": {
+    "scanFailed": "扫描 Hooks 失败",
+    "loadFailed": "加载 Hooks 配置失败",
+    "loadConfigFailed": "加载 Hooks 配置失败",
+    "addSuccess": "Hook 添加成功",
+    "addFailed": "添加 Hook 失败",
+    "updateSuccess": "Hook 更新成功",
+    "updateFailed": "更新 Hook 失败",
+    "deleteSuccess": "Hook 删除成功",
+    "deleteFailed": "删除 Hook 失败",
+    "disableAllSuccess": "已禁用所有 Hooks",
+    "enableAllSuccess": "已启用所有 Hooks",
+    "toggleAllFailed": "切换所有 Hooks 状态失败",
+    "disableAllLabel": "禁用所有 Hooks",
+    "loading": "正在加载 Hooks 配置...",
+    "addHook": "添加 Hook",
+    "noHooks": "暂无 Hooks 配置",
+    "noHooksDesc": "添加第一个 Hook 来在特定事件发生时执行自定义操作",
+    "addFirstHook": "添加第一个 Hook",
+    "filter": {
+      "searchPlaceholder": "搜索 Hooks..."
+    }
+  },
+  "plugins": {
+    "scanFailed": "扫描插件失败",
+    "loadMarketplaceFailed": "加载插件市场失败",
+    "loadListFailed": "加载插件列表失败",
+    "addMarketplaceSuccess": "添加 marketplace 成功",
+    "addMarketplaceFailed": "添加 marketplace 失败",
+    "addMarketplaceError": "添加失败: {{error}}",
+    "enterSourceUrl": "请输入 marketplace 的 source 地址",
+    "marketplaceLabel": "插件市场:",
+    "all": "全部",
+    "selectMarketets": "选择市场",
+    "selectedCount": "已选择 {{count}} 个",
+    "addMarketplace": "添加 Marketplace",
+    "addMarketplaceDesc": "输入 marketplace 的 source 地址",
+    "sourceLabel": "Source 地址",
+    "sourcePlaceholder": "URL, 本地路径, 或 GitHub 仓库地址",
+    "sourceSupport": "支持: https://..., file://..., 或 owner/repo",
+    "cancel": "取消",
+    "add": "添加",
+    "adding": "添加中...",
+    "loading": "正在加载插件列表...",
+    "pluginList": "插件列表 ({{count}})",
+    "noPlugins": "暂无插件",
+    "noPluginsInMarket": "所选插件市场 中没有可用插件",
+    "noPluginsFound": "没有找到可用插件",
+    "filter": {
+      "searchPlaceholder": "按名称或描述搜索插件...",
+      "categories": "分类",
+      "marketplaces": "市场",
+      "allCategories": "全部分类",
+      "selectedCategories": "已选择 {{count}} 个",
+      "noResults": "没有找到匹配的插件",
+      "noResultsDesc": "请尝试调整筛选条件或添加更多 Marketplace"
+    }
+  },
+  "mcpServerDialog": {
+    "editTitle": "编辑 MCP 服务器",
+    "addTitle": "添加 MCP 服务器",
+    "dialogDescription": "配置 MCP 服务器的连接参数和启动设置",
+    "serverName": "服务器名称 *",
+    "serverNamePlaceholder": "请输入服务器名称",
+    "editNameDisabled": "编辑模式下不可修改服务器名称",
+    "scope": "作用域",
+    "scopePlaceholder": "选择作用域",
+    "editScopeDisabled": "编辑模式下不可修改作用域",
+    "scopeLockedByCurrentScope": "作用域已根据当前页面筛选锁定",
+    "serverType": "服务器类型",
+    "serverTypePlaceholder": "选择服务器类型",
+    "serverUrl": "服务器 URL *",
+    "serverUrlPlaceholder": "请输入 HTTP 服务器 URL (例如: http://localhost:3000/mcp)",
+    "httpHeaders": "HTTP 请求头",
+    "addHeader": "添加请求头",
+    "noHeaders": "暂无请求头配置",
+    "headerNamePlaceholder": "请求头名称",
+    "headerValuePlaceholder": "请求头值",
+    "startupCommand": "启动命令 *",
+    "startupCommandPlaceholder": "请输入完整的启动命令，包括参数（例如: node server.js --port 3000）",
+    "workingDirectory": "工作目录",
+    "workingDirectoryPlaceholder": "请输入工作目录（可选）",
+    "envVars": "环境变量",
+    "addEnv": "添加环境变量",
+    "noEnv": "暂无环境变量配置",
+    "envNamePlaceholder": "变量名",
+    "envValuePlaceholder": "变量值",
+    "description": "描述",
+    "descriptionPlaceholder": "请输入服务器描述（可选）",
+    "cancel": "取消",
+    "saving": "保存中...",
+    "save": "保存"
+  },
+  "hookDialog": {
+    "editTitle": "编辑 Hook",
+    "addTitle": "添加 Hook",
+    "description": "配置 Claude Hook 来在特定事件发生时执行自定义操作",
+    "eventType": "事件类型 *",
+    "eventTypePlaceholder": "选择事件类型",
+    "editEventDisabled": "编辑模式下不可修改事件类型",
+    "scope": "作用域",
+    "scopePlaceholder": "选择作用域",
+    "editScopeDisabled": "编辑模式下不可修改作用域",
+    "timeout": "超时时间（秒）",
+    "timeoutPlaceholder": "30",
+    "timeoutDescription": "可选，留空则无超时限制",
+    "matcher": "匹配器（可选）",
+    "matcherPlaceholder": "输入匹配器表达式，例如: tool_name 或 pattern",
+    "matcherDescription": "用于限制 Hook 触发条件的表达式，留空则匹配所有情况",
+    "hookType": "Hook 类型 *",
+    "commandType": "命令类型",
+    "promptType": "提示类型",
+    "executeCommand": "执行命令 *",
+    "executeCommandPlaceholder": "输入要执行的 bash 命令，例如: echo \"Hello World\"",
+    "executeCommandDescription": "Hook 触发时将执行此 bash 命令",
+    "llmPrompt": "LLM 提示 *",
+    "llmPromptPlaceholder": "输入要发送给 LLM 的提示内容",
+    "llmPromptDescription": "Hook 触发时将使用此提示调用 LLM 进行评估",
+    "cancel": "取消",
+    "saving": "保存中...",
+    "save": "保存",
+    "selectEventType": "请选择事件类型",
+    "selectScope": "请选择作用域",
+    "selectHookType": "请选择 Hook 类型",
+    "eventTypes": {
+      "PreToolUse": "工具使用前",
+      "PermissionRequest": "权限请求",
+      "PostToolUse": "工具使用后",
+      "Notification": "通知",
+      "UserPromptSubmit": "用户提交提示",
+      "Stop": "停止",
+      "SubagentStop": "子代理停止",
+      "PreCompact": "压缩前",
+      "SessionStart": "会话开始",
+      "SessionEnd": "会话结束"
+    }
+  },
+  "pluginToolsDialog": {
+    "title": "插件工具详情",
+    "toolsCount": "共 {{count}} 个工具",
+    "noTools": "该插件暂无工具",
+    "lastModified": "最后修改: {{date}}",
+    "type": "类型",
+    "command": "命令",
+    "url": "URL",
+    "description": "描述",
+    "overridden": "已覆盖",
+    "enabled": "已启用",
+    "hookType": "类型:",
+    "matcher": "匹配器:",
+    "commandLabel": "命令:",
+    "promptLabel": "提示:",
+    "timeoutLabel": "超时:"
+  },
+  "mcpServerItem": {
+    "overridden": "被覆盖",
+    "overriddenTooltip": "此服务器配置被更高优先级的作用域覆盖",
+    "cannotEditOverride": "此服务器被高优先级配置覆盖，无法编辑",
+    "cannotDeleteOverride": "此服务器被高优先级配置覆盖，无法删除",
+    "cannotEnableOverride": "此服务器被高优先级配置覆盖，无法修改启用状态",
+    "readonly": "只读",
+    "readonlyTooltip": "此配置由插件提供，无法修改",
+    "readonlyMode": "插件提供的配置为只读模式，无法修改",
+    "url": "URL:",
+    "command": "命令:",
+    "workingDirectory": "工作目录:",
+    "httpHeaders": "HTTP 请求头 ({{count}})",
+    "envVars": "环境变量 ({{count}})",
+    "copySuccess": "{{type}}已复制到剪贴板",
+    "copyFailed": "复制失败",
+    "confirmDelete": "确认删除",
+    "confirmDeleteMessage": "确定要删除 MCP 服务器 \"{{name}}\" 吗？此操作不可撤销。",
+    "delete": "删除",
+    "cancel": "取消"
+  },
+  "hookItem": {
+    "eventType": "事件类型:",
+    "commandType": "命令",
+    "promptType": "提示",
+    "matcher": "匹配器:",
+    "executeCommand": "执行命令:",
+    "llmPrompt": "LLM 提示:",
+    "timeout": "超时时间:",
+    "seconds": "{{seconds}} 秒",
+    "copySuccess": "{{type}}已复制到剪贴板",
+    "copyFailed": "复制失败",
+    "editHook": "编辑 Hook",
+    "confirmDelete": "确认删除",
+    "confirmDeleteMessage": "确定要删除 Hook \"{{name}}\" 吗？此操作不可撤销。",
+    "delete": "删除",
+    "cancel": "取消",
+    "readonly": "只读",
+    "readonlyTooltip": "此配置由插件提供，无法修改",
+    "readonlyMode": "插件提供的配置为只读模式，无法修改",
+    "eventTypes": {
+      "PreToolUse": "工具使用前",
+      "PermissionRequest": "权限请求",
+      "PostToolUse": "工具使用后",
+      "Notification": "通知",
+      "UserPromptSubmit": "用户提交提示",
+      "Stop": "停止",
+      "SubagentStop": "子代理停止",
+      "PreCompact": "压缩前",
+      "SessionStart": "会话开始",
+      "SessionEnd": "会话结束"
+    }
+  },
+  "pluginItem": {
+    "author": "作者:",
+    "unknown": "未知",
+    "installs": "安装量:",
+    "enablePlugin": "启用插件",
+    "disabling": "禁用中...",
+    "disablePlugin": "禁用插件",
+    "enabling": "启用中...",
+    "uninstallPlugin": "卸载插件",
+    "uninstalling": "卸载中...",
+    "installPlugin": "安装插件",
+    "installing": "安装中...",
+    "operationFailed": "操作失败",
+    "installFailed": "安装失败",
+    "uninstallFailed": "卸载失败",
+    "toggleFailed": "切换失败",
+    "unknownError": "未知错误",
+    "viewToolsDetails": "点击查看工具详情",
+    "selectInstallScope": "选择安装作用域",
+    "noCurrentScope": "插件当前作用域为空，无法切换",
+    "scopeMoved": "插件作用域已更新为 {{scope}}",
+    "moveScopeFailed": "更新插件作用域失败",
+    "scope": {
+      "local": "Local (本地)",
+      "localDesc": "项目目录/.claude/settings.local.json",
+      "project": "Project (项目)",
+      "projectDesc": "项目目录/.claude/settings.json",
+      "user": "User (全局)",
+      "userDesc": "~/.claude/settings.json"
+    }
+  }
+}

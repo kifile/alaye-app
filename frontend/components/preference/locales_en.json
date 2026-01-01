@@ -1,0 +1,26 @@
+{
+  "kvs": {
+    "add": "Add",
+    "edit": "Edit",
+    "delete": "Delete",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "key": "Key",
+    "value": "Value",
+    "noItems": "No items",
+    "noItemsHint": "Click the \"Add\" button below to create a new item",
+    "keyPlaceholder": "Key",
+    "valuePlaceholder": "Value",
+    "maxItemsError": "Maximum {{max}} items allowed",
+    "keyRequired": "Key is required",
+    "duplicateKey": "Key already exists, please use a different key",
+    "keyValidationError": "Key validation failed: {{error}}",
+    "valueValidationError": "Value validation failed: {{error}}",
+    "saveFailed": "Failed to save key-value pair configuration",
+    "unsavedChanges": "Confirm Save",
+    "unsavedChangesMessage": "Are you sure you want to save all changes?",
+    "discardChanges": "Discard",
+    "keepEditing": "Keep Editing"
+  }
+}

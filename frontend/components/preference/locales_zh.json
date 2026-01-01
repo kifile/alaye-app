@@ -1,0 +1,26 @@
+{
+  "kvs": {
+    "add": "添加",
+    "edit": "编辑",
+    "delete": "删除",
+    "save": "保存",
+    "cancel": "取消",
+    "confirm": "确认",
+    "key": "键",
+    "value": "值",
+    "noItems": "暂无配置项",
+    "noItemsHint": "点击下方\"添加\"按钮创建新的配置",
+    "keyPlaceholder": "键",
+    "valuePlaceholder": "值",
+    "maxItemsError": "最多支持 {{max}} 个配置项",
+    "keyRequired": "键不能为空",
+    "duplicateKey": "键已存在，请使用不同的键",
+    "keyValidationError": "键验证失败：{{error}}",
+    "valueValidationError": "值验证失败：{{error}}",
+    "saveFailed": "保存键值对配置失败",
+    "unsavedChanges": "确认保存",
+    "unsavedChangesMessage": "确定要保存所有更改吗？",
+    "discardChanges": "放弃",
+    "keepEditing": "继续编辑"
+  }
+}

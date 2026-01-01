@@ -1,0 +1,740 @@
+{
+  "title": "Projects",
+  "description": "View and manage all Claude projects",
+  "refresh": "Refresh Projects",
+  "refreshing": "Refreshing...",
+  "scanProjects": "Scan Projects",
+  "noProjects": "No Projects",
+  "noProjectsDesc": "No Claude projects found. Click the refresh button to scan for projects.",
+  "loadFailed": "Failed to load project list",
+  "unknownError": "Unknown error",
+  "networkError": "Network error",
+  "scanFailed": "Scan failed",
+  "scanError": "Error occurred while scanning projects",
+  "scanComplete": "Scan complete",
+  "scanCompleteDesc": "Project list has been updated",
+  "refreshFailed": "Refresh failed",
+  "detail": {
+    "loading": "Loading project details...",
+    "notFound": "Project Not Found",
+    "notFoundDesc": "The specified project could not be found. Please check if the project ID is correct.",
+    "noPathInfo": "No path information",
+    "selectConfig": "Please select a configuration item",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar",
+    "loadInfoFailed": "Failed to load project information",
+    "loadDataFailed": "Failed to load data",
+    "back": "Back",
+    "switcher": {
+      "loading": "Loading projects...",
+      "noProjects": "No projects available",
+      "selectProject": "Select project",
+      "loadFailed": "Failed to load projects"
+    },
+    "scopeSwitcher": {
+      "mixed": {
+        "label": "Mixed",
+        "description": "Show all scopes"
+      },
+      "user": {
+        "label": "User",
+        "description": "User global config"
+      },
+      "project": {
+        "label": "Project",
+        "description": "Project config"
+      },
+      "local": {
+        "label": "Local",
+        "description": "Local config"
+      },
+      "plugin": {
+        "label": "Plugin",
+        "description": "Plugin resources"
+      }
+    },
+    "scopeBadge": {
+      "user": {
+        "label": "User",
+        "description": "User global configuration, applies to all projects",
+        "path": "~/.claude/settings.json"
+      },
+      "project": {
+        "label": "Project",
+        "description": "Project-level configuration, applies only to the current project",
+        "path": "${PROJECT}/.claude/settings.json"
+      },
+      "local": {
+        "label": "Local",
+        "description": "Project local configuration, applies to the local instance of the current project",
+        "path": "${PROJECT}/.claude/settings.local.json"
+      },
+      "plugin": {
+        "label": "Plugin",
+        "description": "Resources provided by enabled plugins"
+      },
+      "noValue": "Configuration value is empty, cannot change scope",
+      "cannotChangeScope": "Configuration value is empty or updating, cannot change scope",
+      "currentScope": "Current scope: {{scope}}, click to change",
+      "selectScope": "Please select scope",
+      "scopeMoved": "Scope updated to {{scope}}",
+      "moveScopeFailed": "Failed to update scope",
+      "unknownError": "Unknown error",
+      "current": "Current"
+    },
+    "settings": {
+      "loadFailed": "Failed to load settings",
+      "settingsNotFound": "Settings file does not exist or is empty",
+      "updateFailed": "Update failed",
+      "unknownError": "Unknown error",
+      "updating": "Updating settings...",
+      "environment": {
+        "title": "Environment Variables",
+        "description": "Configure environment variables required for project runtime, such as API keys, HTTP_PROXY, proxy settings, etc.",
+        "currentScope": "Currently showing environment variables for {{scope}} scope.",
+        "user": {
+          "title": "User (User Global Configuration)",
+          "path": "~/.claude/settings.json",
+          "description": "User global environment variables, shared by all projects",
+          "keyPlaceholder": "Variable name (e.g., HTTP_PROXY)",
+          "valuePlaceholder": "Variable value (e.g., http://proxy.example.com:8080)",
+          "validation": {
+            "emptyName": "Variable name cannot be empty",
+            "invalidName": "Variable name must consist of uppercase letters, lowercase letters, numbers, and underscores, and start with a letter or underscore"
+          }
+        },
+        "project": {
+          "title": "Project (Project Configuration)",
+          "path": "${PROJECT}/.claude/settings.json",
+          "description": "Project-level environment variables, exclusive to this project",
+          "keyPlaceholder": "Variable name (e.g., API_KEY)",
+          "valuePlaceholder": "Variable value (e.g., sk-xxxxxxxx)",
+          "validation": {
+            "emptyName": "Variable name cannot be empty",
+            "invalidName": "Variable name must consist of uppercase letters, lowercase letters, numbers, and underscores, and start with a letter or underscore"
+          }
+        },
+        "local": {
+          "title": "Local (Local Configuration)",
+          "path": "${PROJECT}/.claude/settings.local.json",
+          "description": "Local environment variables with highest priority, not committed to version control",
+          "keyPlaceholder": "Variable name (e.g., DATABASE_URL)",
+          "valuePlaceholder": "Variable value (e.g., postgresql://localhost:5432/db)",
+          "validation": {
+            "emptyName": "Variable name cannot be empty",
+            "invalidName": "Variable name must consist of uppercase letters, lowercase letters, numbers, and underscores, and start with a letter or underscore"
+          }
+        }
+      },
+      "basic": {
+        "title": "Basic Settings",
+        "model": {
+          "title": "model",
+          "description": "Specify the AI model used by Claude, such as claude-sonnet-4-5-20250929",
+          "placeholder": "claude-sonnet-4-5-20250929"
+        },
+        "alwaysThinkingEnabled": {
+          "title": "alwaysThinkingEnabled",
+          "description": "Makes Claude think deeply and plan before each response, enabling this will affect response speed"
+        }
+      },
+      "permissions": {
+        "title": "Permissions Settings",
+        "subtitle": "Control Claude's permission system and access restrictions",
+        "controlList": {
+          "title": "Permission Control List",
+          "description": "Define which operations are allowed, asked, or denied",
+          "allow": {
+            "title": "allow",
+            "description": "These operations will be allowed without confirmation",
+            "placeholder": "Enter permission description"
+          },
+          "ask": {
+            "title": "ask",
+            "description": "These operations will require user confirmation before execution",
+            "placeholder": "Enter permission description"
+          },
+          "deny": {
+            "title": "deny",
+            "description": "These operations will be prohibited from execution",
+            "placeholder": "Enter permission description"
+          }
+        },
+        "modeConfig": {
+          "title": "Permission Mode Configuration",
+          "description": "Control the behavior mode of the permission system",
+          "defaultMode": {
+            "title": "defaultMode",
+            "description": "Set Claude's default permission behavior mode",
+            "placeholder": "Please select a permission mode",
+            "notSet": "Not set",
+            "options": {
+              "default": "Default mode",
+              "defaultDescription": "Standard permission behavior mode",
+              "acceptEdits": "Accept edits",
+              "acceptEditsDescription": "Automatically accept edit operations",
+              "plan": "Plan mode",
+              "planDescription": "Focus on planning and thinking",
+              "bypassPermissions": "Bypass permissions",
+              "bypassPermissionsDescription": "Bypass permission restrictions"
+            }
+          },
+          "disableBypassPermissionsMode": {
+            "title": "disableBypassPermissionsMode",
+            "description": "Control whether to disable permission bypass functionality",
+            "placeholder": "Please select a bypass mode",
+            "notSet": "Not set",
+            "options": {
+              "disable": "Disable bypass",
+              "disableDescription": "Disable permission bypass functionality"
+            }
+          }
+        },
+        "additionalDirectories": {
+          "title": "Additional Access Directories",
+          "description": "Configure additional paths to allow access",
+          "title2": "additionalDirectories",
+          "description2": "Additional directory paths that Claude is allowed to access",
+          "placeholder": "Enter directory path, e.g., /path/to/directory"
+        }
+      },
+      "sandbox": {
+        "title": "Sandbox Settings",
+        "subtitle": "Execute operations in a restricted environment to improve security",
+        "enabled": {
+          "title": "enabled",
+          "description": "Execute operations in a restricted environment to improve security"
+        },
+        "enabledMessage": "Sandbox mode is enabled. The following settings will control the specific behavior of the sandbox environment",
+        "notEnabledTitle": "Sandbox Status",
+        "notEnabledDescription": "Current runtime status of sandbox mode",
+        "notEnabledMessage": "Sandbox mode is not enabled",
+        "notEnabledDetail": "After enabling sandbox mode, you can configure the specific behavior of the sandbox environment, including command execution permissions, network access restrictions, and other security settings.",
+        "commandControl": {
+          "title": "Command Execution Control",
+          "description": "Control command execution behavior in the sandbox environment",
+          "autoAllowBashIfSandboxed": {
+            "title": "autoAllowBashIfSandboxed",
+            "description": "Automatically allow Bash command execution in sandbox environment"
+          },
+          "allowUnsandboxedCommands": {
+            "title": "allowUnsandboxedCommands",
+            "description": "Allow execution of specific commands in non-sandboxed environments"
+          },
+          "enableWeakerNestedSandbox": {
+            "title": "enableWeakerNestedSandbox",
+            "description": "Use weaker sandbox restrictions in nested environments"
+          }
+        },
+        "excludedCommands": {
+          "title": "Excluded Commands List",
+          "description": "Configure commands that cannot be executed in the sandbox",
+          "title2": "excludedCommands",
+          "description2": "Commands excluded from execution in the sandbox",
+          "placeholder": "Enter command name, e.g., rm, sudo",
+          "validation": {
+            "emptyName": "Command name cannot be empty",
+            "invalidName": "Command name can only contain letters, numbers, underscores, and hyphens"
+          }
+        },
+        "network": {
+          "title": "Network Access Control",
+          "subtitle": "Control network access permissions in the sandbox environment",
+          "basicControl": {
+            "title": "Network Basic Control",
+            "allowLocalBinding": {
+              "title": "allowLocalBinding",
+              "description": "Allow binding to local network ports in the sandbox"
+            }
+          },
+          "proxyConfig": {
+            "title": "Proxy Configuration",
+            "httpProxyPort": {
+              "title": "httpProxyPort",
+              "description": "Set the port number for the HTTP proxy service"
+            },
+            "socksProxyPort": {
+              "title": "socksProxyPort",
+              "description": "Set the port number for the SOCKS proxy service"
+            }
+          },
+          "unixSocket": {
+            "title": "Unix Sockets",
+            "allowUnixSockets": {
+              "title": "allowUnixSockets",
+              "description": "Unix socket paths allowed in the sandbox",
+              "placeholder": "Enter Unix socket path, e.g., /tmp/docker.sock"
+            },
+            "validation": {
+              "emptyPath": "Socket path cannot be empty",
+              "invalidPath": "Please enter a valid Unix socket path (ending with .sock)"
+            }
+          }
+        }
+      }
+    },
+    "editorTitle": {
+      "placeholder": "Command name...",
+      "scope": "Scope",
+      "scope_user": "User",
+      "scope_project": "Project",
+      "scope_local": "Local",
+      "scope_plugin": "Plugin",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "editTitle": "Edit title"
+    }
+  },
+  "card": {
+    "noPathInfo": "No path information",
+    "lastActive": "Last active:"
+  },
+  "sidebar": {
+    "title": "Claude Config",
+    "description": "Manage AI assistant configuration",
+    "sections": {
+      "memory": {
+        "title": "Memory",
+        "description": "Memory configuration"
+      },
+      "plugins": {
+        "title": "Plugins",
+        "description": "Plugin management"
+      },
+      "mcpServers": {
+        "title": "MCP Servers",
+        "description": "External services"
+      },
+      "commands": {
+        "title": "Commands",
+        "description": "Command tools"
+      },
+      "subAgents": {
+        "title": "Sub Agents",
+        "description": "AI agents"
+      },
+      "hooks": {
+        "title": "Hooks",
+        "description": "Event hooks"
+      },
+      "skills": {
+        "title": "Skills",
+        "description": "Skill packages"
+      },
+      "settings": {
+        "title": "Settings",
+        "description": "System settings"
+      }
+    }
+  },
+  "header": {
+    "memory": {
+      "title": "Claude Memory",
+      "description": "Manage Claude AI memory files and context configuration"
+    },
+    "mcpServers": {
+      "title": "MCP Servers",
+      "description": "Configure and manage Model Context Protocol (MCP) servers"
+    },
+    "commands": {
+      "title": "Commands",
+      "description": "Create and manage custom Slash commands"
+    },
+    "subAgents": {
+      "title": "Sub Agents",
+      "description": "Configure sub-agents with specific tools and permissions"
+    },
+    "hooks": {
+      "title": "Hooks",
+      "description": "Setup system event hooks and automation triggers"
+    },
+    "skills": {
+      "title": "Skills",
+      "description": "Define and load reusable AI skill packages"
+    },
+    "plugins": {
+      "title": "Plugins",
+      "description": "Manage and configure Claude plugin extensions"
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "Global app settings and personalized configuration"
+    }
+  },
+  "memory": {
+    "tabs": {
+      "projectClaudeMd": "CLAUDE.md",
+      "claudeDirClaudeMd": ".claude/CLAUDE.md",
+      "localClaudeMd": "CLAUDE.local.md",
+      "userGlobalClaudeMd": "~/.claude/CLAUDE.md"
+    },
+    "descriptions": {
+      "projectClaudeMd": "Project-level Claude memory file",
+      "claudeDirClaudeMd": "Private memory file in .claude directory",
+      "localClaudeMd": "Local override memory file",
+      "userGlobalClaudeMd": "User global Claude memory file"
+    },
+    "loadFailed": "Failed to load Memory",
+    "saveSuccess": "Saved successfully",
+    "saveSuccessDesc": "{{name}} has been updated",
+    "saveFailed": "Failed to save",
+    "scanFailed": "Failed to scan Claude Memory",
+    "unsavedChanges": "You have unsaved changes. Are you sure you want to switch?",
+    "confirmSwitch": "Confirm Switch"
+  },
+  "commands": {
+    "scanFailed": "Failed to scan Commands",
+    "noSelection": "No Command Selected",
+    "noSelectionDesc": "Select a command from the dropdown above to edit it, or create a new one to get started.",
+    "createNew": "Create New Command",
+    "pluginScopeTitle": "Plugin Scope",
+    "pluginScopeDesc": "Commands in the plugin scope are provided by plugins. Please go to the Plugins page to manage plugin commands.",
+    "goToPlugins": "Go to Plugins",
+    "loading": "Loading command configuration...",
+    "refresh": "Refresh commands list",
+    "selectCommand": "Select a command...",
+    "noCommandsFound": "No commands found",
+    "lastModified": "Last modified",
+    "delete": "Delete",
+    "deleteConfirm": "Confirm Delete",
+    "deleteConfirmMessage": "Are you sure you want to delete command \"{{name}}\"?",
+    "cancel": "Cancel",
+    "saveSuccess": "Saved successfully",
+    "saveSuccessDesc": "Command \"{{name}}\" has been updated",
+    "saveFailed": "Failed to save",
+    "deleteSuccess": "Deleted successfully",
+    "deleteSuccessDesc": "\"{{name}}\" has been deleted",
+    "deleteFailed": "Failed to delete",
+    "loadFailed": "Failed to load Command",
+    "renameFailed": "Failed to rename",
+    "filter": {
+      "searchPlaceholder": "Search commands..."
+    }
+  },
+  "skills": {
+    "scanFailed": "Failed to scan Skills",
+    "noSelection": "No Skill Selected",
+    "noSelectionDesc": "Select a skill from the dropdown above to edit it, or create a new one to get started.",
+    "createNew": "Create New Skill",
+    "pluginScopeTitle": "Plugin Scope",
+    "pluginScopeDesc": "Skills in the plugin scope are provided by plugins. Please go to the Plugins page to manage plugin skills.",
+    "goToPlugins": "Go to Plugins",
+    "loading": "Loading skill configuration...",
+    "enterName": "Please enter skill name",
+    "enterContent": "Please enter skill content",
+    "newSkill": "New Skill",
+    "save": "Save",
+    "saving": "Saving...",
+    "saveSuccess": "Saved successfully",
+    "saveSuccessDesc": "Skill \"{{name}}\" has been updated",
+    "createSuccess": "Created successfully",
+    "createSuccessDesc": "Skill \"{{name}}\" has been created",
+    "createFailed": "Failed to create",
+    "saveFailed": "Failed to save",
+    "deleteSuccess": "Deleted successfully",
+    "deleteSuccessDesc": "\"{{name}}\" has been deleted",
+    "deleteFailed": "Failed to delete",
+    "loadFailed": "Failed to load Skill",
+    "renameFailed": "Failed to rename",
+    "missingParams": "Missing required parameters",
+    "lastModified": "Last modified",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleteConfirm": "Confirm Delete",
+    "deleteConfirmMessage": "Are you sure you want to delete skill \"{{name}}\"?"
+  },
+  "subAgents": {
+    "scanFailed": "Failed to scan Agents",
+    "noSelection": "No Agent Selected",
+    "noSelectionDesc": "Select an agent from the dropdown above to edit it, or create a new one to get started.",
+    "createNew": "Create New Agent",
+    "pluginScopeTitle": "Plugin Scope",
+    "pluginScopeDesc": "Agents in the plugin scope are provided by plugins. Please go to the Plugins page to manage plugin agents.",
+    "goToPlugins": "Go to Plugins",
+    "loading": "Loading agent configuration...",
+    "enterName": "Please enter agent name",
+    "enterContent": "Please enter agent content",
+    "newAgent": "New Agent",
+    "save": "Save",
+    "saving": "Saving...",
+    "createSuccess": "Created successfully",
+    "createSuccessDesc": "Agent \"{{name}}\" has been created",
+    "createFailed": "Failed to create",
+    "deleteSuccess": "Deleted successfully",
+    "deleteSuccessDesc": "\"{{name}}\" has been deleted",
+    "deleteFailed": "Failed to delete",
+    "loadFailed": "Failed to load Agent",
+    "renameFailed": "Failed to rename",
+    "missingParams": "Missing required parameters",
+    "lastModified": "Last modified",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleteConfirm": "Confirm Delete",
+    "deleteConfirmMessage": "Are you sure you want to delete agent \"{{name}}\"?"
+  },
+  "mcpServers": {
+    "scanFailed": "Failed to scan MCP Servers",
+    "loadFailed": "Failed to load MCP server configuration",
+    "loadConfigFailed": "Failed to load MCP server configuration",
+    "addSuccess": "MCP server added successfully",
+    "addFailed": "Failed to add MCP server",
+    "alreadyExists": "MCP server \"{{name}}\" already exists",
+    "updateSuccess": "MCP server updated successfully",
+    "updateFailed": "Failed to update MCP server",
+    "deleteSuccess": "MCP server deleted successfully",
+    "deleteFailed": "Failed to delete MCP server",
+    "enabled": "MCP server \"{{name}}\" enabled",
+    "disabled": "MCP server \"{{name}}\" disabled",
+    "toggleFailed": "Failed to toggle server status",
+    "enableAllSuccess": "Enabled all project MCP servers",
+    "disableAllSuccess": "Disabled all project MCP servers",
+    "toggleAllFailed": "Failed to toggle all project MCP servers",
+    "enableAllLabel": "Enable all project MCP servers",
+    "loading": "Loading MCP server configuration...",
+    "addServer": "Add MCP Server",
+    "noServers": "No MCP Server Configuration",
+    "noServersDesc": "Add your first MCP server to start using Model Context Protocol features",
+    "addFirstServer": "Add First MCP Server",
+    "filter": {
+      "searchPlaceholder": "Search MCP servers..."
+    }
+  },
+  "hooks": {
+    "scanFailed": "Failed to scan Hooks",
+    "loadFailed": "Failed to load Hooks configuration",
+    "loadConfigFailed": "Failed to load Hooks configuration",
+    "addSuccess": "Hook added successfully",
+    "addFailed": "Failed to add Hook",
+    "updateSuccess": "Hook updated successfully",
+    "updateFailed": "Failed to update Hook",
+    "deleteSuccess": "Hook deleted successfully",
+    "deleteFailed": "Failed to delete Hook",
+    "disableAllSuccess": "Disabled all Hooks",
+    "enableAllSuccess": "Enabled all Hooks",
+    "toggleAllFailed": "Failed to toggle all Hooks status",
+    "disableAllLabel": "Disable all Hooks",
+    "loading": "Loading Hooks configuration...",
+    "addHook": "Add Hook",
+    "noHooks": "No Hooks Configuration",
+    "noHooksDesc": "Add your first Hook to perform custom actions when specific events occur",
+    "addFirstHook": "Add First Hook",
+    "filter": {
+      "searchPlaceholder": "Search hooks..."
+    }
+  },
+  "plugins": {
+    "scanFailed": "Failed to scan Plugins",
+    "loadMarketplaceFailed": "Failed to load plugin marketplaces",
+    "loadListFailed": "Failed to load plugin list",
+    "addMarketplaceSuccess": "Marketplace added successfully",
+    "addMarketplaceFailed": "Failed to add marketplace",
+    "addMarketplaceError": "Add failed: {{error}}",
+    "enterSourceUrl": "Please enter marketplace source URL",
+    "marketplaceLabel": "Plugin Market:",
+    "all": "All",
+    "selectMarketets": "Select markets",
+    "selectedCount": "{{count}} selected",
+    "addMarketplace": "Add Marketplace",
+    "addMarketplaceDesc": "Enter marketplace source address",
+    "sourceLabel": "Source URL",
+    "sourcePlaceholder": "URL, local path, or GitHub repository address",
+    "sourceSupport": "Supports: https://..., file://..., or owner/repo",
+    "cancel": "Cancel",
+    "add": "Add",
+    "adding": "Adding...",
+    "loading": "Loading plugin list...",
+    "pluginList": "Plugin List ({{count}})",
+    "noPlugins": "No Plugins",
+    "noPluginsInMarket": "No available plugins in selected plugin markets",
+    "noPluginsFound": "No available plugins found",
+    "filter": {
+      "searchPlaceholder": "Search plugins by name or description...",
+      "categories": "Categories",
+      "marketplaces": "Marketplaces",
+      "allCategories": "All Categories",
+      "selectedCategories": "{{count}} selected",
+      "noResults": "No plugins found matching your filters",
+      "noResultsDesc": "Try adjusting your filters or add more Marketplaces"
+    }
+  },
+  "mcpServerDialog": {
+    "editTitle": "Edit MCP Server",
+    "addTitle": "Add MCP Server",
+    "dialogDescription": "Configure MCP server connection parameters and startup settings",
+    "serverName": "Server Name *",
+    "serverNamePlaceholder": "Enter server name",
+    "editNameDisabled": "Cannot modify server name in edit mode",
+    "scope": "Scope",
+    "scopePlaceholder": "Select scope",
+    "editScopeDisabled": "Cannot modify scope in edit mode",
+    "scopeLockedByCurrentScope": "Scope locked by current page filter",
+    "serverType": "Server Type",
+    "serverTypePlaceholder": "Select server type",
+    "serverUrl": "Server URL *",
+    "serverUrlPlaceholder": "Enter HTTP server URL (e.g., http://localhost:3000/mcp)",
+    "httpHeaders": "HTTP Headers",
+    "addHeader": "Add Header",
+    "noHeaders": "No headers configured",
+    "headerNamePlaceholder": "Header name",
+    "headerValuePlaceholder": "Header value",
+    "startupCommand": "Startup Command *",
+    "startupCommandPlaceholder": "Enter complete startup command with arguments (e.g., node server.js --port 3000)",
+    "workingDirectory": "Working Directory",
+    "workingDirectoryPlaceholder": "Enter working directory (optional)",
+    "envVars": "Environment Variables",
+    "addEnv": "Add Environment Variable",
+    "noEnv": "No environment variables configured",
+    "envNamePlaceholder": "Variable name",
+    "envValuePlaceholder": "Variable value",
+    "description": "Description",
+    "descriptionPlaceholder": "Enter server description (optional)",
+    "cancel": "Cancel",
+    "saving": "Saving...",
+    "save": "Save"
+  },
+  "hookDialog": {
+    "editTitle": "Edit Hook",
+    "addTitle": "Add Hook",
+    "description": "Configure Claude Hook to execute custom actions when specific events occur",
+    "eventType": "Event Type *",
+    "eventTypePlaceholder": "Select event type",
+    "editEventDisabled": "Cannot modify event type in edit mode",
+    "scope": "Scope",
+    "scopePlaceholder": "Select scope",
+    "editScopeDisabled": "Cannot modify scope in edit mode",
+    "timeout": "Timeout (seconds)",
+    "timeoutPlaceholder": "30",
+    "timeoutDescription": "Optional, leave empty for no timeout",
+    "matcher": "Matcher (optional)",
+    "matcherPlaceholder": "Enter matcher expression, e.g., tool_name or pattern",
+    "matcherDescription": "Expression to limit Hook trigger conditions, leave empty to match all",
+    "hookType": "Hook Type *",
+    "commandType": "Command Type",
+    "promptType": "Prompt Type",
+    "executeCommand": "Execute Command *",
+    "executeCommandPlaceholder": "Enter bash command to execute, e.g., echo \"Hello World\"",
+    "executeCommandDescription": "This bash command will be executed when Hook triggers",
+    "llmPrompt": "LLM Prompt *",
+    "llmPromptPlaceholder": "Enter prompt content to send to LLM",
+    "llmPromptDescription": "This prompt will be used to call LLM for evaluation when Hook triggers",
+    "cancel": "Cancel",
+    "saving": "Saving...",
+    "save": "Save",
+    "selectEventType": "Please select event type",
+    "selectScope": "Please select scope",
+    "selectHookType": "Please select Hook type",
+    "eventTypes": {
+      "PreToolUse": "Pre Tool Use",
+      "PermissionRequest": "Permission Request",
+      "PostToolUse": "Post Tool Use",
+      "Notification": "Notification",
+      "UserPromptSubmit": "User Prompt Submit",
+      "Stop": "Stop",
+      "SubagentStop": "Subagent Stop",
+      "PreCompact": "Pre Compact",
+      "SessionStart": "Session Start",
+      "SessionEnd": "Session End"
+    }
+  },
+  "pluginToolsDialog": {
+    "title": "Plugin Tools Details",
+    "toolsCount": "{{count}} tools total",
+    "noTools": "This plugin has no tools",
+    "lastModified": "Last modified: {{date}}",
+    "type": "Type",
+    "command": "Command",
+    "url": "URL",
+    "description": "Description",
+    "overridden": "Overridden",
+    "enabled": "Enabled",
+    "hookType": "Type:",
+    "matcher": "Matcher:",
+    "commandLabel": "Command:",
+    "promptLabel": "Prompt:",
+    "timeoutLabel": "Timeout:"
+  },
+  "mcpServerItem": {
+    "overridden": "Overridden",
+    "overriddenTooltip": "This server configuration is overridden by a higher priority scope",
+    "cannotEditOverride": "This server is overridden by higher priority configuration, cannot edit",
+    "cannotDeleteOverride": "This server is overridden by higher priority configuration, cannot delete",
+    "cannotEnableOverride": "This server is overridden by higher priority configuration, cannot modify enabled state",
+    "readonly": "Readonly",
+    "readonlyTooltip": "This configuration is provided by plugin and cannot be modified",
+    "readonlyMode": "Plugin-provided configuration is readonly and cannot be modified",
+    "url": "URL:",
+    "command": "Command:",
+    "workingDirectory": "Working Directory:",
+    "httpHeaders": "HTTP Headers ({{count}})",
+    "envVars": "Environment Variables ({{count}})",
+    "copySuccess": "{{type}} copied to clipboard",
+    "copyFailed": "Copy failed",
+    "confirmDelete": "Confirm Delete",
+    "confirmDeleteMessage": "Are you sure you want to delete MCP server \"{{name}}\"? This action cannot be undone.",
+    "delete": "Delete",
+    "cancel": "Cancel"
+  },
+  "hookItem": {
+    "eventType": "Event Type:",
+    "commandType": "Command",
+    "promptType": "Prompt",
+    "matcher": "Matcher:",
+    "executeCommand": "Execute Command:",
+    "llmPrompt": "LLM Prompt:",
+    "timeout": "Timeout:",
+    "seconds": "{{seconds}}s",
+    "copySuccess": "{{type}} copied to clipboard",
+    "copyFailed": "Copy failed",
+    "editHook": "Edit Hook",
+    "confirmDelete": "Confirm Delete",
+    "confirmDeleteMessage": "Are you sure you want to delete Hook \"{{name}}\"? This action cannot be undone.",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "readonly": "Readonly",
+    "readonlyTooltip": "This configuration is provided by plugin and cannot be modified",
+    "readonlyMode": "Plugin-provided configuration is readonly and cannot be modified",
+    "eventTypes": {
+      "PreToolUse": "Pre Tool Use",
+      "PermissionRequest": "Permission Request",
+      "PostToolUse": "Post Tool Use",
+      "Notification": "Notification",
+      "UserPromptSubmit": "User Prompt Submit",
+      "Stop": "Stop",
+      "SubagentStop": "Subagent Stop",
+      "PreCompact": "Pre Compact",
+      "SessionStart": "Session Start",
+      "SessionEnd": "Session End"
+    }
+  },
+  "pluginItem": {
+    "author": "Author:",
+    "unknown": "Unknown",
+    "installs": "Installs:",
+    "enablePlugin": "Enable Plugin",
+    "disabling": "Disabling...",
+    "disablePlugin": "Disable Plugin",
+    "enabling": "Enabling...",
+    "uninstallPlugin": "Uninstall Plugin",
+    "uninstalling": "Uninstalling...",
+    "installPlugin": "Install Plugin",
+    "installing": "Installing...",
+    "operationFailed": "Operation Failed",
+    "installFailed": "Install Failed",
+    "uninstallFailed": "Uninstall Failed",
+    "toggleFailed": "Toggle Failed",
+    "unknownError": "Unknown Error",
+    "viewToolsDetails": "Click to view tools details",
+    "selectInstallScope": "Select Installation Scope",
+    "noCurrentScope": "Plugin current scope is empty, cannot change",
+    "scopeMoved": "Plugin scope updated to {{scope}}",
+    "moveScopeFailed": "Failed to update plugin scope",
+    "scope": {
+      "local": "Local",
+      "localDesc": "Project directory/.claude/settings.local.json",
+      "project": "Project",
+      "projectDesc": "Project directory/.claude/settings.json",
+      "user": "User",
+      "userDesc": "~/.claude/settings.json"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "title": "Settings",
+  "language": "Language",
+  "languageDescription": "Select application interface language",
+  "npmPath": "NPM Path",
+  "npmNotInstalled": "NPM is not properly installed or configured. Install from ",
+  "npmInstalled": "NPM installed, version: {{version}}",
+  "npmInstalledSimple": "NPM installed",
+  "nodejsWebsite": "nodejs.org",
+  "claudePath": "Claude Desktop Path",
+  "claudeNotInstalled": "Claude Desktop is not properly installed or configured. Install from ",
+  "claudeInstalled": "Claude Desktop installed, version: {{version}}",
+  "claudeInstalledSimple": "Claude Desktop installed",
+  "claudeWebsite": "claude.com",
+  "selectNpmExecutable": "Select NPM executable",
+  "selectClaudeApp": "Select Claude Desktop application",
+  "configSaveSuccess": "Configuration saved successfully",
+  "configSaveFailed": "Failed to save configuration: {{error}}",
+  "configSaveRetry": "Failed to save configuration, please try again",
+  "toolNotConfigured": "Tool not properly configured",
+  "savingConfig": "Saving...",
+  "saveFailedRetry": "Save failed, please retry"
+}
