@@ -1,4 +1,5 @@
 @echo off
+setlocal EnableDelayedExpansion
 echo Building pywebview application with Nuitka...
 echo.
 
@@ -55,18 +56,39 @@ nuitka ^
     --windows-icon-from-ico=assets/icon.ico ^
     main.py
 
-if errorlevel 1 (
+echo.
+echo ============================================================================
+echo.
+
+if not exist "build\alaye.exe" (
+    echo ERROR: Executable not found at build\alaye.exe
     echo.
-    echo Build failed! Please check the error messages above.
     pause
     exit /b 1
-) else (
-    echo.
-    echo Build completed successfully!
-    echo Executable location: build\alaye.exe
-    echo.
-    echo To run the application:
-    echo   build\alaye.exe
 )
 
+echo Build completed successfully!
+echo Executable location: build\alaye.exe
+echo.
+echo.
+
+REM Create ZIP package
+echo Creating ZIP package...
+echo.
+
+uv run python scripts/create_zip.py build/alaye.exe build
+
+echo.
+echo ============================================================================
+echo.
+
+if exist "build\alaye-windows-*.zip" (
+    echo ZIP package created successfully!
+    echo Check the build directory for the ZIP file.
+) else (
+    echo Warning: ZIP creation may have failed.
+    echo But executable was created successfully at build\alaye.exe
+)
+
+echo.
 pause
