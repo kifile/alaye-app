@@ -71,6 +71,7 @@ $nuitkaArgs = @(
     "--assume-yes-for-downloads",
     "--enable-plugin=pywebview",
     "--include-data-dir=frontend/out=frontend/out",
+    "--windows-icon-from-ico=assets/icon.ico",
     "main.py"
 )
 

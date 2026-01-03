@@ -1,3 +1,7 @@
+<p align="center">
+  <img width="150" src="assets/icon.ico" />
+</p>
+
 # Alaye App
 
 **English** | [**简体中文**](README_zh.md)
@@ -34,7 +38,7 @@ Alaye App integrates a modern user interface with powerful backend services, hel
 
 ```bash
 git clone <repository-url>
-cd alaye-release
+cd alaye-app
 ```
 
 ### 2. Install Dependencies
@@ -59,7 +63,7 @@ cp .env.example .env
 ```
 
 Main configuration items in `.env` file:
-- `APP_ENV`: Runtime mode (`development`/`export`/`browser`)
+- `ALAYE_APP_ENV`: Runtime mode (`development`/`export`/`browser`)
 - `PORT`: Development server port (default 3000)
 
 ### 4. Run the Application
@@ -70,7 +74,7 @@ Main configuration items in `.env` file:
 # Terminal 1: Start frontend
 cd frontend && npm run dev
 
-# Terminal 2: Start backend (make sure APP_ENV=development in .env)
+# Terminal 2: Start backend (make sure ALAYE_APP_ENV=development in .env)
 python main.py
 ```
 
@@ -87,7 +91,7 @@ uv run python main.py
 **Browser Mode** (for web testing):
 
 ```bash
-# Set APP_ENV=browser in .env, then start
+# Set ALAYE_APP_ENV=browser in .env, then start
 uv run python main.py
 
 # Visit http://127.0.0.1:8000
@@ -135,3 +139,10 @@ Issues and Pull Requests are welcome!
 ## Support
 
 For questions or suggestions, please contact us through GitHub Issues.
+
+## Acknowledgments
+
+We would like to express our sincere gratitude to the following tools and services that helped make this project possible:
+
+- **[Claude Code](https://claude.com/claude-code)** - For providing powerful AI-assisted coding capabilities that significantly accelerated our development process
+- **[Doubao](https://www.doubao.com/)** - For generating the beautiful application icon used throughout the project
