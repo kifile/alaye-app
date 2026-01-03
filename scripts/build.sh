@@ -85,12 +85,32 @@ uv run nuitka \
     --include-data-dir=frontend/out=frontend/out \
     main.py
 
-# For macOS: Rename the app bundle if needed
-# Nuitka names the bundle after the input file (main.py -> main.app)
-# We need to rename it to the desired name
-if [ "$OS" = "Darwin" ] && [ -d "build/main.app" ]; then
-    echo -e "${CYAN}Renaming main.app to $EXECUTABLE_NAME...${NC}"
-    mv "build/main.app" "build/$EXECUTABLE_NAME"
+# For macOS: Setup app bundle with login shell wrapper
+if [ "$OS" = "Darwin" ]; then
+    if [ -d "build/main.app" ]; then
+        echo -e "${CYAN}Renaming main.app to $EXECUTABLE_NAME...${NC}"
+        mv "build/main.app" "build/$EXECUTABLE_NAME"
+    fi
+
+    # Setup login shell wrapper for macOS app
+    APP_MACOS_PATH="build/$EXECUTABLE_NAME/Contents/MacOS"
+    BINARY_PATH="$APP_MACOS_PATH/main"
+
+    if [ -f "$BINARY_PATH" ]; then
+        echo -e "${CYAN}Setting up login shell wrapper for macOS app...${NC}"
+
+        # Rename the binary executable to main.bin
+        mv "$BINARY_PATH" "$APP_MACOS_PATH/main.bin"
+
+        # Copy the wrapper script to main
+        cp "scripts/macos_app_launcher.sh" "$BINARY_PATH"
+
+        # Make the wrapper executable
+        chmod +x "$BINARY_PATH"
+
+        echo -e "${GREEN}Login shell wrapper installed successfully!${NC}"
+        echo -e "${CYAN}The app will now launch with your shell environment (.zshrc, .bash_profile, etc.)${NC}"
+    fi
 fi
 
 if [ $? -eq 0 ]; then
