@@ -35,7 +35,7 @@ from src.terminal.terminal_manager_service import get_terminal_manager
 load_dotenv()
 
 # 解决 Linux 下 Qt WebEngine 样式渲染问题
-if os.getenv("APP_ENV", "").lower() != "browser" and sys.platform.startswith("linux"):
+if os.getenv("ALAYE_APP_ENV", "").lower() != "browser" and sys.platform.startswith("linux"):
     # 强制使用 Qt 后端
     os.environ["PYWEBVIEW_GUI"] = "qt"
 
@@ -116,7 +116,7 @@ def get_app_url():
     """根据环境判断使用的 URL"""
 
     # 检查是否设置了环境变量
-    env_mode = os.getenv("APP_ENV", "").lower()
+    env_mode = os.getenv("ALAYE_APP_ENV", "").lower()
 
     if env_mode == "browser":
         # FastAPI 模式：不在窗口中运行，只需启动 FastAPI 服务器
@@ -319,7 +319,7 @@ def run_pywebview_mode(app_url):
 def main():
     """主函数"""
     app_url = get_app_url()
-    env_mode = os.getenv("APP_ENV", "").lower()
+    env_mode = os.getenv("ALAYE_APP_ENV", "").lower()
 
     if env_mode == "browser":
         # FastAPI 模式

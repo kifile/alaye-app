@@ -1,3 +1,7 @@
+<p align="center">
+  <img width="150" src="assets/icon.ico" />
+</p>
+
 # Alaye App
 
 [**English**](README.md) | **简体中文**
@@ -34,7 +38,7 @@ Alaye App 集成了现代化的用户界面和强大的后端服务，帮助开�
 
 ```bash
 git clone <repository-url>
-cd alaye-release
+cd alaye-app
 ```
 
 ### 2. 安装依赖
@@ -59,7 +63,7 @@ cp .env.example .env
 ```
 
 `.env` 文件中的主要配置项：
-- `APP_ENV`: 运行模式（`development`/`export`/`browser`）
+- `ALAYE_APP_ENV`: 运行模式（`development`/`export`/`browser`）
 - `PORT`: 开发服务器端口（默认 3000）
 
 ### 4. 运行应用
@@ -70,7 +74,7 @@ cp .env.example .env
 # 终端 1：启动前端
 cd frontend && npm run dev
 
-# 终端 2：启动后端（确保 .env 中 APP_ENV=development）
+# 终端 2：启动后端（确保 .env 中 ALAYE_APP_ENV=development）
 python main.py
 ```
 
@@ -87,7 +91,7 @@ uv run python main.py
 **浏览器模式**（Web 测试）：
 
 ```bash
-# 设置 .env 中 APP_ENV=browser，然后启动
+# 设置 .env 中 ALAYE_APP_ENV=browser，然后启动
 uv run python main.py
 
 # 访问 http://127.0.0.1:8000
@@ -135,3 +139,10 @@ scripts\build.ps1            # Windows (PowerShell)
 ## 支持
 
 如有问题或建议，请通过 GitHub Issues 联系我们。
+
+## 致谢
+
+我们要衷心感谢以下工具和服务对本项目的帮助：
+
+- **[Claude Code](https://claude.com/claude-code)** - 感谢提供强大的 AI 辅助编程能力，极大地加速了我们的开发进程
+- **[Doubao](https://www.doubao.com/)** - 感谢生成了项目中使用的精美应用图标

@@ -29,7 +29,7 @@ def _get_default_db_path() -> str:
 
 
 # 数据库配置 - 使用SQLite
-DATABASE_URL = os.getenv("DATABASE_URL", _get_default_db_path())
+DATABASE_URL = _get_default_db_path()
 
 # 创建异步数据库引擎
 engine = create_async_engine(
@@ -69,10 +69,6 @@ async def init_db():
     db_path = DATABASE_URL.replace("sqlite+aiosqlite:///", "")
     print(f"[Database] Initializing database at: {db_path}")
     print(f"[Database] Database file exists: {Path(db_path).exists()}")
-
-    # 检查环境变量
-    if "DATABASE_URL" in os.environ:
-        print(f"[Database] Using DATABASE_URL from environment variable")
 
     # 确保数据目录存在（支持通过环境变量自定义路径的情况）
     db_dir = os.path.dirname(db_path)

@@ -4,8 +4,9 @@ Claude 插件市场操作模块
 """
 
 import hashlib
+import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -948,6 +949,7 @@ class ClaudePluginOperations:
 
         在旧作用域的 settings.json 中将插件从 enabledPlugins 中移除，
         然后在新作用域的 settings.json 中将插件添加到 enabledPlugins。
+        同时更新 installed_plugins.json 中的插件安装记录。
 
         保持插件在新作用域中的启用状态一致。
 
@@ -1016,6 +1018,8 @@ class ClaudePluginOperations:
 
         # 然后在新作用域中设置启用状态
         try:
+            # 更新 installed_plugins.json 中的插件安装记录
+            self._update_installed_plugins_scope(plugin_name, old_scope, new_scope)
             update_config(
                 new_settings_file,
                 key_path=["enabledPlugins"],
@@ -1027,11 +1031,12 @@ class ClaudePluginOperations:
                 f"插件 {plugin_name} 已添加到 {new_scope} 作用域，启用状态: {new_enabled}"
             )
         except Exception as e:
-            # 如果新作用域添加失败，尝试回滚（恢复旧作用域的启用状态）
+            # 如果新作用域添加失败，尝试回滚（恢复旧作用域的启用状态和 installed_plugins.json）
             logger.error(
                 f"添加插件 {plugin_name} 到 {new_scope} 作用域失败，尝试回滚: {e}"
             )
             try:
+                # 回滚 settings.json
                 update_config(
                     old_settings_file,
                     key_path=["enabledPlugins"],
@@ -1039,6 +1044,8 @@ class ClaudePluginOperations:
                     value=old_enabled,
                     split_key=False,
                 )
+                # 回滚 installed_plugins.json
+                self._update_installed_plugins_scope(plugin_name, new_scope, old_scope)
                 logger.info(
                     f"插件 {plugin_name} 已回滚到 {old_scope} 作用域，启用状态: {old_enabled}"
                 )
@@ -1047,6 +1054,93 @@ class ClaudePluginOperations:
             raise ValueError(
                 f"添加插件 {plugin_name} 到 {new_scope} 作用域失败: {e}"
             ) from e
+
+    def _update_installed_plugins_scope(
+        self, plugin_name: str, old_scope: ConfigScope, new_scope: ConfigScope
+    ) -> None:
+        """
+        更新 installed_plugins.json 中插件的作用域
+
+        Args:
+            plugin_name: 插件名称，格式为 "plugin@marketplace"
+            old_scope: 旧的作用域
+            new_scope: 新的作用域
+
+        Raises:
+            ValueError: 当文件操作失败时抛出异常
+        """
+        installed_plugins_file = (
+            self.user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+
+        if not installed_plugins_file.exists():
+            logger.warning(
+                f"installed_plugins.json 不存在，跳过更新: {installed_plugins_file}"
+            )
+            return
+
+        # 加载配置
+        config = load_config(installed_plugins_file)
+
+        # 获取插件的安装记录列表
+        plugins = config.get("plugins", {})
+        plugin_records = plugins.get(plugin_name, [])
+
+        if not plugin_records:
+            logger.warning(f"插件 {plugin_name} 在 installed_plugins.json 中没有记录")
+            return
+
+        # 查找并更新匹配当前项目的记录
+        updated = False
+        project_path_str = str(self.project_path)
+
+        for record in plugin_records:
+            record_scope = record.get("scope")
+            record_project_path = record.get("projectPath")
+
+            # 检查是否匹配旧作用域和项目路径
+            # user 作用域的记录没有 projectPath
+            if old_scope == record_scope and (
+                (old_scope == ConfigScope.user and record_project_path is None)
+                or (
+                    old_scope != ConfigScope.user
+                    and record_project_path == project_path_str
+                )
+            ):
+                # 更新 scope
+                record["scope"] = new_scope
+
+                # 更新 projectPath
+                if new_scope == ConfigScope.user:
+                    # 新作用域是 user，移除 projectPath
+                    record.pop("projectPath", None)
+                elif old_scope == ConfigScope.user:
+                    # 旧作用域是 user，添加 projectPath
+                    record["projectPath"] = project_path_str
+                # 否则（local/project 之间切换），projectPath 保持不变
+
+                # 更新 lastUpdated 时间
+                record["lastUpdated"] = datetime.now(timezone.utc).strftime(
+                    "%Y-%m-%dT%H:%M:%S.%fZ"
+                )
+
+                updated = True
+                logger.info(
+                    f"已更新插件 {plugin_name} 的作用域: {old_scope} -> {new_scope}"
+                )
+                break
+
+        if not updated:
+            logger.warning(f"未找到插件 {plugin_name} 在作用域 {old_scope} 的安装记录")
+            return
+
+        # 保存配置
+        try:
+            installed_plugins_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(installed_plugins_file, "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            raise ValueError(f"保存 installed_plugins.json 失败: {e}") from e
 
     def _scan_plugins_with_tools(
         self,

@@ -158,10 +158,11 @@ export function PluginItem({ plugin, projectId, onPluginChange }: PluginItemProp
     setLoading(true);
     setErrorResult(null);
     try {
+      const scope = plugin.enabled_scope || ('local' as ConfigScope);
       const result = await uninstallClaudePlugin({
         project_id: projectId,
         plugin_name: pluginFullName,
-        scope: ConfigScope.LOCAL,
+        scope,
       });
 
       if (result.success && result.data?.success) {
