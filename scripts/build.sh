@@ -51,12 +51,14 @@ echo -e "${CYAN}Starting Nuitka compilation...${NC}"
 echo ""
 
 # Detect platform and set appropriate options
-NUITKA_MODE=”--onefile“
+NUITKA_MODE="--onefile"
 OS=$(uname -s)
 case "$OS" in
     Linux*)
         EXECUTABLE_NAME="alaye"
-        EXTRA_ARGS="--output-filename=$EXECUTABLE_NAME"
+        # Enable both pywebview and PyQt6 plugins, and include Qt platform plugins
+        # Based on Nuitka best practices for Qt applications
+        EXTRA_ARGS="--output-filename=$EXECUTABLE_NAME --enable-plugin=pyqt6 --include-qt-plugins=platforms"
         ;;
     Darwin*)
         # macOS needs --mode=app for pywebview with Foundation framework
