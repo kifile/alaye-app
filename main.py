@@ -35,7 +35,9 @@ from src.terminal.terminal_manager_service import get_terminal_manager
 load_dotenv()
 
 # 解决 Linux 下 Qt WebEngine 样式渲染问题
-if os.getenv("ALAYE_APP_ENV", "").lower() != "browser" and sys.platform.startswith("linux"):
+if os.getenv("ALAYE_APP_ENV", "").lower() != "browser" and sys.platform.startswith(
+    "linux"
+):
     # 强制使用 Qt 后端
     os.environ["PYWEBVIEW_GUI"] = "qt"
 

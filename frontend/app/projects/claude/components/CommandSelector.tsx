@@ -95,7 +95,7 @@ export function CommandSelector({
       <Button
         variant='outline'
         size='icon'
-        onClick={onRefresh}
+        onClick={() => onRefresh?.()}
         title='Refresh commands list'
       >
         <RefreshCw className='h-4 w-4' />

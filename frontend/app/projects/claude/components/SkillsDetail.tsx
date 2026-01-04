@@ -47,7 +47,7 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
   // 列表状态
   const [skillsList, setSkillsList] = useState<SkillInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+  const [isInitialLoaded, setIsInitialLoaded] = useState(true);
 
   // 当前作用域
   const [currentScope, setCurrentScope] = useState<ConfigScope | 'mixed' | null>(null);
@@ -64,13 +64,11 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
 
   // 扫描 skills 列表
   const scanSkillsList = useCallback(
-    async (
-      showLoading = false,
-      keepSelection?: { name: string; scope?: ConfigScope }
-    ) => {
-      if (showLoading) {
+    async (keepSelection?: { name: string; scope?: ConfigScope }) => {
+      if (!isInitialLoaded) {
         setIsLoading(true);
       }
+
       try {
         const scopeParam =
           currentScope === null || currentScope === 'mixed' ? undefined : currentScope;
@@ -122,20 +120,20 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
         setIsInitialLoaded(true);
       }
     },
-    [projectId, currentScope, t, selectedSkill]
+    [projectId, currentScope, t, selectedSkill, isInitialLoaded]
   );
 
   // 组件加载时获取数据
   useEffect(() => {
     if (projectId && !isInitialLoaded) {
-      scanSkillsList(true);
+      scanSkillsList();
     }
   }, [projectId, isInitialLoaded, scanSkillsList]);
 
   // 当 scope 变化时重新加载（不显示 loading）
   useEffect(() => {
     if (projectId && isInitialLoaded) {
-      scanSkillsList(false);
+      scanSkillsList();
     }
   }, [currentScope, projectId, isInitialLoaded, scanSkillsList]);
 
@@ -187,7 +185,7 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
   const handleSkillRenamed = useCallback(
     (newName: string, newScope?: ConfigScope) => {
       // 重新扫描列表，并保持选中重命名后的 skill
-      scanSkillsList(false, { name: newName, scope: newScope });
+      scanSkillsList({ name: newName, scope: newScope });
     },
     [scanSkillsList]
   );
@@ -221,7 +219,7 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
                   selectedSkill={selectedSkill}
                   currentSkill={currentSkill}
                   onSelectSkill={handleSelectSkill}
-                  onRefresh={scanSkillsList}
+                  onRefresh={() => selectedSkill && scanSkillsList(selectedSkill)}
                   onNew={handleNewSkill}
                 />
               </div>
@@ -245,7 +243,7 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
                   selectedSkill={selectedSkill}
                   currentSkill={currentSkill}
                   onSelectSkill={handleSelectSkill}
-                  onRefresh={scanSkillsList}
+                  onRefresh={() => selectedSkill && scanSkillsList(selectedSkill)}
                   onNew={handleNewSkill}
                 />
               </div>
@@ -272,7 +270,7 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
                   selectedSkill={selectedSkill}
                   currentSkill={currentSkill}
                   onSelectSkill={handleSelectSkill}
-                  onRefresh={scanSkillsList}
+                  onRefresh={() => selectedSkill && scanSkillsList(selectedSkill)}
                   onNew={handleNewSkill}
                 />
               </div>

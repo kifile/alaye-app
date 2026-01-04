@@ -59,10 +59,7 @@ export function FileSelectPreference({
 
   // 获取文件过滤器
   const getFileFilters = (): FileDialogFilter[] => {
-    return [
-      { name: '可执行文件', extensions: ['exe', 'cmd', 'app', 'sh', 'bash', 'zsh'] },
-      { name: '应用程序', extensions: ['exe', 'app', 'msi', 'dmg', 'deb', 'rpm'] },
-    ];
+    return [{ name: 'File', extensions: ['*'] }];
   };
 
   // 检查路径是否为绝对路径 - 使用专门的库

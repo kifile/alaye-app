@@ -47,7 +47,7 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
   // 列表状态
   const [commandsList, setCommandsList] = useState<CommandInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+  const [isInitialLoaded, setIsInitialLoaded] = useState(true);
 
   // 当前作用域
   const [currentScope, setCurrentScope] = useState<ConfigScope | 'mixed' | null>(
@@ -66,13 +66,11 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
 
   // 扫描命令列表
   const scanCommandsList = useCallback(
-    async (
-      showLoading = false,
-      keepSelection?: { name: string; scope?: ConfigScope }
-    ) => {
-      if (showLoading) {
+    async (keepSelection?: { name: string; scope?: ConfigScope }) => {
+      if (!isInitialLoaded) {
         setIsLoading(true);
       }
+
       try {
         const scopeParam =
           currentScope === 'mixed' || currentScope === null ? undefined : currentScope;
@@ -124,20 +122,20 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
         setIsInitialLoaded(true);
       }
     },
-    [projectId, currentScope, t, selectedCommand]
+    [projectId, currentScope, t, selectedCommand, isInitialLoaded]
   );
 
   // 组件加载时获取数据
   useEffect(() => {
     if (projectId && !isInitialLoaded) {
-      scanCommandsList(true);
+      scanCommandsList();
     }
   }, [projectId, isInitialLoaded, scanCommandsList]);
 
   // 当 scope 变化时重新加载（不显示 loading）
   useEffect(() => {
     if (projectId && isInitialLoaded) {
-      scanCommandsList(false);
+      scanCommandsList();
     }
   }, [currentScope, projectId, isInitialLoaded, scanCommandsList]);
 
@@ -192,7 +190,7 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
   const handleCommandRenamed = useCallback(
     (newName: string, newScope?: ConfigScope) => {
       // 重新扫描列表，并保持选中重命名后的命令
-      scanCommandsList(false, { name: newName, scope: newScope });
+      scanCommandsList({ name: newName, scope: newScope });
     },
     [scanCommandsList]
   );
@@ -226,7 +224,7 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
                   selectedCommand={selectedCommand}
                   currentCommand={currentCommand}
                   onSelectCommand={handleSelectCommand}
-                  onRefresh={scanCommandsList}
+                  onRefresh={() => selectedCommand && scanCommandsList(selectedCommand)}
                   onNew={handleNewCommand}
                 />
               </div>
@@ -250,7 +248,7 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
                   selectedCommand={selectedCommand}
                   currentCommand={currentCommand}
                   onSelectCommand={handleSelectCommand}
-                  onRefresh={scanCommandsList}
+                  onRefresh={() => selectedCommand && scanCommandsList(selectedCommand)}
                   onNew={handleNewCommand}
                 />
               </div>
@@ -277,7 +275,7 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
                   selectedCommand={selectedCommand}
                   currentCommand={currentCommand}
                   onSelectCommand={handleSelectCommand}
-                  onRefresh={scanCommandsList}
+                  onRefresh={() => selectedCommand && scanCommandsList(selectedCommand)}
                   onNew={handleNewCommand}
                 />
               </div>

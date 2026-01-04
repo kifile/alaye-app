@@ -3,6 +3,16 @@
  * 用于在应用启动时预加载 Monaco Editor 资源，提升后续页面的首次加载速度
  */
 
+import { loader } from '@monaco-editor/react';
+
+// 配置 Monaco Editor 使用本地资源而非 CDN
+// 这样可以支持离线使用，避免在打包后的应用中访问外部 CDN
+loader.config({
+  paths: {
+    vs: '/monaco-assets/vs', // 指向 public/monaco-assets/vs 目录
+  },
+});
+
 let preloadPromise: Promise<void> | null = null;
 let isPreloaded = false;
 
@@ -27,14 +37,7 @@ export async function preloadMonacoEditor(): Promise<void> {
 
       // 动态导入 Monaco Editor 的 React 组件和核心库
       // 这样会在浏览器中提前加载这些资源
-      const [{ loader }, { default: monaco }] = await Promise.all([
-        import('@monaco-editor/react'),
-        import('monaco-editor'),
-      ]);
-
-      // 注意：不在这里配置 loader.config()
-      // @monaco-editor/react 会自动检测环境并使用正确的配置
-      // 在开发环境使用 node_modules，在生产环境使用打包后的资源
+      const [{ default: monaco }] = await Promise.all([import('monaco-editor')]);
 
       // 初始化 Monaco Editor loader
       // 这会触发 Monaco Editor 的 worker 文件预加载
@@ -43,7 +46,9 @@ export async function preloadMonacoEditor(): Promise<void> {
 
       isPreloaded = true;
       console.timeEnd('[MonacoPreloader] Preload time');
-      console.log('[MonacoPreloader] Monaco Editor preloaded successfully');
+      console.log(
+        '[MonacoPreloader] Monaco Editor preloaded successfully (offline mode)'
+      );
     } catch (error) {
       console.error('[MonacoPreloader] Failed to preload Monaco Editor:', error);
       // 失败时重置状态，允许重试

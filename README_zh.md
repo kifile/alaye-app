@@ -30,7 +30,7 @@ Alaye App 集成了现代化的用户界面和强大的后端服务，帮助开�
 
 - **Python**: 3.12 或更高版本
 - **Node.js**: 推荐 18 或更高版本
-- **操作系统**: Windows 10/11、macOS 10.15+、主流 Linux 发行版
+- **操作系统**: Windows 10/11、macOS 11.1+、主流 Linux 发行版
 
 ## 快速开始
 
@@ -116,6 +116,9 @@ scripts\build.ps1            # Windows (PowerShell)
 ## Roadmap
 
 ### ✅ v0.1 - Claude 配置管理（当前版本）
+
+![App Preview Image](assets/screenshots/app_preview_v0.1.1.png)
+
 - [x] Claude 项目扫描与管理
 - [x] Claude 设置配置（Settings）
 - [x] MCP 服务器管理

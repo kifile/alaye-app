@@ -95,7 +95,7 @@ export function SkillSelector({
       <Button
         variant='outline'
         size='icon'
-        onClick={onRefresh}
+        onClick={() => onRefresh?.()}
         title='Refresh skills list'
       >
         <RefreshCw className='h-4 w-4' />

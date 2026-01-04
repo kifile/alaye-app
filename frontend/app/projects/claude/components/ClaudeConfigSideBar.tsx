@@ -42,6 +42,14 @@ export function ClaudeConfigSideBar({
       color: 'text-violet-600 bg-violet-100 border-violet-200',
     },
     {
+      key: 'plugins' as const,
+      title: t('sidebar.sections.plugins.title'),
+      icon: <Puzzle className='h-3 w-3' />,
+      description: t('sidebar.sections.plugins.description'),
+      color: 'text-teal-600 bg-teal-100 border-teal-200',
+      docsUrl: 'https://code.claude.com/docs/en/plugins-reference',
+    },
+    {
       key: 'commands' as const,
       title: t('sidebar.sections.commands.title'),
       icon: <Terminal className='h-3 w-3' />,
@@ -61,14 +69,6 @@ export function ClaudeConfigSideBar({
       icon: <Package className='h-3 w-3' />,
       description: t('sidebar.sections.skills.description'),
       color: 'text-pink-600 bg-pink-100 border-pink-200',
-    },
-    {
-      key: 'plugins' as const,
-      title: t('sidebar.sections.plugins.title'),
-      icon: <Puzzle className='h-3 w-3' />,
-      description: t('sidebar.sections.plugins.description'),
-      color: 'text-teal-600 bg-teal-100 border-teal-200',
-      docsUrl: 'https://code.claude.com/docs/en/plugins-reference',
     },
     {
       key: 'mcpServers' as const,

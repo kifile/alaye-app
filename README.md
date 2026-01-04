@@ -30,7 +30,7 @@ Alaye App integrates a modern user interface with powerful backend services, hel
 
 - **Python**: 3.12 or higher
 - **Node.js**: Recommended 18 or higher
-- **Operating System**: Windows 10/11, macOS 10.15+, or major Linux distributions
+- **Operating System**: Windows 10/11, macOS 11.1+, or major Linux distributions
 
 ## Quick Start
 
@@ -114,6 +114,8 @@ scripts\build.ps1            # Windows (PowerShell)
 After building, the executable file is located in the `dist/` directory.
 
 ## Roadmap
+
+![App Preview Image](assets/screenshots/app_preview_v0.1.1.png)
 
 ### ✅ v0.1 - Claude Configuration Management (Current Version)
 - [x] Claude project scanning and management

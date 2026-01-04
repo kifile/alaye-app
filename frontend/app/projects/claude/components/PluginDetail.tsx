@@ -84,8 +84,6 @@ export function PluginDetail({ projectId }: PluginDetailProps) {
       console.error('加载插件列表失败:', error);
       toast.error(t('plugins.loadListFailed'));
       setPlugins([]);
-    } finally {
-      setIsLoading(false);
     }
   }, [projectId, selectedMarketplaces, t]);
 
@@ -93,7 +91,11 @@ export function PluginDetail({ projectId }: PluginDetailProps) {
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
-      await loadMarketplaces();
+      try {
+        await loadMarketplaces();
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     if (projectId) {
