@@ -95,7 +95,7 @@ export function AgentSelector({
       <Button
         variant='outline'
         size='icon'
-        onClick={onRefresh}
+        onClick={() => onRefresh?.()}
         title='Refresh agents list'
       >
         <RefreshCw className='h-4 w-4' />

@@ -47,7 +47,7 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
   // 列表状态
   const [agentsList, setAgentsList] = useState<AgentInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isInitialLoaded, setIsInitialLoaded] = useState(false);
+  const [isInitialLoaded, setIsInitialLoaded] = useState(true);
 
   // 当前作用域
   const [currentScope, setCurrentScope] = useState<ConfigScope | 'mixed' | null>(null);
@@ -64,13 +64,11 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
 
   // 扫描代理列表
   const scanAgentsList = useCallback(
-    async (
-      showLoading = false,
-      keepSelection?: { name: string; scope?: ConfigScope }
-    ) => {
-      if (showLoading) {
+    async (keepSelection?: { name: string; scope?: ConfigScope }) => {
+      if (!isInitialLoaded) {
         setIsLoading(true);
       }
+
       try {
         const scopeParam =
           currentScope === 'mixed' || currentScope === null ? undefined : currentScope;
@@ -122,20 +120,20 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
         setIsInitialLoaded(true);
       }
     },
-    [projectId, currentScope, t, selectedAgent]
+    [projectId, currentScope, t, selectedAgent, isInitialLoaded]
   );
 
   // 组件加载时获取数据
   useEffect(() => {
     if (projectId && !isInitialLoaded) {
-      scanAgentsList(true);
+      scanAgentsList();
     }
   }, [projectId, isInitialLoaded, scanAgentsList]);
 
   // 当 scope 变化时重新加载（不显示 loading）
   useEffect(() => {
     if (projectId && isInitialLoaded) {
-      scanAgentsList(false);
+      scanAgentsList();
     }
   }, [currentScope, projectId, isInitialLoaded, scanAgentsList]);
 
@@ -187,7 +185,7 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
   const handleAgentRenamed = useCallback(
     (newName: string, newScope?: ConfigScope) => {
       // 重新扫描列表，并保持选中重命名后的代理
-      scanAgentsList(false, { name: newName, scope: newScope });
+      scanAgentsList({ name: newName, scope: newScope });
     },
     [scanAgentsList]
   );
@@ -221,7 +219,7 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
                   selectedAgent={selectedAgent}
                   currentAgent={currentAgent}
                   onSelectAgent={handleSelectAgent}
-                  onRefresh={scanAgentsList}
+                  onRefresh={() => selectedAgent && scanAgentsList(selectedAgent)}
                   onNew={handleNewAgent}
                 />
               </div>
@@ -245,7 +243,7 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
                   selectedAgent={selectedAgent}
                   currentAgent={currentAgent}
                   onSelectAgent={handleSelectAgent}
-                  onRefresh={scanAgentsList}
+                  onRefresh={() => selectedAgent && scanAgentsList(selectedAgent)}
                   onNew={handleNewAgent}
                 />
               </div>
@@ -272,7 +270,7 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
                   selectedAgent={selectedAgent}
                   currentAgent={currentAgent}
                   onSelectAgent={handleSelectAgent}
-                  onRefresh={scanAgentsList}
+                  onRefresh={() => selectedAgent && scanAgentsList(selectedAgent)}
                   onNew={handleNewAgent}
                 />
               </div>
