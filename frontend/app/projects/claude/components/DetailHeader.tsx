@@ -7,7 +7,7 @@ import {
   Zap,
   Package,
   Settings,
-  Info,
+  BookOpen,
   Puzzle,
 } from 'lucide-react';
 import { useDetailHeader } from '../context/DetailHeaderContext';
@@ -134,10 +134,10 @@ export function DetailHeader({
           {config.doc && (
             <button
               onClick={handleDocClick}
-              className='p-1 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors'
+              className='p-1.5 text-gray-500 bg-gray-100 hover:text-blue-600 hover:bg-blue-100 rounded-full transition-colors'
               title={config.doc}
             >
-              <Info className='h-3.5 w-3.5' />
+              <BookOpen className='h-3.5 w-3.5' />
             </button>
           )}
         </div>
