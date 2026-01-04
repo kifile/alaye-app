@@ -3,10 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  FolderOpen,
-  Settings,
-} from 'lucide-react';
+import { FolderOpen, Settings } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useEffect, useState } from 'react';
 
@@ -87,11 +84,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenuButton size='lg' asChild>
               <Link href='/'>
                 <div className='flex aspect-square size-8 items-center justify-center'>
-                  <img
-                    src='/favicon.ico'
-                    alt='Alaye'
-                    className='size-8 rounded-lg'
-                  />
+                  <img src='/favicon.ico' alt='Alaye' className='size-8 rounded-lg' />
                 </div>
               </Link>
             </SidebarMenuButton>

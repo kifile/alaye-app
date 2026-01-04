@@ -1,8 +1,10 @@
 """Create ZIP package for Windows distribution."""
+
 import sys
 import zipfile
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
 
 def create_zip(exe_path: str, zip_dir: str):
     """Create a ZIP archive containing the executable."""
@@ -21,14 +23,15 @@ def create_zip(exe_path: str, zip_dir: str):
     zip_file.parent.mkdir(parents=True, exist_ok=True)
 
     # Create ZIP archive
-    with zipfile.ZipFile(zip_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-        zf.write(exe_file, 'alaye.exe')
+    with zipfile.ZipFile(zip_file, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.write(exe_file, "alaye.exe")
 
     print(f"ZIP created: {zip_file}")
     print(f"Size: {zip_file.stat().st_size / 1024 / 1024:.1f} MB")
     return 0
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python create_zip.py <exe_path> [zip_dir]")
         sys.exit(1)
