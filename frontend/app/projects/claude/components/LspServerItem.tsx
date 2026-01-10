@@ -1,4 +1,6 @@
 import React, { useState, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Collapsible,
@@ -19,6 +21,7 @@ import {
   Copy,
   FileCode,
   Globe,
+  Store,
 } from 'lucide-react';
 import type { LSPServerInfo } from '@/api/types';
 import { toast } from 'sonner';
@@ -87,6 +90,8 @@ function CopyableText({
 
 export function LspServerItem({ serverInfo }: LspServerItemProps) {
   const { t } = useTranslation('projects');
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const {
     name: serverName,
     scope,
@@ -108,6 +113,21 @@ export function LspServerItem({ serverInfo }: LspServerItemProps) {
     },
     [t]
   );
+
+  // 跳转到插件页面
+  const handleGoToPlugin = useCallback(() => {
+    if (!plugin_name) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('section', 'plugins');
+    params.set('search', plugin_name);
+
+    if (marketplace_name) {
+      params.set('marketplaces', marketplace_name);
+    }
+
+    router.push(`?${params.toString()}`);
+  }, [plugin_name, marketplace_name, router, searchParams]);
 
   const hasArgs = server.args && server.args.length > 0;
   const hasEnv = server.env && Object.keys(server.env).length > 0;
@@ -146,6 +166,25 @@ export function LspServerItem({ serverInfo }: LspServerItemProps) {
               )}
             </div>
           </div>
+
+          {/* 右侧：跳转到插件按钮 */}
+          {plugin_name && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size='sm'
+                  variant='ghost'
+                  onClick={handleGoToPlugin}
+                  className='text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+                >
+                  <Store className='w-4 h-4' />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{t('lspServerItem.goToPlugin')}</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
         </div>
 
         {/* 插件信息 */}

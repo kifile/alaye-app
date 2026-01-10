@@ -66,7 +66,14 @@ class ClaudeLSPOperations:
                 all_lsp_servers = []
                 for plugin in enabled_plugins:
                     if plugin.tools and plugin.tools.lsp_servers:
-                        all_lsp_servers.extend(plugin.tools.lsp_servers)
+                        # 为每个 LSP 服务器添加插件信息
+                        for server in plugin.tools.lsp_servers:
+                            # 确保服务器有 plugin_name 和 marketplace_name 字段
+                            if not server.plugin_name:
+                                server.plugin_name = plugin.config.name
+                            if not server.marketplace_name:
+                                server.marketplace_name = plugin.marketplace
+                            all_lsp_servers.append(server)
 
                 return all_lsp_servers
             except Exception as e:

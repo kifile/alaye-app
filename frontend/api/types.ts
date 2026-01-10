@@ -229,6 +229,8 @@ export interface MCPServerInfo {
   mcpServer: MCPServer;
   enabled?: boolean; // 服务器最终启用状态
   override: boolean; // 是否被同名的更高优先级服务器覆盖
+  plugin_name?: string; // 所属插件名称
+  marketplace_name?: string; // 所属 marketplace 名称
 }
 
 export interface SettingsInfoWithValue {
@@ -307,6 +309,8 @@ export interface HookConfigInfo {
   event: HookEvent;
   matcher?: string;
   hook_config: HookConfig;
+  plugin_name?: string; // 所属插件名称
+  marketplace_name?: string; // 所属 marketplace 名称
 }
 
 export interface HooksInfo {

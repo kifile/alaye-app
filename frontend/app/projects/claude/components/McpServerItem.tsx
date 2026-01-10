@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
@@ -35,6 +36,7 @@ import {
   Webhook,
   Copy,
   Layers,
+  Store,
 } from 'lucide-react';
 import type { MCPServerInfo } from '@/api/types';
 import { toast } from 'sonner';
@@ -120,6 +122,7 @@ function ActionButtons({
   onEdit,
   onDelete,
   serverName,
+  onGoToPlugin,
 }: {
   enabled: boolean | undefined;
   isProcessing: boolean;
@@ -128,6 +131,7 @@ function ActionButtons({
   onEdit: () => void;
   onDelete: () => void;
   serverName: string;
+  onGoToPlugin?: () => void;
 }) {
   const { t } = useTranslation('projects');
 
@@ -135,6 +139,25 @@ function ActionButtons({
 
   return (
     <div className='flex items-center gap-2'>
+      {/* 跳转到插件按钮 */}
+      {isReadonly && onGoToPlugin && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size='sm'
+              variant='ghost'
+              onClick={onGoToPlugin}
+              className='text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+            >
+              <Store className='w-4 h-4' />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{t('mcpServerItem.goToPlugin')}</p>
+          </TooltipContent>
+        </Tooltip>
+      )}
+
       {/* 启用/禁用开关 */}
       <Tooltip>
         <TooltipTrigger asChild>
@@ -218,6 +241,8 @@ export function McpServerItem({
   onScopeChange,
 }: McpServerItemProps) {
   const { t } = useTranslation('projects');
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { name: serverName, scope, mcpServer: server, enabled, override } = serverInfo;
 
   const isHttpType = server.type === 'http' || server.type === 'sse';
@@ -245,6 +270,21 @@ export function McpServerItem({
     },
     [onToggleEnable]
   );
+
+  // 跳转到插件页面
+  const handleGoToPlugin = useCallback(() => {
+    if (!serverInfo.plugin_name) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('section', 'plugins');
+    params.set('search', serverInfo.plugin_name);
+
+    if (serverInfo.marketplace_name) {
+      params.set('marketplaces', serverInfo.marketplace_name);
+    }
+
+    router.push(`?${params.toString()}`);
+  }, [serverInfo.plugin_name, serverInfo.marketplace_name, router, searchParams]);
 
   return (
     <TooltipProvider>
@@ -298,6 +338,7 @@ export function McpServerItem({
             onEdit={onEdit}
             onDelete={onDelete}
             serverName={serverName}
+            onGoToPlugin={isPluginScope ? handleGoToPlugin : undefined}
           />
         </div>
 

@@ -114,7 +114,14 @@ class ClaudeMCPOperations:
                 # 从已启用插件中提取 MCP 服务器
                 for plugin in enabled_plugins:
                     if plugin.tools and plugin.tools.mcp_servers:
-                        mcp_info.servers.extend(plugin.tools.mcp_servers)
+                        # 为每个 MCP 服务器添加插件信息
+                        for server in plugin.tools.mcp_servers:
+                            # 确保服务器有 plugin_name 和 marketplace_name 字段
+                            if not server.plugin_name:
+                                server.plugin_name = plugin.config.name
+                            if not server.marketplace_name:
+                                server.marketplace_name = plugin.marketplace
+                            mcp_info.servers.append(server)
             except Exception as e:
                 logger.error(f"Failed to scan plugin MCP servers: {e}")
 

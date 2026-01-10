@@ -186,12 +186,12 @@ class TestClaudeConfigManager:
         )
 
         # 重命名 command
-        config_manager.rename_markdown_content(
+        await config_manager.rename_markdown_content(
             "command", "test-command", "renamed-command", scope=ConfigScope.project
         )
 
         # 删除 command
-        config_manager.delete_markdown_content(
+        await config_manager.delete_markdown_content(
             "command", "renamed-command", ConfigScope.project
         )
 

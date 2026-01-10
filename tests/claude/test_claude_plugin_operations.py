@@ -234,7 +234,33 @@ class TestClaudePluginOperations:
         with open(marketplace_json, "w", encoding="utf-8") as f:
             json.dump(marketplace_data_content, f)
 
-        # 在 settings.json 中启用一个插件
+        # 创建 installed_plugins.json，标记两个插件都已安装
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_plugins_file.parent.mkdir(parents=True, exist_ok=True)
+        installed_data = {
+            "plugins": {
+                "enabled-plugin@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "disabled-plugin@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ],
+            }
+        }
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
+
+        # 在 settings.json 中启用一个插件，禁用另一个
         settings_file = temp_project_dir / ".claude" / "settings.json"
         settings_data = {
             "enabledPlugins": {
@@ -256,7 +282,7 @@ class TestClaudePluginOperations:
 
         # 查找禁用的插件
         disabled_plugin = next(p for p in result if p.config.name == "disabled-plugin")
-        # False 值在 enabledPlugins 中表示已安装但禁用
+        # 已安装但禁用的插件
         assert disabled_plugin.enabled is False
         assert disabled_plugin.installed is True
 
@@ -421,6 +447,110 @@ class TestClaudePluginOperations:
 
         assert "my.plugin@special-marketplace" in config["enabledPlugins"]
 
+    def test_check_plugin_in_installed_plugins_installed(
+        self, plugin_ops, temp_user_home, temp_project_dir
+    ):
+        """测试检查已安装的插件"""
+        # 创建 installed_plugins.json
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_plugins_file.parent.mkdir(parents=True, exist_ok=True)
+
+        installed_data = {
+            "plugins": {
+                "test-plugin@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ]
+            }
+        }
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
+
+        result = plugin_ops._check_plugin_in_installed_plugins(
+            "test-plugin@test-marketplace"
+        )
+
+        assert result is True
+
+    def test_check_plugin_in_installed_plugins_not_installed(
+        self, plugin_ops, temp_user_home
+    ):
+        """测试检查未安装的插件"""
+        # 创建空的 installed_plugins.json
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_plugins_file.parent.mkdir(parents=True, exist_ok=True)
+        installed_data = {"plugins": {}}
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
+
+        result = plugin_ops._check_plugin_in_installed_plugins(
+            "test-plugin@test-marketplace"
+        )
+
+        assert result is False
+
+    def test_check_plugin_in_installed_plugins_user_scope(
+        self, plugin_ops, temp_user_home
+    ):
+        """测试检查 user 作用域的插件"""
+        # 创建 installed_plugins.json，包含 user 作用域的插件
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_plugins_file.parent.mkdir(parents=True, exist_ok=True)
+
+        installed_data = {
+            "plugins": {
+                "user-plugin@test-marketplace": [
+                    {
+                        "scope": "user",
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ]
+            }
+        }
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
+
+        result = plugin_ops._check_plugin_in_installed_plugins(
+            "user-plugin@test-marketplace"
+        )
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_uninstall_plugin_not_installed_cleanups_settings(
+        self, plugin_ops, temp_user_home, temp_project_dir
+    ):
+        """测试卸载未安装的插件时只清理 settings"""
+        # 在 settings 中启用插件，但不在 installed_plugins.json 中
+        settings_file = temp_project_dir / ".claude" / "settings.json"
+        settings_data = {"enabledPlugins": {"test-plugin@test-marketplace": True}}
+        with open(settings_file, "w", encoding="utf-8") as f:
+            json.dump(settings_data, f)
+
+        # 卸载插件
+        result = await plugin_ops.uninstall_plugin(
+            "test-plugin@test-marketplace", ConfigScope.project
+        )
+
+        # 应该成功
+        assert result.success is True
+
+        # settings 中的插件应该被删除
+        with open(settings_file, "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+        # 插件应该从 settings 中删除
+        assert "test-plugin@test-marketplace" not in config.get("enabledPlugins", {})
+
     # ========== 测试 _load_enabled_plugins ==========
 
     def test_load_enabled_plugins_priority(
@@ -449,7 +579,555 @@ class TestClaudePluginOperations:
 
         # 应该使用 local 的值
         assert enabled_plugins["plugin@marketplace"]["enabled"] is False
-        assert enabled_plugins["plugin@marketplace"]["scope"] == ConfigScope.local
+        assert (
+            enabled_plugins["plugin@marketplace"]["enabled_scope"] == ConfigScope.local
+        )
+
+    def test_load_enabled_plugins_with_installed_plugins_json(
+        self, plugin_ops, temp_user_home, temp_project_dir
+    ):
+        """测试从 installed_plugins.json 读取已安装的插件"""
+        # 创建 installed_plugins.json
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_plugins_file.parent.mkdir(parents=True, exist_ok=True)
+
+        installed_data = {
+            "plugins": {
+                "installed-plugin@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "user-plugin@test-marketplace": [
+                    {
+                        "scope": "user",
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ],
+            }
+        }
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
+
+        # 在 settings.json 中启用一个插件
+        project_settings = temp_project_dir / ".claude" / "settings.json"
+        project_settings.parent.mkdir(parents=True, exist_ok=True)
+        settings_data = {
+            "enabledPlugins": {
+                "installed-plugin@test-marketplace": True,
+                "user-plugin@test-marketplace": True,
+            }
+        }
+        with open(project_settings, "w", encoding="utf-8") as f:
+            json.dump(settings_data, f)
+
+        enabled_plugins = plugin_ops._load_enabled_plugins()
+
+        # 验证已安装的插件
+        assert "installed-plugin@test-marketplace" in enabled_plugins
+        assert enabled_plugins["installed-plugin@test-marketplace"]["installed"] is True
+        assert enabled_plugins["installed-plugin@test-marketplace"]["enabled"] is True
+        assert (
+            enabled_plugins["installed-plugin@test-marketplace"]["scope"]
+            == ConfigScope.project
+        )
+        assert (
+            enabled_plugins["installed-plugin@test-marketplace"]["enabled_scope"]
+            == ConfigScope.project
+        )
+
+        # 验证 user 作用域的插件
+        assert "user-plugin@test-marketplace" in enabled_plugins
+        assert enabled_plugins["user-plugin@test-marketplace"]["installed"] is True
+        assert enabled_plugins["user-plugin@test-marketplace"]["enabled"] is True
+        assert (
+            enabled_plugins["user-plugin@test-marketplace"]["scope"] == ConfigScope.user
+        )
+        assert (
+            enabled_plugins["user-plugin@test-marketplace"]["enabled_scope"]
+            == ConfigScope.project
+        )
+
+    def test_load_enabled_plugins_not_in_installed_plugins(
+        self, plugin_ops, temp_user_home, temp_project_dir
+    ):
+        """测试未在 installed_plugins.json 中的插件不被认为是已安装"""
+        # 创建空的 installed_plugins.json
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_plugins_file.parent.mkdir(parents=True, exist_ok=True)
+        installed_data = {"plugins": {}}
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
+
+        # 在 settings.json 中启用一个插件
+        project_settings = temp_project_dir / ".claude" / "settings.json"
+        project_settings.parent.mkdir(parents=True, exist_ok=True)
+        settings_data = {
+            "enabledPlugins": {"uninstalled-plugin@test-marketplace": True}
+        }
+        with open(project_settings, "w", encoding="utf-8") as f:
+            json.dump(settings_data, f)
+
+        enabled_plugins = plugin_ops._load_enabled_plugins()
+
+        # 插件应该在列表中，但标记为未安装
+        assert "uninstalled-plugin@test-marketplace" in enabled_plugins
+        assert (
+            enabled_plugins["uninstalled-plugin@test-marketplace"]["installed"] is False
+        )
+        assert enabled_plugins["uninstalled-plugin@test-marketplace"]["enabled"] is True
+        assert enabled_plugins["uninstalled-plugin@test-marketplace"]["scope"] is None
+        assert (
+            enabled_plugins["uninstalled-plugin@test-marketplace"]["enabled_scope"]
+            == ConfigScope.project
+        )
+
+    def test_load_enabled_plugins_installed_but_disabled(
+        self, plugin_ops, temp_user_home, temp_project_dir
+    ):
+        """测试已安装但未启用的插件"""
+        # 创建 installed_plugins.json
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_plugins_file.parent.mkdir(parents=True, exist_ok=True)
+
+        installed_data = {
+            "plugins": {
+                "disabled-plugin@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ]
+            }
+        }
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
+
+        # 在 settings.json 中禁用该插件（False 值表示明确禁用）
+        project_settings = temp_project_dir / ".claude" / "settings.json"
+        project_settings.parent.mkdir(parents=True, exist_ok=True)
+        settings_data = {"enabledPlugins": {"disabled-plugin@test-marketplace": False}}
+        with open(project_settings, "w", encoding="utf-8") as f:
+            json.dump(settings_data, f)
+
+        enabled_plugins = plugin_ops._load_enabled_plugins()
+
+        # 插件应该标记为已安装但未启用
+        assert "disabled-plugin@test-marketplace" in enabled_plugins
+        assert enabled_plugins["disabled-plugin@test-marketplace"]["installed"] is True
+        assert enabled_plugins["disabled-plugin@test-marketplace"]["enabled"] is False
+        assert (
+            enabled_plugins["disabled-plugin@test-marketplace"]["scope"]
+            == ConfigScope.project
+        )
+        # enabled_scope 应该被设置，因为插件在 settings.json 中有记录
+        assert (
+            enabled_plugins["disabled-plugin@test-marketplace"]["enabled_scope"]
+            == ConfigScope.project
+        )
+
+    def test_load_enabled_plugins_no_installed_plugins_file(
+        self, plugin_ops, temp_project_dir
+    ):
+        """测试 installed_plugins.json 不存在的情况"""
+        # 不创建 installed_plugins.json
+
+        # 在 settings.json 中启用一个插件
+        project_settings = temp_project_dir / ".claude" / "settings.json"
+        project_settings.parent.mkdir(parents=True, exist_ok=True)
+        settings_data = {"enabledPlugins": {"some-plugin@test-marketplace": True}}
+        with open(project_settings, "w", encoding="utf-8") as f:
+            json.dump(settings_data, f)
+
+        enabled_plugins = plugin_ops._load_enabled_plugins()
+
+        # 插件应该标记为未安装
+        assert "some-plugin@test-marketplace" in enabled_plugins
+        assert enabled_plugins["some-plugin@test-marketplace"]["installed"] is False
+        assert enabled_plugins["some-plugin@test-marketplace"]["enabled"] is True
+
+    def test_load_enabled_plugins_multiple_projects_in_installed_json(
+        self, plugin_ops, temp_user_home, temp_project_dir
+    ):
+        """测试 installed_plugins.json 中有多个项目记录时只匹配当前项目"""
+        # 创建 installed_plugins.json
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_plugins_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # 模拟两个不同的项目
+        other_project_path = "/some/other/project/path"
+
+        installed_data = {
+            "plugins": {
+                "multi-project-plugin@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": other_project_path,
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    },
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-02T00:00:00Z",
+                    },
+                ]
+            }
+        }
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
+
+        enabled_plugins = plugin_ops._load_enabled_plugins()
+
+        # 应该只匹配当前项目的记录
+        assert "multi-project-plugin@test-marketplace" in enabled_plugins
+        assert (
+            enabled_plugins["multi-project-plugin@test-marketplace"]["installed"]
+            is True
+        )
+        assert (
+            enabled_plugins["multi-project-plugin@test-marketplace"]["scope"]
+            == ConfigScope.project
+        )
+
+    def test_load_enabled_plugins_user_scope_no_project_path(
+        self, plugin_ops, temp_user_home, temp_project_dir
+    ):
+        """测试 user 作用域的插件没有 projectPath"""
+        # 创建 installed_plugins.json
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_plugins_file.parent.mkdir(parents=True, exist_ok=True)
+
+        installed_data = {
+            "plugins": {
+                "user-scope-plugin@test-marketplace": [
+                    {
+                        "scope": "user",
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ]
+            }
+        }
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
+
+        enabled_plugins = plugin_ops._load_enabled_plugins()
+
+        # user 作用域的插件应该被正确识别
+        assert "user-scope-plugin@test-marketplace" in enabled_plugins
+        assert (
+            enabled_plugins["user-scope-plugin@test-marketplace"]["installed"] is True
+        )
+        assert (
+            enabled_plugins["user-scope-plugin@test-marketplace"]["scope"]
+            == ConfigScope.user
+        )
+        assert enabled_plugins["user-scope-plugin@test-marketplace"]["enabled"] is False
+
+    @pytest.mark.asyncio
+    async def test_scan_plugins_with_installed_plugins_json(
+        self, plugin_ops, temp_user_home, temp_project_dir
+    ):
+        """测试 scan_plugins 使用 installed_plugins.json 判断安装状态"""
+        # 创建 marketplace
+        known_marketplaces = (
+            temp_user_home / ".claude" / "plugins" / "known_marketplaces.json"
+        )
+        marketplace_data = {
+            "test-marketplace": {
+                "source": {"source": "github", "repo": "test/repo"},
+                "installLocation": str(temp_user_home / "test-marketplace"),
+            }
+        }
+        with open(known_marketplaces, "w", encoding="utf-8") as f:
+            json.dump(marketplace_data, f)
+
+        # 创建 marketplace.json
+        install_location = temp_user_home / "test-marketplace"
+        install_location.mkdir(parents=True, exist_ok=True)
+        marketplace_json = install_location / ".claude-plugin" / "marketplace.json"
+        marketplace_json.parent.mkdir(parents=True, exist_ok=True)
+
+        marketplace_data_content = {
+            "plugins": [
+                {
+                    "name": "installed-plugin",
+                    "description": "Installed plugin",
+                    "source": "installed-plugin",
+                },
+                {
+                    "name": "not-installed-plugin",
+                    "description": "Not installed plugin",
+                    "source": "not-installed-plugin",
+                },
+            ]
+        }
+
+        with open(marketplace_json, "w", encoding="utf-8") as f:
+            json.dump(marketplace_data_content, f)
+
+        # 创建 installed_plugins.json，只标记一个插件为已安装
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_data = {
+            "plugins": {
+                "installed-plugin@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ]
+            }
+        }
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
+
+        # 在 settings.json 中启用两个插件
+        project_settings = temp_project_dir / ".claude" / "settings.json"
+        project_settings.parent.mkdir(parents=True, exist_ok=True)
+        settings_data = {
+            "enabledPlugins": {
+                "installed-plugin@test-marketplace": True,
+                "not-installed-plugin@test-marketplace": True,
+            }
+        }
+        with open(project_settings, "w", encoding="utf-8") as f:
+            json.dump(settings_data, f)
+
+        # 扫描所有插件（installed_only=False）
+        result = await plugin_ops.scan_plugins()
+
+        # 应该返回两个插件
+        assert len(result) == 2
+
+        # 找到已安装的插件
+        installed_plugin = next(
+            p for p in result if p.config.name == "installed-plugin"
+        )
+        assert installed_plugin.installed is True
+        assert installed_plugin.enabled is True
+
+        # 找到未安装的插件
+        not_installed_plugin = next(
+            p for p in result if p.config.name == "not-installed-plugin"
+        )
+        assert not_installed_plugin.installed is False
+        # 未安装的插件在 settings.json 中有启用记录，但因为 installed_only=False，所以会返回
+        assert not_installed_plugin.enabled is True
+
+    @pytest.mark.asyncio
+    async def test_scan_plugins_installed_only_filters_correctly(
+        self, plugin_ops, temp_user_home, temp_project_dir
+    ):
+        """测试 scan_plugins 返回所有插件并按安装状态排序"""
+        # 创建 marketplace
+        known_marketplaces = (
+            temp_user_home / ".claude" / "plugins" / "known_marketplaces.json"
+        )
+        marketplace_data = {
+            "test-marketplace": {
+                "source": {"source": "github", "repo": "test/repo"},
+                "installLocation": str(temp_user_home / "test-marketplace"),
+            }
+        }
+        with open(known_marketplaces, "w", encoding="utf-8") as f:
+            json.dump(marketplace_data, f)
+
+        # 创建 marketplace.json
+        install_location = temp_user_home / "test-marketplace"
+        install_location.mkdir(parents=True, exist_ok=True)
+        marketplace_json = install_location / ".claude-plugin" / "marketplace.json"
+        marketplace_json.parent.mkdir(parents=True, exist_ok=True)
+
+        marketplace_data_content = {
+            "plugins": [
+                {
+                    "name": "installed-plugin",
+                    "description": "Installed plugin",
+                    "source": "installed-plugin",
+                },
+                {
+                    "name": "not-installed-plugin",
+                    "description": "Not installed plugin",
+                    "source": "not-installed-plugin",
+                },
+            ]
+        }
+
+        with open(marketplace_json, "w", encoding="utf-8") as f:
+            json.dump(marketplace_data_content, f)
+
+        # 创建 installed_plugins.json，只标记一个插件为已安装
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_data = {
+            "plugins": {
+                "installed-plugin@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ]
+            }
+        }
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
+
+        # scan_plugins 默认返回所有插件（包括未安装的），但会按 installed 状态排序
+        result = await plugin_ops.scan_plugins()
+
+        # 应该返回所有插件，但已安装的插件排在前面
+        assert len(result) == 2
+        # 第一个应该是已安装的插件
+        assert result[0].config.name == "installed-plugin"
+        assert result[0].installed is True
+        # 第二个应该是未安装的插件
+        assert result[1].config.name == "not-installed-plugin"
+        assert result[1].installed is False
+
+    @pytest.mark.asyncio
+    async def test_scan_plugins_sorting_with_enabled_uninstalled(
+        self, plugin_ops, temp_user_home, temp_project_dir
+    ):
+        """测试未安装但 enabled=True 的插件与已安装插件排在一起"""
+        # 创建 marketplace
+        known_marketplaces = (
+            temp_user_home / ".claude" / "plugins" / "known_marketplaces.json"
+        )
+        marketplace_data = {
+            "test-marketplace": {
+                "source": {"source": "github", "repo": "test/repo"},
+                "installLocation": str(temp_user_home / "test-marketplace"),
+            }
+        }
+        with open(known_marketplaces, "w", encoding="utf-8") as f:
+            json.dump(marketplace_data, f)
+
+        # 创建 marketplace.json
+        install_location = temp_user_home / "test-marketplace"
+        install_location.mkdir(parents=True, exist_ok=True)
+        marketplace_json = install_location / ".claude-plugin" / "marketplace.json"
+        marketplace_json.parent.mkdir(parents=True, exist_ok=True)
+
+        # 创建4个插件：
+        # 1. installed-enabled: 已安装且已启用
+        # 2. installed-disabled: 已安装但未启用
+        # 3. uninstalled-enabled: 未安装但已启用（历史插件）
+        # 4. uninstalled-disabled: 未安装且未启用
+        marketplace_data_content = {
+            "plugins": [
+                {
+                    "name": "installed-disabled",
+                    "description": "Installed but disabled",
+                    "source": "installed-disabled",
+                },
+                {
+                    "name": "uninstalled-enabled",
+                    "description": "Uninstalled but enabled (historical)",
+                    "source": "uninstalled-enabled",
+                },
+                {
+                    "name": "installed-enabled",
+                    "description": "Installed and enabled",
+                    "source": "installed-enabled",
+                },
+                {
+                    "name": "uninstalled-disabled",
+                    "description": "Uninstalled and disabled",
+                    "source": "uninstalled-disabled",
+                },
+            ]
+        }
+
+        with open(marketplace_json, "w", encoding="utf-8") as f:
+            json.dump(marketplace_data_content, f)
+
+        # 创建 installed_plugins.json，只标记两个插件为已安装
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_data = {
+            "plugins": {
+                "installed-enabled@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "installed-disabled@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ],
+            }
+        }
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
+
+        # 在 settings.json 中配置启用状态
+        project_settings = temp_project_dir / ".claude" / "settings.json"
+        project_settings.parent.mkdir(parents=True, exist_ok=True)
+        settings_data = {
+            "enabledPlugins": {
+                "installed-enabled@test-marketplace": True,
+                "uninstalled-enabled@test-marketplace": True,
+                "installed-disabled@test-marketplace": False,
+                # uninstalled-disabled 不在 enabledPlugins 中
+            }
+        }
+        with open(project_settings, "w", encoding="utf-8") as f:
+            json.dump(settings_data, f)
+
+        # 扫描所有插件
+        result = await plugin_ops.scan_plugins()
+
+        # 应该返回所有4个插件
+        assert len(result) == 4
+
+        # 验证排序：
+        # 1. 已启用的插件排在前面（enabled=True）
+        #    - 在已启用的插件中，已安装的排前面
+        # 2. 未启用的插件排在后面
+        # 排序应该是：
+        # 1. installed-enabled (installed=True, enabled=True)
+        # 2. uninstalled-enabled (installed=False, enabled=True) <- 历史插件，和已安装的排在一起
+        # 3. installed-disabled (installed=True, enabled=False)
+        # 4. uninstalled-disabled (installed=False, enabled=False)
+
+        assert result[0].config.name == "installed-enabled"
+        assert result[0].installed is True
+        assert result[0].enabled is True
+
+        assert result[1].config.name == "uninstalled-enabled"
+        assert result[1].installed is False
+        assert result[1].enabled is True  # 未安装但已启用，排在已启用的组里
+
+        assert result[2].config.name == "installed-disabled"
+        assert result[2].installed is True
+        assert result[2].enabled is False
+
+        assert result[3].config.name == "uninstalled-disabled"
+        assert result[3].installed is False
+        assert result[3].enabled is False
 
     # ========== 测试 _scan_plugin_tools ==========
 
@@ -836,6 +1514,25 @@ This is a test agent.
 
         with open(lsp_file, "w", encoding="utf-8") as f:
             json.dump(lsp_data, f)
+
+        # 创建 installed_plugins.json，标记插件为已安装
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_plugins_file.parent.mkdir(parents=True, exist_ok=True)
+        installed_data = {
+            "plugins": {
+                "lsp-plugin@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ]
+            }
+        }
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
 
         # 启用插件
         settings_file = temp_project_dir / ".claude" / "settings.json"

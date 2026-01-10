@@ -162,16 +162,62 @@ class ClaudePluginOperations:
 
     def _load_enabled_plugins(self) -> Dict[str, Dict[str, bool]]:
         """
-        加载已启用的插件列表
+        加载已安装和已启用的插件列表
 
-        从 user、project、local 的 settings.json 加载 enabledPlugins，
-        按照 scope 优先级合并（local > project > user）
+        从 $HOME/.claude/plugins/installed_plugins.json 读取已安装的插件列表，
+        从 user、project、local 的 settings.json 加载启用状态。
+
+        只有在 installed_plugins.json 中的插件才被认为是"已安装"的。
+        已安装的插件才能被启用。
 
         Returns:
-            Dict[str, Dict[str, bool]]: 插件键到启用状态和作用域的映射
-                格式: {"plugin@marketplace": {"enabled": bool, "scope": ConfigScope}}
+            Dict[str, Dict[str, bool]]: 插件键到状态信息的映射
+                格式: {"plugin@marketplace": {"installed": bool, "enabled": bool, "scope": ConfigScope, "enabled_scope": ConfigScope}}
+                    - installed: 是否在 installed_plugins.json 中
+                    - enabled: 是否启用（从 settings.json 读取）
+                    - scope: 安装作用域（从 installed_plugins.json 读取）
+                    - enabled_scope: 启用作用域（从 settings.json 读取）
         """
-        enabled_plugins: Dict[str, Dict[str, bool]] = {}
+        plugins_status: Dict[str, Dict[str, bool]] = {}
+        project_path_str = str(self.project_path)
+
+        # 1. 从 installed_plugins.json 读取已安装的插件
+        installed_plugins_file = (
+            self.user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+
+        try:
+            installed_config = load_config(installed_plugins_file)
+            plugins = installed_config.get("plugins", {})
+
+            for plugin_key, records in plugins.items():
+                if not records:
+                    continue
+
+                # 查找匹配当前项目的记录
+                for record in records:
+                    record_scope = ConfigScope(record.get("scope"))
+                    record_project_path = record.get("projectPath")
+
+                    # 检查是否匹配
+                    # user 作用域的记录没有 projectPath
+                    if (
+                        record_scope == ConfigScope.user and record_project_path is None
+                    ) or (
+                        record_scope != ConfigScope.user
+                        and record_project_path == project_path_str
+                    ):
+                        plugins_status[plugin_key] = {
+                            "installed": True,
+                            "enabled": False,  # 默认未启用，稍后从 settings.json 更新
+                            "scope": record_scope,
+                            "enabled_scope": None,
+                        }
+                        break
+        except Exception as e:
+            logger.warning(f"Failed to load installed_plugins.json: {e}")
+
+        # 2. 从 settings.json 读取启用状态（local > project > user）
         scope_priority = [
             ConfigScope.local,
             ConfigScope.project,
@@ -186,17 +232,24 @@ class ClaudePluginOperations:
                 scope_enabled_plugins = settings_data.get("enabledPlugins", {})
 
                 for plugin_key, enabled in scope_enabled_plugins.items():
-                    # 只有当插件键不存在或当前 scope 优先级更高时才更新
-                    if plugin_key not in enabled_plugins:
-                        enabled_plugins[plugin_key] = {
+                    if plugin_key not in plugins_status:
+                        # 插件未安装，但在 settings.json 中有启用记录
+                        # 这种情况可能是不一致的数据，我们记录但不标记为 installed
+                        plugins_status[plugin_key] = {
+                            "installed": False,
                             "enabled": enabled,
-                            "scope": scope,
+                            "scope": None,
+                            "enabled_scope": scope,
                         }
+                    elif plugins_status[plugin_key]["enabled_scope"] is None:
+                        # 插件已安装，更新启用状态和作用域
+                        plugins_status[plugin_key]["enabled"] = enabled
+                        plugins_status[plugin_key]["enabled_scope"] = scope
             except Exception:
                 # 如果文件不存在或加载失败，跳过
                 continue
 
-        return enabled_plugins
+        return plugins_status
 
     def _get_settings_file_by_scope(self, scope: ConfigScope) -> Path:
         """
@@ -282,11 +335,17 @@ class ClaudePluginOperations:
                 )
                 continue
 
-        # 排序优先级：installed 降序 > enabled 降序 > 安装数量降序 > name 升序 > marketplace 升序
+        # 排序优先级：
+        # 1. enabled 降序（已启用的排前面，包括未安装但 enabled=True 的历史插件）
+        # 2. installed 降序（已安装的排前面）
+        # 3. 安装数量降序
+        # 4. 名称升序
+        # 5. marketplace 升序
+        # 这样未安装但 enabled=True 的插件会与已安装的插件排在一起
         all_plugins.sort(
             key=lambda p: (
-                -(p.installed or 0),  # installed 降序（已安装的排前面）
                 -(p.enabled or 0),  # enabled 降序（已启用的排前面）
+                -(p.installed or 0),  # installed 降序（已安装的排前面）
                 -(p.unique_installs or 0),  # 数量降序（用负数实现）
                 p.config.name or "",  # 名称升序
                 p.marketplace or "",  # marketplace 升序
@@ -933,13 +992,11 @@ class ClaudePluginOperations:
                 # 构建插件键：plugin@marketplace
                 plugin_key = f"{plugin_name}@{marketplace_name}"
 
-                # 获取插件启用状态
+                # 获取插件状态（从 installed_plugins.json 和 settings.json）
                 plugin_status = enabled_plugins.get(plugin_key, {})
-                is_enabled = plugin_status.get("enabled")
-                enabled_scope = plugin_status.get("scope")
-
-                # 判断是否已安装（在 enabledPlugins 中表示已安装）
-                is_installed = is_enabled is not None
+                is_installed = plugin_status.get("installed", False)
+                is_enabled = plugin_status.get("enabled", False)
+                enabled_scope = plugin_status.get("enabled_scope")
 
                 # 应用过滤条件：在扫描工具文件之前就过滤掉不需要的插件
                 if installed_only and not is_installed:
@@ -1045,7 +1102,8 @@ class ClaudePluginOperations:
         """
         卸载插件
 
-        通过执行 claude plugin uninstall 命令来卸载指定的插件。
+        如果插件在 installed_plugins.json 中有记录，则执行 claude plugin uninstall 命令。
+        否则，直接从 settings 配置中清理插件（不需要调用 claude 命令）。
 
         Args:
             plugin_name: 插件名称，格式为 "plugin@marketplace"
@@ -1060,27 +1118,113 @@ class ClaudePluginOperations:
             if result.success:
                 logger.info(f"Uninstallation succeeded: {result.stdout}")
         """
-        # 获取 claude 命令路径
-        claude_cmd = await self._get_claude_command()
+        # 检查插件是否在 installed_plugins.json 中
+        is_installed = self._check_plugin_in_installed_plugins(plugin_name)
 
-        result = run_process(
-            [claude_cmd, "plugin", "uninstall", "-s", scope.value, plugin_name],
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=self.project_path,
+        if is_installed:
+            # 插件已安装，需要调用 claude plugin uninstall 命令
+            claude_cmd = await self._get_claude_command()
+
+            result = run_process(
+                [claude_cmd, "plugin", "uninstall", "-s", scope.value, plugin_name],
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=self.project_path,
+            )
+
+            if result.success:
+                logger.info(
+                    f"Plugin {plugin_name} uninstalled successfully from {scope.value} scope"
+                )
+            else:
+                logger.error(
+                    f"Plugin {plugin_name} uninstallation failed in {scope.value} scope: {result.error_message}"
+                )
+
+            return result
+        else:
+            # 插件未安装，直接从 settings 配置中清理
+            logger.info(
+                f"Plugin {plugin_name} not found in installed_plugins.json, cleaning up settings only"
+            )
+
+            try:
+                # 从 settings 配置中删除插件
+                settings_file = self._get_settings_file_by_scope(scope)
+                update_config(
+                    settings_file,
+                    key_path=["enabledPlugins"],
+                    key=plugin_name,
+                    value=None,  # 删除键
+                    split_key=False,
+                )
+
+                logger.info(
+                    f"Plugin {plugin_name} removed from settings in {scope.value} scope"
+                )
+
+                # 返回成功结果（虽然没有执行命令）
+                return ProcessResult(
+                    success=True,
+                    stdout=f"Plugin {plugin_name} removed from settings",
+                    stderr="",
+                    return_code=0,
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to remove plugin {plugin_name} from settings: {e}"
+                )
+                # 返回失败结果
+                return ProcessResult(
+                    success=False,
+                    stdout="",
+                    stderr=str(e),
+                    return_code=1,
+                )
+
+    def _check_plugin_in_installed_plugins(self, plugin_name: str) -> bool:
+        """
+        检查插件是否在 installed_plugins.json 中
+
+        Args:
+            plugin_name: 插件名称，格式为 "plugin@marketplace"
+
+        Returns:
+            bool: 插件是否在 installed_plugins.json 中
+        """
+        installed_plugins_file = (
+            self.user_home / ".claude" / "plugins" / "installed_plugins.json"
         )
 
-        if result.success:
-            logger.info(
-                f"Plugin {plugin_name} uninstalled successfully from {scope.value} scope"
-            )
-        else:
-            logger.error(
-                f"Plugin {plugin_name} uninstallation failed in {scope.value} scope: {result.error_message}"
-            )
+        if not installed_plugins_file.exists():
+            return False
 
-        return result
+        try:
+            config = load_config(installed_plugins_file)
+            plugins = config.get("plugins", {})
+
+            if plugin_name not in plugins:
+                return False
+
+            # 检查是否有匹配当前项目的记录
+            records = plugins[plugin_name]
+            project_path_str = str(self.project_path)
+
+            for record in records:
+                record_scope = record.get("scope")
+                record_project_path = record.get("projectPath")
+
+                # 检查是否匹配
+                if (record_scope == "user" and record_project_path is None) or (
+                    record_scope != "user" and record_project_path == project_path_str
+                ):
+                    return True
+
+            return False
+        except Exception as e:
+            logger.warning(f"Failed to check installed_plugins.json: {e}")
+            return False
 
     def enable_plugin(self, plugin_name: str, scope: ConfigScope) -> None:
         """

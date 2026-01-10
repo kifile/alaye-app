@@ -97,7 +97,14 @@ class ClaudeHooksOperations:
                 # 从已启用插件中提取 hooks
                 for plugin in enabled_plugins:
                     if plugin.tools and plugin.tools.hooks:
-                        hooks_info.matchers.extend(plugin.tools.hooks)
+                        # 为每个 hook 配置添加插件信息
+                        for hook in plugin.tools.hooks:
+                            # 确保配置有 plugin_name 和 marketplace_name 字段
+                            if not hook.plugin_name:
+                                hook.plugin_name = plugin.config.name
+                            if not hook.marketplace_name:
+                                hook.marketplace_name = plugin.marketplace
+                            hooks_info.matchers.append(hook)
             except Exception as e:
                 logger.error(f"Failed to scan plugin hooks: {e}")
 

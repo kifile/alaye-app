@@ -104,6 +104,14 @@ export function PluginItem({ plugin, projectId, onPluginChange }: PluginItemProp
     [plugin.config.name, plugin.marketplace]
   );
 
+  // 判断插件是否应该被视为已安装
+  // 如果插件 installed=True 或 enabled=True，都视作已安装
+  // 这样可以正确处理历史插件（enabled=True 但 installed=False）
+  const isConsideredInstalled = useMemo(
+    () => plugin.installed || plugin.enabled,
+    [plugin.installed, plugin.enabled]
+  );
+
   // 缓存工具数量计算
   const toolsCount = useMemo(() => {
     const commandsCount = plugin.tools?.commands?.length || 0;
@@ -372,8 +380,8 @@ export function PluginItem({ plugin, projectId, onPluginChange }: PluginItemProp
 
           {/* 操作按钮 */}
           <div className='space-y-2 pt-2'>
-            {/* 启用/禁用按钮 - 仅在插件已安装时显示 */}
-            {plugin.installed && (
+            {/* 启用/禁用按钮 - 仅在插件已安装或已启用时显示 */}
+            {isConsideredInstalled && (
               <ErrorPopover
                 open={!!errorResult && errorResult.return_code === -1}
                 onOpenChange={open => !open && setErrorResult(null)}
@@ -409,7 +417,7 @@ export function PluginItem({ plugin, projectId, onPluginChange }: PluginItemProp
             )}
 
             {/* 安装/卸载按钮 */}
-            {plugin.installed ? (
+            {isConsideredInstalled ? (
               <ErrorPopover
                 open={!!errorResult && errorResult.return_code !== -1}
                 onOpenChange={open => !open && setErrorResult(null)}

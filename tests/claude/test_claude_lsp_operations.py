@@ -132,6 +132,32 @@ class TestClaudeLSPOperations:
         with open(python_lsp_file, "w", encoding="utf-8") as f:
             json.dump(python_lsp_data, f)
 
+        # 创建 installed_plugins.json，标记两个插件为已安装
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_plugins_file.parent.mkdir(parents=True, exist_ok=True)
+        installed_data = {
+            "plugins": {
+                "go-lsp@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "python-lsp@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ],
+            }
+        }
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
+
         # 启用两个插件
         settings_file = temp_project_dir / ".claude" / "settings.json"
         settings_data = {
@@ -230,6 +256,32 @@ class TestClaudeLSPOperations:
         with open(disabled_lsp_file, "w", encoding="utf-8") as f:
             json.dump(disabled_lsp_data, f)
 
+        # 创建 installed_plugins.json，标记两个插件为已安装
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_plugins_file.parent.mkdir(parents=True, exist_ok=True)
+        installed_data = {
+            "plugins": {
+                "enabled-plugin@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ],
+                "disabled-plugin@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ],
+            }
+        }
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
+
         # 只启用一个插件
         settings_file = temp_project_dir / ".claude" / "settings.json"
         settings_data = {
@@ -295,6 +347,25 @@ class TestClaudeLSPOperations:
         }
         with open(lsp_file, "w", encoding="utf-8") as f:
             json.dump(lsp_data, f)
+
+        # 创建 installed_plugins.json，标记插件为已安装
+        installed_plugins_file = (
+            temp_user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+        installed_plugins_file.parent.mkdir(parents=True, exist_ok=True)
+        installed_data = {
+            "plugins": {
+                "lsp-plugin@test-marketplace": [
+                    {
+                        "scope": "project",
+                        "projectPath": str(temp_project_dir),
+                        "lastUpdated": "2024-01-01T00:00:00Z",
+                    }
+                ]
+            }
+        }
+        with open(installed_plugins_file, "w", encoding="utf-8") as f:
+            json.dump(installed_data, f)
 
         settings_file = temp_project_dir / ".claude" / "settings.json"
         settings_data = {"enabledPlugins": {"lsp-plugin@test-marketplace": True}}
