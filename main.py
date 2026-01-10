@@ -222,31 +222,17 @@ def setup_fastapi_terminal_system():
 
 
 async def run_fastapi_mode():
+    """FastAPI 模式：让 FastAPI/Uvicorn 管理应用生命周期"""
     logger.info("Starting FastAPI mode...")
 
-    # 初始化应用
-    await initialize_app()
-
-    # 设置 FastAPI 模式的终端系统
+    # 设置 FastAPI 模式的终端系统（在 lifespan 之前设置）
     setup_fastapi_terminal_system()
 
-    logger.info("Starting FastAPI server...")
     logger.info("Server address: http://127.0.0.1:8000")
     logger.info("Hint: Press Ctrl+C to exit the server")
 
-    try:
-        await run_fastapi_server()
-    except KeyboardInterrupt:
-        logger.warning("Received interrupt signal, shutting down server...")
-    finally:
-        # 清理终端管理服务
-        logger.info("Cleaning up terminal manager service...")
-        terminal_manager = get_terminal_manager()
-        terminal_manager.cleanup()
-
-        # 关闭数据库连接
-        await close_db()
-        logger.info("Server shut down")
+    # 启动 FastAPI 服务器（lifespan 会处理初始化和清理）
+    await run_fastapi_server()
 
 
 def run_pywebview_mode(app_url):
@@ -359,7 +345,13 @@ def main():
 
     if env_mode == "browser":
         # FastAPI 模式
-        asyncio.run(run_fastapi_mode())
+        try:
+            asyncio.run(run_fastapi_mode())
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt")
+        except asyncio.CancelledError:
+            # Uvicorn 正常关闭时会取消任务，这是预期行为
+            logger.info("FastAPI server shutdown completed")
     else:
         # PyWebView 模式
         run_pywebview_mode(app_url)
