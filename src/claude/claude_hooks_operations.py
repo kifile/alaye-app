@@ -4,6 +4,7 @@ Hooks 配置操作模块
 """
 
 import hashlib
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -22,6 +23,9 @@ from .settings_helper import (
     save_config,
     update_config,
 )
+
+# Configure logger
+logger = logging.getLogger("claude")
 
 
 class ClaudeHooksOperations:
@@ -95,7 +99,7 @@ class ClaudeHooksOperations:
                     if plugin.tools and plugin.tools.hooks:
                         hooks_info.matchers.extend(plugin.tools.hooks)
             except Exception as e:
-                print(f"扫描插件 hooks 失败: {e}")
+                logger.error(f"Failed to scan plugin hooks: {e}")
 
         return hooks_info
 

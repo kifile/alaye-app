@@ -31,7 +31,7 @@ from .models import (
 )
 from .settings_helper import load_config, update_config
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("claude")
 
 
 class ClaudePluginOperations:
@@ -81,7 +81,7 @@ class ClaudePluginOperations:
         if not path_obj.exists():
             raise RuntimeError(f"claude 路径不存在: {claude_path}")
 
-        logger.info(f"使用 claude 命令: {claude_path}")
+        logger.info(f"Using claude command: {claude_path}")
 
         # 缓存结果
         self._claude_command = claude_path
@@ -103,7 +103,7 @@ class ClaudePluginOperations:
             operations = ClaudePluginOperations(project_path)
             result = await operations.install_marketplace("anthropics")
             if result.success:
-                print(f"安装成功: {result.stdout}")
+                logger.info(f"Installation succeeded: {result.stdout}")
         """
         # 获取 claude 命令路径
         claude_cmd = await self._get_claude_command()
@@ -117,9 +117,9 @@ class ClaudePluginOperations:
         )
 
         if result.success:
-            logger.info(f"插件市场 {source} 安装成功")
+            logger.info(f"Plugin marketplace {source} installation succeeded")
         else:
-            logger.error(f"插件市场 {source} 安装失败: {result.error_message}")
+            logger.error(f"Plugin marketplace {source} installation failed: {result.error_message}")
 
         return result
 
@@ -809,7 +809,7 @@ class ClaudePluginOperations:
             operations = ClaudePluginOperations(project_path)
             result = await operations.install_plugin("code-review@anthropics", ConfigScope.local)
             if result.success:
-                print(f"安装成功: {result.stdout}")
+                logger.info(f"Installation succeeded: {result.stdout}")
         """
         # 获取 claude 命令路径
         claude_cmd = await self._get_claude_command()
@@ -823,10 +823,10 @@ class ClaudePluginOperations:
         )
 
         if result.success:
-            logger.info(f"插件 {plugin_name} 在 {scope.value} 作用域安装成功")
+            logger.info(f"Plugin {plugin_name} installed successfully in {scope.value} scope")
         else:
             logger.error(
-                f"插件 {plugin_name} 在 {scope.value} 作用域安装失败: {result.error_message}"
+                f"Plugin {plugin_name} installation failed in {scope.value} scope: {result.error_message}"
             )
 
         return result
@@ -850,7 +850,7 @@ class ClaudePluginOperations:
             operations = ClaudePluginOperations(project_path)
             result = await operations.uninstall_plugin("code-review@anthropics", ConfigScope.local)
             if result.success:
-                print(f"卸载成功: {result.stdout}")
+                logger.info(f"Uninstallation succeeded: {result.stdout}")
         """
         # 获取 claude 命令路径
         claude_cmd = await self._get_claude_command()
@@ -864,10 +864,10 @@ class ClaudePluginOperations:
         )
 
         if result.success:
-            logger.info(f"插件 {plugin_name} 在 {scope.value} 作用域卸载成功")
+            logger.info(f"Plugin {plugin_name} uninstalled successfully from {scope.value} scope")
         else:
             logger.error(
-                f"插件 {plugin_name} 在 {scope.value} 作用域卸载失败: {result.error_message}"
+                f"Plugin {plugin_name} uninstallation failed in {scope.value} scope: {result.error_message}"
             )
 
         return result
@@ -902,10 +902,10 @@ class ClaudePluginOperations:
                 value=True,
                 split_key=False,
             )
-            logger.info(f"插件 {plugin_name} 已在 {scope.value} 作用域启用")
+            logger.info(f"Plugin {plugin_name} enabled in {scope.value} scope")
         except Exception as e:
-            logger.error(f"启用插件 {plugin_name} 失败: {e}")
-            raise ValueError(f"启用插件 {plugin_name} 失败: {e}") from e
+            logger.error(f"Failed to enable plugin {plugin_name}: {e}")
+            raise ValueError(f"Failed to enable plugin {plugin_name}: {e}") from e
 
     def disable_plugin(self, plugin_name: str, scope: ConfigScope) -> None:
         """
@@ -936,10 +936,10 @@ class ClaudePluginOperations:
                 value=False,
                 split_key=False,
             )
-            logger.info(f"插件 {plugin_name} 已在 {scope.value} 作用域禁用")
+            logger.info(f"Plugin {plugin_name} disabled in {scope.value} scope")
         except Exception as e:
-            logger.error(f"禁用插件 {plugin_name} 失败: {e}")
-            raise ValueError(f"禁用插件 {plugin_name} 失败: {e}") from e
+            logger.error(f"Failed to disable plugin {plugin_name}: {e}")
+            raise ValueError(f"Failed to disable plugin {plugin_name}: {e}") from e
 
     def move_plugin(
         self, plugin_name: str, old_scope: ConfigScope, new_scope: ConfigScope
@@ -966,7 +966,7 @@ class ClaudePluginOperations:
             operations.move_plugin("code-review@anthropics", ConfigScope.local, ConfigScope.project)
         """
         if old_scope == new_scope:
-            logger.info(f"插件 {plugin_name} 已经在 {old_scope} 作用域，无需移动")
+            logger.info(f"Plugin {plugin_name} is already in {old_scope} scope, no need to move")
             return
 
         # 获取插件在旧作用域的启用状态
@@ -977,13 +977,13 @@ class ClaudePluginOperations:
             old_enabled_plugins = old_settings_data.get("enabledPlugins", {})
             old_enabled = old_enabled_plugins.get(plugin_name, None)
             logger.info(
-                f"插件 {plugin_name} 在 {old_scope} 作用域的启用状态: {old_enabled}"
+                f"Plugin {plugin_name} enabled status in {old_scope} scope: {old_enabled}"
             )
             if old_enabled is None:
                 return
         except Exception as e:
-            logger.error(f"读取旧作用域配置失败: {e}")
-            raise ValueError(f"读取旧作用域配置失败: {e}") from e
+            logger.error(f"Failed to read old scope configuration: {e}")
+            raise ValueError(f"Failed to read old scope configuration: {e}") from e
 
         # 获取插件在新作用域的启用状态（如果存在）
         new_settings_file = self._get_settings_file_by_scope(new_scope)
@@ -992,13 +992,13 @@ class ClaudePluginOperations:
             new_settings_data = load_config(new_settings_file)
             new_enabled_plugins = new_settings_data.get("enabledPlugins", {})
             if plugin_name in new_enabled_plugins:
-                # 如果新作用域已经有该插件，保持其现有状态
+                # If the plugin already exists in the new scope, keep its current status
                 new_enabled = new_enabled_plugins[plugin_name]
                 logger.info(
-                    f"插件 {plugin_name} 已存在于 {new_scope} 作用域，现有启用状态: {new_enabled}"
+                    f"Plugin {plugin_name} already exists in {new_scope} scope, current enabled status: {new_enabled}"
                 )
         except Exception as e:
-            logger.warning(f"读取新作用域配置失败（可能文件不存在）: {e}")
+            logger.warning(f"Failed to read new scope configuration (file may not exist): {e}")
 
         # 先在旧作用域中禁用（删除）
         try:
@@ -1009,11 +1009,11 @@ class ClaudePluginOperations:
                 value=None,
                 split_key=False,
             )
-            logger.info(f"插件 {plugin_name} 已从 {old_scope} 作用域移除")
+            logger.info(f"Plugin {plugin_name} removed from {old_scope} scope")
         except Exception as e:
-            logger.error(f"从 {old_scope} 作用域移除插件 {plugin_name} 失败: {e}")
+            logger.error(f"Failed to remove plugin {plugin_name} from {old_scope} scope: {e}")
             raise ValueError(
-                f"从 {old_scope} 作用域移除插件 {plugin_name} 失败: {e}"
+                f"Failed to remove plugin {plugin_name} from {old_scope} scope: {e}"
             ) from e
 
         # 然后在新作用域中设置启用状态
@@ -1028,12 +1028,12 @@ class ClaudePluginOperations:
                 split_key=False,
             )
             logger.info(
-                f"插件 {plugin_name} 已添加到 {new_scope} 作用域，启用状态: {new_enabled}"
+                f"Plugin {plugin_name} added to {new_scope} scope, enabled status: {new_enabled}"
             )
         except Exception as e:
-            # 如果新作用域添加失败，尝试回滚（恢复旧作用域的启用状态和 installed_plugins.json）
+            # If adding to new scope fails, attempt rollback (restore old scope enabled status and installed_plugins.json)
             logger.error(
-                f"添加插件 {plugin_name} 到 {new_scope} 作用域失败，尝试回滚: {e}"
+                f"Failed to add plugin {plugin_name} to {new_scope} scope, attempting rollback: {e}"
             )
             try:
                 # 回滚 settings.json
@@ -1044,15 +1044,15 @@ class ClaudePluginOperations:
                     value=old_enabled,
                     split_key=False,
                 )
-                # 回滚 installed_plugins.json
+                # Rollback installed_plugins.json
                 self._update_installed_plugins_scope(plugin_name, new_scope, old_scope)
                 logger.info(
-                    f"插件 {plugin_name} 已回滚到 {old_scope} 作用域，启用状态: {old_enabled}"
+                    f"Plugin {plugin_name} rolled back to {old_scope} scope, enabled status: {old_enabled}"
                 )
             except Exception as rollback_error:
-                logger.error(f"回滚插件 {plugin_name} 失败: {rollback_error}")
+                logger.error(f"Failed to rollback plugin {plugin_name}: {rollback_error}")
             raise ValueError(
-                f"添加插件 {plugin_name} 到 {new_scope} 作用域失败: {e}"
+                f"Failed to add plugin {plugin_name} to {new_scope} scope: {e}"
             ) from e
 
     def _update_installed_plugins_scope(
@@ -1075,7 +1075,7 @@ class ClaudePluginOperations:
 
         if not installed_plugins_file.exists():
             logger.warning(
-                f"installed_plugins.json 不存在，跳过更新: {installed_plugins_file}"
+                f"installed_plugins.json does not exist, skipping update: {installed_plugins_file}"
             )
             return
 
@@ -1087,7 +1087,7 @@ class ClaudePluginOperations:
         plugin_records = plugins.get(plugin_name, [])
 
         if not plugin_records:
-            logger.warning(f"插件 {plugin_name} 在 installed_plugins.json 中没有记录")
+            logger.warning(f"Plugin {plugin_name} has no record in installed_plugins.json")
             return
 
         # 查找并更新匹配当前项目的记录
@@ -1126,12 +1126,12 @@ class ClaudePluginOperations:
 
                 updated = True
                 logger.info(
-                    f"已更新插件 {plugin_name} 的作用域: {old_scope} -> {new_scope}"
+                    f"Updated plugin {plugin_name} scope: {old_scope} -> {new_scope}"
                 )
                 break
 
         if not updated:
-            logger.warning(f"未找到插件 {plugin_name} 在作用域 {old_scope} 的安装记录")
+            logger.warning(f"Plugin {plugin_name} installation record not found in scope {old_scope}")
             return
 
         # 保存配置
@@ -1140,7 +1140,7 @@ class ClaudePluginOperations:
             with open(installed_plugins_file, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            raise ValueError(f"保存 installed_plugins.json 失败: {e}") from e
+            raise ValueError(f"Failed to save installed_plugins.json: {e}") from e
 
     def _scan_plugins_with_tools(
         self,

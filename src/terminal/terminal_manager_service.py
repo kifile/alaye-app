@@ -301,9 +301,22 @@ class TerminalManagerService:
                     f"Failed to remove event listener for terminal '{instance_id}': {e}"
                 )
 
-        # 终止终端进程
+        # 终止进程并等待退出
         if instance.is_running:
             instance.terminate()
+
+            # 等待进程真正退出（最多2秒）
+            import time
+            for _ in range(20):  # 2秒，每次检查0.1秒
+                if not instance.is_running:
+                    break
+                time.sleep(0.1)
+
+            # 如果还在运行，记录警告
+            if instance.is_running:
+                self._logger.warning(
+                    f"Terminal '{instance_id}' still running after terminate"
+                )
 
         # 从实例列表中移除
         with self._lock:

@@ -66,6 +66,7 @@ class BackgroundThreadAsyncExecutor:
     def __init__(self):
         self.loop = None
         self._init_lock = threading.Lock()
+        self._stop_event = threading.Event()
 
     def set_loop(self, loop: asyncio.AbstractEventLoop):
         """设置后台线程的事件循环"""
@@ -75,6 +76,18 @@ class BackgroundThreadAsyncExecutor:
     def get_loop(self):
         """获取后台线程的事件循环"""
         return self.loop
+
+    def stop_loop(self):
+        """停止后台事件循环"""
+        with self._init_lock:
+            if self.loop and self.loop.is_running():
+                # 在事件循环的线程中调用 stop
+                self.loop.call_soon_threadsafe(self.loop.stop)
+        self._stop_event.set()
+
+    def wait_for_stop(self, timeout: float = 5.0):
+        """等待事件循环线程停止"""
+        return self._stop_event.wait(timeout=timeout)
 
     def run_async_sync(self, coro: Coroutine, timeout: float = 30.0) -> Any:
         """

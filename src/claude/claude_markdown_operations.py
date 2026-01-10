@@ -4,6 +4,7 @@ Markdown 通用操作模块
 """
 
 import hashlib
+import logging
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -19,6 +20,9 @@ from .models import (
     MarkdownContentDTO,
     SkillInfo,
 )
+
+# Configure logger
+logger = logging.getLogger("claude")
 
 
 class ClaudeMarkdownOperations:
@@ -382,7 +386,7 @@ class ClaudeMarkdownOperations:
             # 使用 helper 函数更新文件中的 name 字段
             success = update_file_name_field(target_path, actual_name)
             if not success:
-                print(f"更新 {content_type} '{new_name}' 的 name 字段失败")
+                logger.warning(f"Failed to update name field for {content_type} '{new_name}'")
 
     def delete_markdown_content(
         self, content_type: str, name: str, scope: ConfigScope = ConfigScope.project
@@ -496,7 +500,7 @@ class ClaudeMarkdownOperations:
                             )
                         )
                     except Exception as e:
-                        print(f"扫描项目 Agent 文件失败 {agent_file}: {e}")
+                        logger.error(f"Failed to scan project Agent file {agent_file}: {e}")
 
         # 根据 scope 决定扫描哪些路径
         # 如果 scope 为 None 或为 user agents
@@ -518,7 +522,7 @@ class ClaudeMarkdownOperations:
                             )
                         )
                     except Exception as e:
-                        print(f"扫描用户全局 Agent 文件失败 {agent_file}: {e}")
+                        logger.error(f"Failed to scan user Agent file {agent_file}: {e}")
 
         # 如果 scope 为 None 或为 plugin，扫描已启用插件的 agents
         if (scope is None or scope == ConfigScope.plugin) and self.plugin_ops:
@@ -542,7 +546,7 @@ class ClaudeMarkdownOperations:
                         )
                     )
             except Exception as e:
-                print(f"扫描插件 agents 失败: {e}")
+                logger.error(f"Failed to scan plugin agents: {e}")
 
         return agents
 
@@ -590,7 +594,7 @@ class ClaudeMarkdownOperations:
                         )
                     except Exception as e:
                         # 记录错误但继续扫描其他文件
-                        print(f"扫描项目命令文件失败 {cmd_file}: {e}")
+                        logger.error(f"Failed to scan project command file {cmd_file}: {e}")
 
         # 如果 scope 为 None 或为 user，扫描用户全局 commands
         if scope is None or scope == ConfigScope.user:
@@ -622,7 +626,7 @@ class ClaudeMarkdownOperations:
                         )
                     except Exception as e:
                         # 记录错误但继续扫描其他文件
-                        print(f"扫描用户全局命令文件失败 {cmd_file}: {e}")
+                        logger.error(f"Failed to scan user command file {cmd_file}: {e}")
 
         # 如果 scope 为 None 或为 plugin，扫描已启用插件的 commands
         if (scope is None or scope == ConfigScope.plugin) and self.plugin_ops:
@@ -646,7 +650,7 @@ class ClaudeMarkdownOperations:
                         )
                     )
             except Exception as e:
-                print(f"扫描插件命令失败: {e}")
+                logger.error(f"Failed to scan plugin commands: {e}")
 
         return commands
 
@@ -690,7 +694,7 @@ class ClaudeMarkdownOperations:
                                     )
                                 )
                         except Exception as e:
-                            print(f"扫描项目 Skill 目录失败 {skill_dir}: {e}")
+                            logger.error(f"Failed to scan project Skill directory {skill_dir}: {e}")
 
         # 如果 scope 为 None 或为 user，扫描用户全局 skills
         if scope is None or scope == ConfigScope.user:
@@ -718,7 +722,7 @@ class ClaudeMarkdownOperations:
                                     )
                                 )
                         except Exception as e:
-                            print(f"扫描用户全局 Skill 目录失败 {skill_dir}: {e}")
+                            logger.error(f"Failed to scan user Skill directory {skill_dir}: {e}")
 
         # 如果 scope 为 None 或为 plugin，扫描已启用插件的 skills
         if (scope is None or scope == ConfigScope.plugin) and self.plugin_ops:
@@ -742,6 +746,6 @@ class ClaudeMarkdownOperations:
                         )
                     )
             except Exception as e:
-                print(f"扫描插件 skills 失败: {e}")
+                logger.error(f"Failed to scan plugin skills: {e}")
 
         return skills

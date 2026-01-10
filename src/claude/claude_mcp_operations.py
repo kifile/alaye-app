@@ -3,6 +3,7 @@ MCP 配置操作模块
 处理 MCP 服务器的配置、添加、删除、更新等操作
 """
 
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -28,6 +29,9 @@ from .settings_helper import (
     update_config,
     update_project_config,
 )
+
+# Configure logger
+logger = logging.getLogger("claude")
 
 
 class ClaudeMCPOperations:
@@ -112,7 +116,7 @@ class ClaudeMCPOperations:
                     if plugin.tools and plugin.tools.mcp_servers:
                         mcp_info.servers.extend(plugin.tools.mcp_servers)
             except Exception as e:
-                print(f"扫描插件 MCP 服务器失败: {e}")
+                logger.error(f"Failed to scan plugin MCP servers: {e}")
 
         return mcp_info
 
