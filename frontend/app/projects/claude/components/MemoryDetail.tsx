@@ -29,8 +29,8 @@ interface MemoryDetailProps {
 }
 
 interface EditorState {
-  content: string;
   originalContent: string;
+  pendingContent: string;
   md5: string;
   hasChanges: boolean;
   showSaveTooltip: boolean;
@@ -47,8 +47,8 @@ export function MemoryDetail({ projectId }: MemoryDetailProps) {
 
   // 合并相关状态
   const [editorState, setEditorState] = useState<EditorState>({
-    content: '',
     originalContent: '',
+    pendingContent: '',
     md5: '',
     hasChanges: false,
     showSaveTooltip: false,
@@ -133,8 +133,8 @@ export function MemoryDetail({ projectId }: MemoryDetailProps) {
 
       if (response.success && response.data) {
         setEditorState({
-          content: response.data.content,
           originalContent: response.data.content,
+          pendingContent: response.data.content,
           md5: response.data.md5,
           hasChanges: false,
           showSaveTooltip: false,
@@ -143,8 +143,8 @@ export function MemoryDetail({ projectId }: MemoryDetailProps) {
         // 文件不存在时显示空内容
         setEditorState(prev => ({
           ...prev,
-          content: '',
           originalContent: '',
+          pendingContent: '',
           md5: '',
           hasChanges: false,
         }));
@@ -153,8 +153,8 @@ export function MemoryDetail({ projectId }: MemoryDetailProps) {
       console.error('加载 Memory 失败:', error);
       setEditorState(prev => ({
         ...prev,
-        content: '',
         originalContent: '',
+        pendingContent: '',
         md5: '',
         hasChanges: false,
       }));
@@ -192,13 +192,14 @@ export function MemoryDetail({ projectId }: MemoryDetailProps) {
         content_type: 'memory',
         name: memoryType,
         from_md5: editorState.md5,
-        content: editorState.content,
+        content: editorState.pendingContent,
       });
 
       if (response.success) {
         setEditorState(prev => ({
           ...prev,
-          originalContent: editorState.content,
+          originalContent: editorState.pendingContent,
+          pendingContent: editorState.pendingContent,
           hasChanges: false,
           showSaveTooltip: true,
         }));
@@ -219,7 +220,7 @@ export function MemoryDetail({ projectId }: MemoryDetailProps) {
   }, [
     projectId,
     currentScope,
-    editorState.content,
+    editorState.pendingContent,
     editorState.md5,
     editorState.hasChanges,
     getMemoryTypeByScope,
@@ -236,7 +237,7 @@ export function MemoryDetail({ projectId }: MemoryDetailProps) {
   const handleEditorChange = useCallback((value: string) => {
     setEditorState(prev => ({
       ...prev,
-      content: value,
+      pendingContent: value,
       hasChanges: value !== prev.originalContent,
     }));
   }, []);
@@ -302,7 +303,7 @@ export function MemoryDetail({ projectId }: MemoryDetailProps) {
     <div className='h-full flex flex-col p-4'>
       <MarkdownEditor
         title={currentFile.path}
-        value={editorState.content}
+        defaultValue={editorState.originalContent}
         onChange={handleEditorChange}
         onSave={saveMemoryContent}
         onRefresh={refreshMemoryContent}

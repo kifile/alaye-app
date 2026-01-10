@@ -3,13 +3,71 @@ import { Bot, Plus, ExternalLink } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDetailHeader } from '../context/DetailHeaderContext';
 import { EmptyView } from '@/components/EmptyView';
-import { AgentSelector } from './AgentSelector';
+import { ClaudeToolSelectBar, ToolGroup } from './ClaudeToolSelectBar';
 import { SubAgentContentView } from './SubAgentContentView';
 import { NewSubAgentContentView } from './NewSubAgentContentView';
 import { scanClaudeAgents } from '@/api/api';
 import type { ConfigScope, AgentInfo } from '@/api/types';
 import { ConfigScope as ConfigScopeEnum } from '@/api/types';
 import { useTranslation } from 'react-i18next';
+
+// 分组函数：按照 scope + pluginName 分组
+function groupAgentsByScope(
+  agents: AgentInfo[],
+  t: (key: string, params?: Record<string, string | number>) => string
+): ToolGroup[] {
+  const scopeOrder: ConfigScope[] = ['local', 'project', 'user', 'plugin'];
+  const groups: ToolGroup[] = [];
+
+  // 非插件 scope 的分组
+  for (const scope of scopeOrder) {
+    if (scope === 'plugin') continue; // 插件单独处理
+
+    const items = agents
+      .filter(agent => agent.scope === scope)
+      .map(agent => ({
+        name: agent.name,
+        scope: agent.scope,
+        description: agent.description,
+      }));
+
+    if (items.length > 0) {
+      groups.push({
+        label: t(`toolSelectBar.groups.${scope}`),
+        items,
+      });
+    }
+  }
+
+  // 插件 scope：按 pluginName 分组
+  const pluginAgents = agents.filter(agent => agent.scope === 'plugin');
+  const pluginsMap = new Map<string, AgentInfo[]>();
+
+  pluginAgents.forEach(agent => {
+    const pluginName = agent.plugin_name || 'Unknown';
+    if (!pluginsMap.has(pluginName)) {
+      pluginsMap.set(pluginName, []);
+    }
+    pluginsMap.get(pluginName)!.push(agent);
+  });
+
+  // 按插件名称排序后添加分组
+  Array.from(pluginsMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .forEach(([pluginName, agents]) => {
+      groups.push({
+        label: t('toolSelectBar.groups.plugin', { name: pluginName }),
+        items: agents.map(agent => ({
+          name: agent.name,
+          scope: agent.scope,
+          description: agent.description,
+          pluginName,
+        })),
+      });
+    });
+
+  return groups;
+}
 
 // 加载状态组件
 function LoadingState({ message }: { message: string }) {
@@ -61,6 +119,11 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
         (!selectedAgent.scope || agent.scope === selectedAgent.scope)
     );
   }, [selectedAgent, agentsList]);
+
+  // 分组后的 agents 列表
+  const groupedAgents = useMemo(() => {
+    return groupAgentsByScope(agentsList, t);
+  }, [agentsList, t]);
 
   // 扫描代理列表
   const scanAgentsList = useCallback(
@@ -214,11 +277,10 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
           {viewMode === 'new' && (
             <>
               <div className='mb-4 flex-shrink-0'>
-                <AgentSelector
-                  agentsList={agentsList}
-                  selectedAgent={selectedAgent}
-                  currentAgent={currentAgent}
-                  onSelectAgent={handleSelectAgent}
+                <ClaudeToolSelectBar
+                  groups={groupedAgents}
+                  selectedItem={selectedAgent}
+                  onSelectItem={handleSelectAgent}
                   onRefresh={() => selectedAgent && scanAgentsList(selectedAgent)}
                   onNew={handleNewAgent}
                 />
@@ -238,11 +300,10 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
             <>
               {/* 代理选择器 */}
               <div className='mb-4 flex-shrink-0'>
-                <AgentSelector
-                  agentsList={agentsList}
-                  selectedAgent={selectedAgent}
-                  currentAgent={currentAgent}
-                  onSelectAgent={handleSelectAgent}
+                <ClaudeToolSelectBar
+                  groups={groupedAgents}
+                  selectedItem={selectedAgent}
+                  onSelectItem={handleSelectAgent}
                   onRefresh={() => selectedAgent && scanAgentsList(selectedAgent)}
                   onNew={handleNewAgent}
                 />
@@ -265,11 +326,10 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
             <>
               {/* 代理选择器 */}
               <div className='mb-4'>
-                <AgentSelector
-                  agentsList={agentsList}
-                  selectedAgent={selectedAgent}
-                  currentAgent={currentAgent}
-                  onSelectAgent={handleSelectAgent}
+                <ClaudeToolSelectBar
+                  groups={groupedAgents}
+                  selectedItem={selectedAgent}
+                  onSelectItem={handleSelectAgent}
                   onRefresh={() => selectedAgent && scanAgentsList(selectedAgent)}
                   onNew={handleNewAgent}
                 />

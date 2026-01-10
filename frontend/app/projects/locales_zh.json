@@ -415,6 +415,7 @@
     "deleteFailed": "删除失败",
     "loadFailed": "加载 Command 失败",
     "renameFailed": "重命名失败",
+    "goToPlugin": "前往插件",
     "filter": {
       "searchPlaceholder": "搜索命令..."
     }
@@ -444,6 +445,7 @@
     "deleteFailed": "删除失败",
     "loadFailed": "加载 Skill 失败",
     "renameFailed": "重命名失败",
+    "goToPlugin": "前往插件",
     "missingParams": "缺少必要参数",
     "lastModified": "最后修改",
     "cancel": "取消",
@@ -473,6 +475,7 @@
     "deleteFailed": "删除失败",
     "loadFailed": "加载 Agent 失败",
     "renameFailed": "重命名失败",
+    "goToPlugin": "前往插件",
     "missingParams": "缺少必要参数",
     "lastModified": "最后修改",
     "cancel": "取消",
@@ -782,5 +785,29 @@
     "commandNotInstalledTooltip": "LSP 服务器命令在系统 PATH 中不可用。请安装所需的依赖项。",
     "fromPlugin": "来自插件：",
     "fromMarketplace": "插件市场："
+  },
+  "toolSelectBar": {
+    "selectCommand": "选择命令...",
+    "searchCommands": "搜索命令...",
+    "noCommands": "未找到命令",
+    "commandsList": "命令列表",
+    "newCommand": "新建命令",
+    "refreshList": "刷新列表",
+    "selectSkill": "选择技能...",
+    "searchSkills": "搜索技能...",
+    "noSkills": "未找到技能",
+    "skillsList": "技能列表",
+    "newSkill": "新建技能",
+    "selectAgent": "选择代理...",
+    "searchAgents": "搜索代理...",
+    "noAgents": "未找到代理",
+    "agentsList": "代理列表",
+    "newAgent": "新建代理",
+    "groups": {
+      "user": "用户 (全局)",
+      "project": "项目",
+      "local": "本地",
+      "plugin": "插件: {{name}}"
+    }
   }
 }

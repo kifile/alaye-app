@@ -415,6 +415,7 @@
     "deleteFailed": "Failed to delete",
     "loadFailed": "Failed to load Command",
     "renameFailed": "Failed to rename",
+    "goToPlugin": "Go to plugin",
     "filter": {
       "searchPlaceholder": "Search commands..."
     }
@@ -444,6 +445,7 @@
     "deleteFailed": "Failed to delete",
     "loadFailed": "Failed to load Skill",
     "renameFailed": "Failed to rename",
+    "goToPlugin": "Go to plugin",
     "missingParams": "Missing required parameters",
     "lastModified": "Last modified",
     "cancel": "Cancel",
@@ -473,6 +475,7 @@
     "deleteFailed": "Failed to delete",
     "loadFailed": "Failed to load Agent",
     "renameFailed": "Failed to rename",
+    "goToPlugin": "Go to plugin",
     "missingParams": "Missing required parameters",
     "lastModified": "Last modified",
     "cancel": "Cancel",
@@ -782,5 +785,29 @@
     "commandNotInstalledTooltip": "The LSP server command is not available in the system PATH. Please install the required dependencies.",
     "fromPlugin": "From plugin:",
     "fromMarketplace": "Marketplace:"
+  },
+  "toolSelectBar": {
+    "selectCommand": "Select a command...",
+    "searchCommands": "Search commands...",
+    "noCommands": "No commands found",
+    "commandsList": "Commands List",
+    "newCommand": "New Command",
+    "refreshList": "Refresh list",
+    "selectSkill": "Select a skill...",
+    "searchSkills": "Search skills...",
+    "noSkills": "No skills found",
+    "skillsList": "Skills List",
+    "newSkill": "New Skill",
+    "selectAgent": "Select an agent...",
+    "searchAgents": "Search agents...",
+    "noAgents": "No agents found",
+    "agentsList": "Agents List",
+    "newAgent": "New Agent",
+    "groups": {
+      "user": "User (Global)",
+      "project": "Project",
+      "local": "Local",
+      "plugin": "Plugin: {{name}}"
+    }
   }
 }

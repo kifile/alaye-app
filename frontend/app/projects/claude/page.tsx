@@ -128,12 +128,17 @@ function ProjectDetailPageContent() {
   const handleSectionSelect = (section: ConfigSection) => {
     setSelectedSection(section);
 
-    // 更新URL参数
-    const currentParams = new URLSearchParams(
-      Array.from(searchParams?.entries() || [])
-    );
-    currentParams.set('section', section);
-    const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
+    // 更新URL参数 - 只保留 id 和 section，删除其他参数
+    const newParams = new URLSearchParams();
+    newParams.set('section', section);
+
+    // 保留 id 参数（如果存在）
+    const id = searchParams?.get('id');
+    if (id) {
+      newParams.set('id', id);
+    }
+
+    const newUrl = `${window.location.pathname}?${newParams.toString()}`;
     router.replace(newUrl, { scroll: false });
   };
 

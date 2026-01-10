@@ -3,13 +3,71 @@ import { BookOpen, Plus, ExternalLink } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDetailHeader } from '../context/DetailHeaderContext';
 import { EmptyView } from '@/components/EmptyView';
-import { SkillSelector } from './SkillSelector';
+import { ClaudeToolSelectBar, ToolGroup } from './ClaudeToolSelectBar';
 import { SkillContentView } from './SkillContentView';
 import { NewSkillContentView } from './NewSkillContentView';
 import { scanClaudeSkills } from '@/api/api';
 import type { ConfigScope, SkillInfo } from '@/api/types';
 import { ConfigScope as ConfigScopeEnum } from '@/api/types';
 import { useTranslation } from 'react-i18next';
+
+// 分组函数：按照 scope + pluginName 分组
+function groupSkillsByScope(
+  skills: SkillInfo[],
+  t: (key: string, params?: Record<string, string | number>) => string
+): ToolGroup[] {
+  const scopeOrder: ConfigScope[] = ['local', 'project', 'user', 'plugin'];
+  const groups: ToolGroup[] = [];
+
+  // 非插件 scope 的分组
+  for (const scope of scopeOrder) {
+    if (scope === 'plugin') continue; // 插件单独处理
+
+    const items = skills
+      .filter(skill => skill.scope === scope)
+      .map(skill => ({
+        name: skill.name,
+        scope: skill.scope,
+        description: skill.description,
+      }));
+
+    if (items.length > 0) {
+      groups.push({
+        label: t(`toolSelectBar.groups.${scope}`),
+        items,
+      });
+    }
+  }
+
+  // 插件 scope：按 pluginName 分组
+  const pluginSkills = skills.filter(skill => skill.scope === 'plugin');
+  const pluginsMap = new Map<string, SkillInfo[]>();
+
+  pluginSkills.forEach(skill => {
+    const pluginName = skill.plugin_name || 'Unknown';
+    if (!pluginsMap.has(pluginName)) {
+      pluginsMap.set(pluginName, []);
+    }
+    pluginsMap.get(pluginName)!.push(skill);
+  });
+
+  // 按插件名称排序后添加分组
+  Array.from(pluginsMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .forEach(([pluginName, skills]) => {
+      groups.push({
+        label: t('toolSelectBar.groups.plugin', { name: pluginName }),
+        items: skills.map(skill => ({
+          name: skill.name,
+          scope: skill.scope,
+          description: skill.description,
+          pluginName,
+        })),
+      });
+    });
+
+  return groups;
+}
 
 // 加载状态组件
 function LoadingState({ message }: { message: string }) {
@@ -61,6 +119,11 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
         (!selectedSkill.scope || skill.scope === selectedSkill.scope)
     );
   }, [selectedSkill, skillsList]);
+
+  // 分组后的 skills 列表
+  const groupedSkills = useMemo(() => {
+    return groupSkillsByScope(skillsList, t);
+  }, [skillsList, t]);
 
   // 扫描 skills 列表
   const scanSkillsList = useCallback(
@@ -214,11 +277,10 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
           {viewMode === 'new' && (
             <>
               <div className='mb-4 flex-shrink-0'>
-                <SkillSelector
-                  skillsList={skillsList}
-                  selectedSkill={selectedSkill}
-                  currentSkill={currentSkill}
-                  onSelectSkill={handleSelectSkill}
+                <ClaudeToolSelectBar
+                  groups={groupedSkills}
+                  selectedItem={selectedSkill}
+                  onSelectItem={handleSelectSkill}
                   onRefresh={() => selectedSkill && scanSkillsList(selectedSkill)}
                   onNew={handleNewSkill}
                 />
@@ -238,11 +300,10 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
             <>
               {/* skill 选择器 */}
               <div className='mb-4 flex-shrink-0'>
-                <SkillSelector
-                  skillsList={skillsList}
-                  selectedSkill={selectedSkill}
-                  currentSkill={currentSkill}
-                  onSelectSkill={handleSelectSkill}
+                <ClaudeToolSelectBar
+                  groups={groupedSkills}
+                  selectedItem={selectedSkill}
+                  onSelectItem={handleSelectSkill}
                   onRefresh={() => selectedSkill && scanSkillsList(selectedSkill)}
                   onNew={handleNewSkill}
                 />
@@ -265,11 +326,10 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
             <>
               {/* skill 选择器 */}
               <div className='mb-4'>
-                <SkillSelector
-                  skillsList={skillsList}
-                  selectedSkill={selectedSkill}
-                  currentSkill={currentSkill}
-                  onSelectSkill={handleSelectSkill}
+                <ClaudeToolSelectBar
+                  groups={groupedSkills}
+                  selectedItem={selectedSkill}
+                  onSelectItem={handleSelectSkill}
                   onRefresh={() => selectedSkill && scanSkillsList(selectedSkill)}
                   onNew={handleNewSkill}
                 />

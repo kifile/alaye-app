@@ -444,6 +444,9 @@ export interface CommandInfo {
   scope: ConfigScope;
   description?: string;
   last_modified_str?: string; // Formatted datetime string
+  plugin_name?: string; // 所属插件名称
+  marketplace_name?: string; // 所属 marketplace 名称
+  file_path?: string; // 文件绝对路径
 }
 
 export interface AgentInfo {
@@ -451,11 +454,16 @@ export interface AgentInfo {
   scope: ConfigScope;
   description?: string;
   last_modified_str?: string; // Formatted datetime string
+  plugin_name?: string; // 所属插件名称
+  marketplace_name?: string; // 所属 marketplace 名称
+  file_path?: string; // 文件绝对路径
 }
 
 export interface HookInfo {
   name: string;
   last_modified_str?: string; // Formatted datetime string
+  plugin_name?: string; // 所属插件名称
+  marketplace_name?: string; // 所属 marketplace名称
 }
 
 export interface SkillInfo {
@@ -463,6 +471,9 @@ export interface SkillInfo {
   scope: ConfigScope;
   description?: string;
   last_modified_str?: string; // Formatted datetime string
+  plugin_name?: string; // 所属插件名称
+  marketplace_name?: string; // 所属 marketplace 名称
+  file_path?: string; // Skill 目录绝对路径
 }
 
 // Claude Settings DTO 类型

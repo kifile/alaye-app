@@ -107,7 +107,7 @@ export function PluginReadmeDialog({
             </div>
           ) : (
             <MarkdownEditor
-              value={content}
+              defaultValue={content}
               onChange={setContent}
               onRefresh={handleRefresh}
               isLoading={isRefreshing}

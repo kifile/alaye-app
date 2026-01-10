@@ -23,12 +23,14 @@ export function NewCommandContentView({
 }: NewCommandContentViewProps) {
   const [commandName, setCommandName] = useState<string>('');
   const [commandScope, setCommandScope] = useState<ConfigScope>(initialScope);
-  const [commandContent, setCommandContent] = useState<string>('');
+  // originalContent 始终为空（新建模式）
+  // pendingContent 跟踪用户编辑的内容
+  const [pendingContent, setPendingContent] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // 处理编辑器内容变化
   const handleEditorChange = useCallback((value: string) => {
-    setCommandContent(value);
+    setPendingContent(value);
   }, []);
 
   // 处理标题变更
@@ -49,7 +51,7 @@ export function NewCommandContentView({
       return;
     }
 
-    if (!commandContent.trim()) {
+    if (!pendingContent.trim()) {
       toast.error('请输入命令内容');
       return;
     }
@@ -60,7 +62,7 @@ export function NewCommandContentView({
         project_id: projectId,
         content_type: 'command',
         name: commandName.trim(),
-        content: commandContent,
+        content: pendingContent,
         scope: commandScope,
       });
 
@@ -82,7 +84,7 @@ export function NewCommandContentView({
     } finally {
       setIsSaving(false);
     }
-  }, [projectId, commandName, commandContent, commandScope, onSaved]);
+  }, [projectId, commandName, pendingContent, commandScope, onSaved]);
 
   // 自定义标题 ReactNode - 新建模式
   const titleNode = useMemo(() => {
@@ -126,7 +128,7 @@ export function NewCommandContentView({
     <div className='h-full flex flex-col'>
       <MarkdownEditor
         title={titleNode}
-        value={commandContent}
+        defaultValue=''
         onChange={handleEditorChange}
         onSave={handleSave}
         isLoading={false}
