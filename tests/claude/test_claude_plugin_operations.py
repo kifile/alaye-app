@@ -129,13 +129,15 @@ class TestClaudePluginOperations:
 
     # ========== 测试 scan_plugins ==========
 
-    def test_scan_plugins_no_marketplaces(self, plugin_ops):
+    @pytest.mark.asyncio
+    async def test_scan_plugins_no_marketplaces(self, plugin_ops):
         """测试扫描没有 marketplace 时的插件列表"""
-        result = plugin_ops.scan_plugins()
+        result = await plugin_ops.scan_plugins()
 
         assert result == []
 
-    def test_scan_plugins_with_marketplace(self, plugin_ops, temp_user_home):
+    @pytest.mark.asyncio
+    async def test_scan_plugins_with_marketplace(self, plugin_ops, temp_user_home):
         """测试扫描指定 marketplace 的插件"""
         # 创建 marketplace 配置
         known_marketplaces = (
@@ -182,7 +184,7 @@ class TestClaudePluginOperations:
         with open(install_counts, "w", encoding="utf-8") as f:
             json.dump(cache_data, f)
 
-        result = plugin_ops.scan_plugins()
+        result = await plugin_ops.scan_plugins()
 
         assert len(result) == 1
         assert result[0].config.name == "test-plugin"
@@ -190,7 +192,8 @@ class TestClaudePluginOperations:
         assert result[0].unique_installs == 100
         assert result[0].installed is False  # 未在 enabledPlugins 中
 
-    def test_scan_plugins_with_enabled_status(
+    @pytest.mark.asyncio
+    async def test_scan_plugins_with_enabled_status(
         self, plugin_ops, temp_user_home, temp_project_dir
     ):
         """测试扫描插件时检查启用状态"""
@@ -242,7 +245,7 @@ class TestClaudePluginOperations:
         with open(settings_file, "w", encoding="utf-8") as f:
             json.dump(settings_data, f)
 
-        result = plugin_ops.scan_plugins()
+        result = await plugin_ops.scan_plugins()
 
         assert len(result) == 2
 
@@ -257,7 +260,10 @@ class TestClaudePluginOperations:
         assert disabled_plugin.enabled is False
         assert disabled_plugin.installed is True
 
-    def test_scan_plugins_filters_by_marketplace(self, plugin_ops, temp_user_home):
+    @pytest.mark.asyncio
+    async def test_scan_plugins_filters_by_marketplace(
+        self, plugin_ops, temp_user_home
+    ):
         """测试按 marketplace 名称过滤插件"""
         # 创建两个 marketplaces
         known_marketplaces = (
@@ -295,13 +301,14 @@ class TestClaudePluginOperations:
             json.dump({"plugins": [{"name": "plugin2", "source": "plugin"}]}, f)
 
         # 只扫描 marketplace1
-        result = plugin_ops.scan_plugins(marketplace_names=["marketplace1"])
+        result = await plugin_ops.scan_plugins(marketplace_names=["marketplace1"])
 
         assert len(result) == 1
         assert result[0].config.name == "plugin1"
         assert result[0].marketplace == "marketplace1"
 
-    def test_scan_plugins_sorting_order(self, plugin_ops, temp_user_home):
+    @pytest.mark.asyncio
+    async def test_scan_plugins_sorting_order(self, plugin_ops, temp_user_home):
         """测试插件列表排序（installed > enabled > installs > name）"""
         # 创建 marketplace 和插件
         known_marketplaces = (
@@ -347,7 +354,7 @@ class TestClaudePluginOperations:
         with open(install_counts, "w", encoding="utf-8") as f:
             json.dump(cache_data, f)
 
-        result = plugin_ops.scan_plugins()
+        result = await plugin_ops.scan_plugins()
 
         # 应该按安装数量降序排列：b > c > a
         assert result[0].config.name == "plugin-b"
@@ -446,7 +453,8 @@ class TestClaudePluginOperations:
 
     # ========== 测试 _scan_plugin_tools ==========
 
-    def test_scan_plugin_tools_with_commands(self, plugin_ops, temp_user_home):
+    @pytest.mark.asyncio
+    async def test_scan_plugin_tools_with_commands(self, plugin_ops, temp_user_home):
         """测试扫描插件的 commands"""
         # 创建 marketplace 安装目录
         marketplace_install = (
@@ -475,7 +483,7 @@ This is a test command.
 
         plugin_config = PluginConfig(name="test-plugin", source="test-plugin")
 
-        tools = plugin_ops._scan_plugin_tools(
+        tools = await plugin_ops._scan_plugin_tools(
             plugin_config, "test-marketplace", str(marketplace_install)
         )
 
@@ -485,7 +493,8 @@ This is a test command.
         assert tools.commands[0].name == "test"
         assert tools.commands[0].description == "A test command"
 
-    def test_scan_plugin_tools_with_skills(self, plugin_ops, temp_user_home):
+    @pytest.mark.asyncio
+    async def test_scan_plugin_tools_with_skills(self, plugin_ops, temp_user_home):
         """测试扫描插件的 skills"""
         marketplace_install = (
             temp_user_home / ".claude" / "plugins" / "test-marketplace"
@@ -511,7 +520,7 @@ This is a test skill.
 
         plugin_config = PluginConfig(name="test-plugin", source="test-plugin")
 
-        tools = plugin_ops._scan_plugin_tools(
+        tools = await plugin_ops._scan_plugin_tools(
             plugin_config, "test-marketplace", str(marketplace_install)
         )
 
@@ -520,7 +529,8 @@ This is a test skill.
         assert len(tools.skills) == 1
         assert tools.skills[0].name == "test-skill"
 
-    def test_scan_plugin_tools_with_agents(self, plugin_ops, temp_user_home):
+    @pytest.mark.asyncio
+    async def test_scan_plugin_tools_with_agents(self, plugin_ops, temp_user_home):
         """测试扫描插件的 agents"""
         marketplace_install = (
             temp_user_home / ".claude" / "plugins" / "test-marketplace"
@@ -546,7 +556,7 @@ This is a test agent.
 
         plugin_config = PluginConfig(name="test-plugin", source="test-plugin")
 
-        tools = plugin_ops._scan_plugin_tools(
+        tools = await plugin_ops._scan_plugin_tools(
             plugin_config, "test-marketplace", str(marketplace_install)
         )
 
@@ -555,7 +565,8 @@ This is a test agent.
         assert len(tools.agents) == 1
         assert tools.agents[0].name == "test-agent"
 
-    def test_scan_plugin_tools_with_mcp_servers(self, plugin_ops, temp_user_home):
+    @pytest.mark.asyncio
+    async def test_scan_plugin_tools_with_mcp_servers(self, plugin_ops, temp_user_home):
         """测试扫描插件的 MCP servers"""
         marketplace_install = (
             temp_user_home / ".claude" / "plugins" / "test-marketplace"
@@ -575,7 +586,7 @@ This is a test agent.
 
         plugin_config = PluginConfig(name="test-plugin", source="test-plugin")
 
-        tools = plugin_ops._scan_plugin_tools(
+        tools = await plugin_ops._scan_plugin_tools(
             plugin_config, "test-marketplace", str(marketplace_install)
         )
 
@@ -584,7 +595,8 @@ This is a test agent.
         assert len(tools.mcp_servers) == 1
         assert tools.mcp_servers[0].name == "test-server"
 
-    def test_scan_plugin_tools_with_hooks(self, plugin_ops, temp_user_home):
+    @pytest.mark.asyncio
+    async def test_scan_plugin_tools_with_hooks(self, plugin_ops, temp_user_home):
         """测试扫描插件的 hooks"""
         marketplace_install = (
             temp_user_home / ".claude" / "plugins" / "test-marketplace"
@@ -614,7 +626,7 @@ This is a test agent.
 
         plugin_config = PluginConfig(name="test-plugin", source="test-plugin")
 
-        tools = plugin_ops._scan_plugin_tools(
+        tools = await plugin_ops._scan_plugin_tools(
             plugin_config, "test-marketplace", str(marketplace_install)
         )
 
@@ -622,7 +634,227 @@ This is a test agent.
         assert tools.hooks is not None
         assert len(tools.hooks) == 1
 
-    def test_scan_plugin_tools_nonexistent_plugin(self, plugin_ops, temp_user_home):
+    @pytest.mark.asyncio
+    async def test_scan_plugin_tools_with_lsp_servers_from_lsp_json(
+        self, plugin_ops, temp_user_home
+    ):
+        """测试扫描插件的 LSP servers（从 .lsp.json）"""
+        marketplace_install = (
+            temp_user_home / ".claude" / "plugins" / "test-marketplace"
+        )
+        marketplace_install.mkdir(parents=True, exist_ok=True)
+
+        plugin_root = marketplace_install / "test-plugin"
+        plugin_root.mkdir(parents=True, exist_ok=True)
+
+        lsp_file = plugin_root / ".lsp.json"
+        lsp_data = {
+            "gopls": {
+                "command": "gopls",
+                "args": ["serve"],
+                "extensionToLanguage": {".go": "go"},
+            },
+            "pyright": {
+                "command": "pyright",
+                "extensionToLanguage": {".py": "python"},
+            },
+        }
+
+        with open(lsp_file, "w", encoding="utf-8") as f:
+            json.dump(lsp_data, f)
+
+        from src.claude.models import PluginConfig
+
+        plugin_config = PluginConfig(name="test-plugin", source="test-plugin")
+
+        tools = await plugin_ops._scan_plugin_tools(
+            plugin_config, "test-marketplace", str(marketplace_install)
+        )
+
+        assert tools is not None
+        assert tools.lsp_servers is not None
+        assert len(tools.lsp_servers) == 2
+        assert tools.lsp_servers[0].name == "gopls"
+        assert tools.lsp_servers[0].lspServer.command == "gopls"
+        assert tools.lsp_servers[0].scope.value == "plugin"
+
+    @pytest.mark.asyncio
+    async def test_scan_plugin_tools_with_lsp_servers_from_plugin_json(
+        self, plugin_ops, temp_user_home
+    ):
+        """测试扫描插件的 LSP servers（从 plugin.json）"""
+        marketplace_install = (
+            temp_user_home / ".claude" / "plugins" / "test-marketplace"
+        )
+        marketplace_install.mkdir(parents=True, exist_ok=True)
+
+        plugin_root = marketplace_install / "test-plugin"
+        plugin_root.mkdir(parents=True, exist_ok=True)
+
+        from src.claude.models import PluginConfig
+
+        lsp_servers_config = {
+            "typescript": {
+                "command": "typescript-language-server",
+                "args": ["--stdio"],
+                "extensionToLanguage": {".ts": "typescript", ".tsx": "typescript"},
+            }
+        }
+
+        plugin_config = PluginConfig(
+            name="test-plugin", source="test-plugin", lspServers=lsp_servers_config
+        )
+
+        tools = await plugin_ops._scan_plugin_tools(
+            plugin_config, "test-marketplace", str(marketplace_install)
+        )
+
+        assert tools is not None
+        assert tools.lsp_servers is not None
+        assert len(tools.lsp_servers) == 1
+        assert tools.lsp_servers[0].name == "typescript"
+        assert tools.lsp_servers[0].file_path == "plugin.json"
+
+    @pytest.mark.asyncio
+    async def test_scan_plugin_tools_with_lsp_servers_merge_both_sources(
+        self, plugin_ops, temp_user_home
+    ):
+        """测试合并 .lsp.json 和 plugin.json 中的 LSP servers"""
+        marketplace_install = (
+            temp_user_home / ".claude" / "plugins" / "test-marketplace"
+        )
+        marketplace_install.mkdir(parents=True, exist_ok=True)
+
+        plugin_root = marketplace_install / "test-plugin"
+        plugin_root.mkdir(parents=True, exist_ok=True)
+
+        # 创建 .lsp.json（基础配置）
+        lsp_file = plugin_root / ".lsp.json"
+        lsp_file_data = {
+            "gopls": {
+                "command": "gopls",
+                "extensionToLanguage": {".go": "go"},
+            },
+            "pyright": {
+                "command": "pyright",
+                "extensionToLanguage": {".py": "python"},
+            },
+        }
+
+        with open(lsp_file, "w", encoding="utf-8") as f:
+            json.dump(lsp_file_data, f)
+
+        # plugin.json 中的配置（会覆盖 gopls，添加 rust-analyzer）
+        lsp_servers_config = {
+            "gopls": {
+                "command": "gopls-custom",  # 覆盖 .lsp.json
+                "args": ["serve"],
+                "extensionToLanguage": {".go": "go"},
+            },
+            "rust-analyzer": {
+                "command": "rust-analyzer",
+                "extensionToLanguage": {".rs": "rust"},
+            },
+        }
+
+        from src.claude.models import PluginConfig
+
+        plugin_config = PluginConfig(
+            name="test-plugin", source="test-plugin", lspServers=lsp_servers_config
+        )
+
+        tools = await plugin_ops._scan_plugin_tools(
+            plugin_config, "test-marketplace", str(marketplace_install)
+        )
+
+        assert tools is not None
+        assert tools.lsp_servers is not None
+        assert len(tools.lsp_servers) == 3
+
+        # 验证服务器名称
+        server_names = {s.name for s in tools.lsp_servers}
+        assert server_names == {"gopls", "pyright", "rust-analyzer"}
+
+        # 验证 gopls 被 plugin.json 覆盖
+        gopls_server = next(s for s in tools.lsp_servers if s.name == "gopls")
+        assert gopls_server.lspServer.command == "gopls-custom"
+        assert gopls_server.file_path == "plugin.json"
+
+        # 验证 pyright 来自 .lsp.json
+        pyright_server = next(s for s in tools.lsp_servers if s.name == "pyright")
+        assert pyright_server.lspServer.command == "pyright"
+        assert pyright_server.file_path == str(lsp_file.absolute())
+
+    @pytest.mark.asyncio
+    async def test_get_plugin_lsp_servers(
+        self, plugin_ops, temp_user_home, temp_project_dir
+    ):
+        """测试获取已启用插件的 LSP servers"""
+        # 创建 marketplace
+        known_marketplaces = (
+            temp_user_home / ".claude" / "plugins" / "known_marketplaces.json"
+        )
+        marketplace_data = {
+            "test-marketplace": {
+                "source": {"source": "github", "repo": "test/repo"},
+                "installLocation": str(temp_user_home / "test-marketplace"),
+            }
+        }
+        with open(known_marketplaces, "w", encoding="utf-8") as f:
+            json.dump(marketplace_data, f)
+
+        # 创建 marketplace.json
+        install_location = temp_user_home / "test-marketplace"
+        install_location.mkdir(parents=True, exist_ok=True)
+        marketplace_json = install_location / ".claude-plugin" / "marketplace.json"
+        marketplace_json.parent.mkdir(parents=True, exist_ok=True)
+
+        marketplace_data_content = {
+            "plugins": [
+                {
+                    "name": "lsp-plugin",
+                    "description": "LSP plugin",
+                    "source": "lsp-plugin",
+                }
+            ]
+        }
+
+        with open(marketplace_json, "w", encoding="utf-8") as f:
+            json.dump(marketplace_data_content, f)
+
+        # 创建插件目录和 .lsp.json
+        plugin_root = install_location / "lsp-plugin"
+        plugin_root.mkdir(parents=True, exist_ok=True)
+
+        lsp_file = plugin_root / ".lsp.json"
+        lsp_data = {
+            "gopls": {
+                "command": "gopls",
+                "extensionToLanguage": {".go": "go"},
+            }
+        }
+
+        with open(lsp_file, "w", encoding="utf-8") as f:
+            json.dump(lsp_data, f)
+
+        # 启用插件
+        settings_file = temp_project_dir / ".claude" / "settings.json"
+        settings_data = {"enabledPlugins": {"lsp-plugin@test-marketplace": True}}
+        with open(settings_file, "w", encoding="utf-8") as f:
+            json.dump(settings_data, f)
+
+        # 获取 LSP servers
+        lsp_servers = await plugin_ops.get_plugin_lsp_servers()
+
+        assert len(lsp_servers) == 1
+        assert lsp_servers[0].name == "gopls"
+        assert lsp_servers[0].plugin_name == "lsp-plugin"
+        assert lsp_servers[0].marketplace_name == "test-marketplace"
+
+    @pytest.mark.asyncio
+    async def test_scan_plugin_tools_nonexistent_plugin(
+        self, plugin_ops, temp_user_home
+    ):
         """测试扫描不存在的插件工具"""
         marketplace_install = (
             temp_user_home / ".claude" / "plugins" / "test-marketplace"
@@ -633,7 +865,7 @@ This is a test agent.
 
         plugin_config = PluginConfig(name="nonexistent", source="nonexistent")
 
-        tools = plugin_ops._scan_plugin_tools(
+        tools = await plugin_ops._scan_plugin_tools(
             plugin_config, "test-marketplace", str(marketplace_install)
         )
 

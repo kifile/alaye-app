@@ -19,6 +19,7 @@ import { SkillsDetail } from './components/SkillsDetail';
 import { SettingsDetail } from './components/SettingsDetail';
 import { PluginDetail } from './components/PluginDetail';
 import { ProjectSwitcher } from './components/ProjectSwitcher';
+import { LspServersDetail } from './components/LspServersDetail';
 import { useTranslation } from 'react-i18next';
 import { loadAllPageTranslations } from '@/lib/i18n';
 
@@ -26,6 +27,7 @@ type ConfigSection =
   | 'memory'
   | 'plugins'
   | 'mcpServers'
+  | 'lspServers'
   | 'commands'
   | 'subAgents'
   | 'hooks'
@@ -144,6 +146,8 @@ function ProjectDetailPageContent() {
         return <PluginDetail projectId={currentProjectId} />;
       case 'mcpServers':
         return <McpServersDetail projectId={currentProjectId} />;
+      case 'lspServers':
+        return <LspServersDetail projectId={currentProjectId} />;
       case 'commands':
         return <CommandsDetail projectId={currentProjectId} />;
       case 'subAgents':

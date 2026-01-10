@@ -198,7 +198,9 @@ class ClaudeProjectsScanner:
     def scan_all_projects(self) -> List[ClaudeProject]:
         """Scan all projects in the Claude projects directory and return a list of ClaudeProject objects."""
         if not self.projects_path.exists():
-            logger.warning(f"Claude projects directory does not exist: {self.projects_path}")
+            logger.warning(
+                f"Claude projects directory does not exist: {self.projects_path}"
+            )
             return []
 
         projects = []

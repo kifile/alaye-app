@@ -104,7 +104,9 @@ class ProjectService:
                 # 从项目信息获取项目路径
                 project_path = project.project_path
                 if not project_path:
-                    logger.warning(f"Project {project_id} has no project path configured")
+                    logger.warning(
+                        f"Project {project_id} has no project path configured"
+                    )
                     return None
 
                 # 构建项目目录路径（从完整路径提取目录名）

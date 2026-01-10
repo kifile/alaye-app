@@ -49,7 +49,7 @@ class ClaudeHooksOperations:
         self.user_home = user_home if user_home else Path.home()
         self.plugin_ops = plugin_ops
 
-    def scan_hooks_info(self, scope: ConfigScope | None = None) -> HooksInfo:
+    async def scan_hooks_info(self, scope: ConfigScope | None = None) -> HooksInfo:
         """
         扫描并合并所有 Hooks 配置
 
@@ -87,7 +87,7 @@ class ClaudeHooksOperations:
         if (scope is None or scope == ConfigScope.plugin) and self.plugin_ops:
             try:
                 # 获取已安装的插件列表
-                plugins = self.plugin_ops.scan_plugins()
+                plugins = await self.plugin_ops.scan_plugins()
 
                 # 筛选出已启用的插件
                 enabled_plugins = [

@@ -46,16 +46,18 @@ class TestClaudeHooksOperations:
 
     # ========== 测试 scan_hooks_info ==========
 
-    def test_scan_hooks_info_empty_configs(self, hooks_ops):
+    @pytest.mark.asyncio
+    async def test_scan_hooks_info_empty_configs(self, hooks_ops):
         """测试扫描空的 Hooks 配置"""
-        hooks_info = hooks_ops.scan_hooks_info()
+        hooks_info = await hooks_ops.scan_hooks_info()
 
         assert isinstance(hooks_info, HooksInfo)
         assert hooks_info.matchers == []
         assert hooks_info.disable_all_hooks.value is None
         assert hooks_info.disable_all_hooks.scope is None
 
-    def test_scan_hooks_info_with_user_hooks(self, temp_user_home, hooks_ops):
+    @pytest.mark.asyncio
+    async def test_scan_hooks_info_with_user_hooks(self, temp_user_home, hooks_ops):
         """测试扫描 user Hooks 配置"""
         settings_file = temp_user_home / ".claude" / "settings.json"
         test_data = {
@@ -74,7 +76,7 @@ class TestClaudeHooksOperations:
         with open(settings_file, "w", encoding="utf-8") as f:
             json.dump(test_data, f)
 
-        hooks_info = hooks_ops.scan_hooks_info()
+        hooks_info = await hooks_ops.scan_hooks_info()
 
         assert len(hooks_info.matchers) == 1
         assert hooks_info.matchers[0].scope == ConfigScope.user
@@ -82,7 +84,10 @@ class TestClaudeHooksOperations:
         assert hooks_info.matchers[0].matcher == "bash.exec"
         assert hooks_info.matchers[0].hook_config.type == "command"
 
-    def test_scan_hooks_info_with_project_hooks(self, temp_project_dir, hooks_ops):
+    @pytest.mark.asyncio
+    async def test_scan_hooks_info_with_project_hooks(
+        self, temp_project_dir, hooks_ops
+    ):
         """测试扫描 project Hooks 配置"""
         settings_file = temp_project_dir / ".claude" / "settings.json"
         test_data = {
@@ -100,7 +105,7 @@ class TestClaudeHooksOperations:
         with open(settings_file, "w", encoding="utf-8") as f:
             json.dump(test_data, f)
 
-        hooks_info = hooks_ops.scan_hooks_info()
+        hooks_info = await hooks_ops.scan_hooks_info()
 
         assert len(hooks_info.matchers) == 1
         assert hooks_info.matchers[0].scope == ConfigScope.project
@@ -108,7 +113,8 @@ class TestClaudeHooksOperations:
         assert hooks_info.matchers[0].matcher is None
         assert hooks_info.matchers[0].hook_config.type == "prompt"
 
-    def test_scan_hooks_info_with_local_hooks(self, temp_project_dir, hooks_ops):
+    @pytest.mark.asyncio
+    async def test_scan_hooks_info_with_local_hooks(self, temp_project_dir, hooks_ops):
         """测试扫描 local Hooks 配置（最高优先级）"""
         settings_file = temp_project_dir / ".claude" / "settings.local.json"
         test_data = {
@@ -127,12 +133,13 @@ class TestClaudeHooksOperations:
         with open(settings_file, "w", encoding="utf-8") as f:
             json.dump(test_data, f)
 
-        hooks_info = hooks_ops.scan_hooks_info()
+        hooks_info = await hooks_ops.scan_hooks_info()
 
         assert len(hooks_info.matchers) == 1
         assert hooks_info.matchers[0].scope == ConfigScope.local
 
-    def test_scan_hooks_info_priority_override(
+    @pytest.mark.asyncio
+    async def test_scan_hooks_info_priority_override(
         self, temp_user_home, temp_project_dir, hooks_ops
     ):
         """测试 Hooks 配置优先级：local > project > user"""
@@ -187,7 +194,7 @@ class TestClaudeHooksOperations:
         with open(local_settings, "w", encoding="utf-8") as f:
             json.dump(local_data, f)
 
-        hooks_info = hooks_ops.scan_hooks_info()
+        hooks_info = await hooks_ops.scan_hooks_info()
 
         # 应该返回所有三个配置，按优先级排序：local > project > user
         assert len(hooks_info.matchers) == 3
@@ -198,7 +205,8 @@ class TestClaudeHooksOperations:
         assert hooks_info.matchers[2].scope == ConfigScope.user
         assert hooks_info.matchers[2].hook_config.command == "echo 'user'"
 
-    def test_scan_hooks_info_disable_all_hooks_priority(
+    @pytest.mark.asyncio
+    async def test_scan_hooks_info_disable_all_hooks_priority(
         self, temp_user_home, temp_project_dir, hooks_ops
     ):
         """测试 disableAllHooks 优先级：local > project > user"""
@@ -220,7 +228,7 @@ class TestClaudeHooksOperations:
         with open(local_settings, "w", encoding="utf-8") as f:
             json.dump(local_data, f)
 
-        hooks_info = hooks_ops.scan_hooks_info()
+        hooks_info = await hooks_ops.scan_hooks_info()
 
         # Local 配置应该覆盖其他配置
         assert hooks_info.disable_all_hooks.value is False
@@ -317,7 +325,8 @@ class TestClaudeHooksOperations:
 
     # ========== 测试 remove_hook ==========
 
-    def test_remove_hook_success(self, hooks_ops, temp_project_dir):
+    @pytest.mark.asyncio
+    async def test_remove_hook_success(self, hooks_ops, temp_project_dir):
         """测试成功删除 Hook"""
         # 先添加一个 Hook
         hook = HookConfig(type="command", command="echo 'test'")
@@ -325,7 +334,7 @@ class TestClaudeHooksOperations:
         hooks_ops.add_hook(event, hook, matcher="test.tool", scope=ConfigScope.project)
 
         # 获取 hook_id
-        hooks_info = hooks_ops.scan_hooks_info()
+        hooks_info = await hooks_ops.scan_hooks_info()
         hook_id = hooks_info.matchers[0].id
 
         # 删除 Hook
@@ -333,7 +342,7 @@ class TestClaudeHooksOperations:
         assert result is True
 
         # 验证删除
-        hooks_info_after = hooks_ops.scan_hooks_info()
+        hooks_info_after = await hooks_ops.scan_hooks_info()
         assert len(hooks_info_after.matchers) == 0
 
     def test_remove_hook_invalid_id(self, hooks_ops):
@@ -349,7 +358,8 @@ class TestClaudeHooksOperations:
         # 应该返回 False 而不是抛出异常
         assert result is False
 
-    def test_remove_hook_with_multiple_hooks_in_matcher(
+    @pytest.mark.asyncio
+    async def test_remove_hook_with_multiple_hooks_in_matcher(
         self, hooks_ops, temp_project_dir
     ):
         """测试删除 matcher 中的单个 hook"""
@@ -362,19 +372,20 @@ class TestClaudeHooksOperations:
         hooks_ops.add_hook(event, hook2, matcher="test.tool", scope=ConfigScope.project)
 
         # 获取第一个 hook 的 ID 并删除
-        hooks_info = hooks_ops.scan_hooks_info()
+        hooks_info = await hooks_ops.scan_hooks_info()
         hook_id = hooks_info.matchers[0].id  # 第一个 hook
 
         hooks_ops.remove_hook(hook_id, scope=ConfigScope.project)
 
         # 验证只剩下一个 hook
-        hooks_info_after = hooks_ops.scan_hooks_info()
+        hooks_info_after = await hooks_ops.scan_hooks_info()
         assert len(hooks_info_after.matchers) == 1
         assert hooks_info_after.matchers[0].hook_config.type == "prompt"
 
     # ========== 测试 update_hook ==========
 
-    def test_update_hook_success(self, hooks_ops, temp_project_dir):
+    @pytest.mark.asyncio
+    async def test_update_hook_success(self, hooks_ops, temp_project_dir):
         """测试成功更新 Hook"""
         # 先添加一个 Hook
         original_hook = HookConfig(type="command", command="echo 'old'")
@@ -384,7 +395,7 @@ class TestClaudeHooksOperations:
         )
 
         # 获取 hook_id
-        hooks_info = hooks_ops.scan_hooks_info()
+        hooks_info = await hooks_ops.scan_hooks_info()
         hook_id = hooks_info.matchers[0].id
 
         # 更新 Hook
@@ -393,7 +404,7 @@ class TestClaudeHooksOperations:
         assert result is True
 
         # 验证更新
-        hooks_info_after = hooks_ops.scan_hooks_info()
+        hooks_info_after = await hooks_ops.scan_hooks_info()
         assert hooks_info_after.matchers[0].hook_config.command == "echo 'new'"
         assert hooks_info_after.matchers[0].hook_config.timeout == 30
 
@@ -403,7 +414,8 @@ class TestClaudeHooksOperations:
         result = hooks_ops.update_hook("$invalid-id", hook, scope=ConfigScope.project)
         assert result is False
 
-    def test_update_hook_change_type(self, hooks_ops, temp_project_dir):
+    @pytest.mark.asyncio
+    async def test_update_hook_change_type(self, hooks_ops, temp_project_dir):
         """测试更新 Hook 类型（command -> prompt）"""
         # 添加 command 类型的 hook
         original_hook = HookConfig(type="command", command="echo 'test'")
@@ -411,7 +423,7 @@ class TestClaudeHooksOperations:
         hooks_ops.add_hook(event, original_hook, scope=ConfigScope.project)
 
         # 获取 hook_id
-        hooks_info = hooks_ops.scan_hooks_info()
+        hooks_info = await hooks_ops.scan_hooks_info()
         hook_id = hooks_info.matchers[0].id
 
         # 更新为 prompt 类型
@@ -419,7 +431,7 @@ class TestClaudeHooksOperations:
         hooks_ops.update_hook(hook_id, updated_hook, scope=ConfigScope.project)
 
         # 验证更新
-        hooks_info_after = hooks_ops.scan_hooks_info()
+        hooks_info_after = await hooks_ops.scan_hooks_info()
         assert hooks_info_after.matchers[0].hook_config.type == "prompt"
         assert hooks_info_after.matchers[0].hook_config.prompt == "New prompt"
 
@@ -463,14 +475,15 @@ class TestClaudeHooksOperations:
 
     # ========== 测试集成场景 ==========
 
-    def test_full_crud_workflow(self, hooks_ops):
+    @pytest.mark.asyncio
+    async def test_full_crud_workflow(self, hooks_ops):
         """测试完整的 CRUD 工作流"""
         # Create: 添加 Hook
         hook = HookConfig(type="command", command="echo 'test'")
         event = HookEvent.PreToolUse
         hooks_ops.add_hook(event, hook, matcher="crud.test", scope=ConfigScope.project)
 
-        hooks_info = hooks_ops.scan_hooks_info()
+        hooks_info = await hooks_ops.scan_hooks_info()
         assert len(hooks_info.matchers) == 1
         original_hook_id = hooks_info.matchers[0].id
 
@@ -478,16 +491,19 @@ class TestClaudeHooksOperations:
         updated_hook = HookConfig(type="command", command="echo 'test'", timeout=30)
         hooks_ops.update_hook(original_hook_id, updated_hook, scope=ConfigScope.project)
 
-        hooks_info = hooks_ops.scan_hooks_info()
+        hooks_info = await hooks_ops.scan_hooks_info()
         assert hooks_info.matchers[0].hook_config.timeout == 30
 
         # Delete: 删除 Hook（使用原始 ID）
         hooks_ops.remove_hook(original_hook_id, scope=ConfigScope.project)
 
-        hooks_info = hooks_ops.scan_hooks_info()
+        hooks_info = await hooks_ops.scan_hooks_info()
         assert len(hooks_info.matchers) == 0
 
-    def test_multiple_events_with_different_hooks(self, hooks_ops, temp_project_dir):
+    @pytest.mark.asyncio
+    async def test_multiple_events_with_different_hooks(
+        self, hooks_ops, temp_project_dir
+    ):
         """测试多个事件类型的 Hooks"""
         # 添加不同事件的 hooks
         hooks_ops.add_hook(
@@ -506,7 +522,7 @@ class TestClaudeHooksOperations:
             scope=ConfigScope.project,
         )
 
-        hooks_info = hooks_ops.scan_hooks_info()
+        hooks_info = await hooks_ops.scan_hooks_info()
         assert len(hooks_info.matchers) == 3
 
         # 验证不同事件类型

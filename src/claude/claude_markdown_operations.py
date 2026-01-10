@@ -46,7 +46,7 @@ class ClaudeMarkdownOperations:
         self.user_home = user_home if user_home else Path.home()
         self.plugin_ops = plugin_ops
 
-    def _get_markdown_file_path(
+    async def _get_markdown_file_path(
         self,
         content_type: str,
         name: str = None,
@@ -68,7 +68,7 @@ class ClaudeMarkdownOperations:
         """
         # 如果是 plugin 作用域，从插件中获取路径
         if scope == ConfigScope.plugin:
-            return self._get_plugin_content_path(content_type, name)
+            return await self._get_plugin_content_path(content_type, name)
 
         if content_type == "memory":
             if name == "project_claude_md":
@@ -111,7 +111,7 @@ class ClaudeMarkdownOperations:
         else:
             raise ValueError(f"不支持的 content_type: {content_type}")
 
-    def _get_plugin_content_path(self, content_type: str, name: str) -> Path:
+    async def _get_plugin_content_path(self, content_type: str, name: str) -> Path:
         """
         获取插件内容的文件路径
 
@@ -142,7 +142,7 @@ class ClaudeMarkdownOperations:
 
         # 根据内容类型使用对应的 get_plugin_* 方法，避免全量扫描
         if content_type == "command":
-            commands = self.plugin_ops.get_plugin_commands(
+            commands = await self.plugin_ops.get_plugin_commands(
                 plugin_name_filter=plugin_name
             )
             for cmd in commands:
@@ -154,7 +154,9 @@ class ClaudeMarkdownOperations:
             )
 
         elif content_type == "agent":
-            agents = self.plugin_ops.get_plugin_agents(plugin_name_filter=plugin_name)
+            agents = await self.plugin_ops.get_plugin_agents(
+                plugin_name_filter=plugin_name
+            )
             for agent in agents:
                 if agent.name == actual_name and agent.file_path:
                     return Path(agent.file_path)
@@ -164,7 +166,9 @@ class ClaudeMarkdownOperations:
             )
 
         elif content_type == "skill":
-            skills = self.plugin_ops.get_plugin_skills(plugin_name_filter=plugin_name)
+            skills = await self.plugin_ops.get_plugin_skills(
+                plugin_name_filter=plugin_name
+            )
             for skill in skills:
                 if skill.name == actual_name and skill.file_path:
                     # skill.file_path 是 skill 目录，需要定位到 SKILL.md
@@ -177,7 +181,7 @@ class ClaudeMarkdownOperations:
         else:
             raise ValueError(f"不支持的插件内容类型: {content_type}")
 
-    def load_markdown_content(
+    async def load_markdown_content(
         self,
         content_type: str,
         name: str = None,
@@ -197,7 +201,7 @@ class ClaudeMarkdownOperations:
         Raises:
             ValueError: 当 content_type 或 name 无效时抛出异常
         """
-        file_path = self._get_markdown_file_path(content_type, name, scope)
+        file_path = await self._get_markdown_file_path(content_type, name, scope)
 
         # 读取文件内容
         if file_path.exists():
@@ -211,7 +215,7 @@ class ClaudeMarkdownOperations:
 
         return MarkdownContentDTO(md5=md5_hash, content=content)
 
-    def update_markdown_content(
+    async def update_markdown_content(
         self,
         content_type: str,
         name: str = None,
@@ -242,7 +246,7 @@ class ClaudeMarkdownOperations:
             # 内容未发生变化
             return
 
-        file_path = self._get_markdown_file_path(content_type, name, scope)
+        file_path = await self._get_markdown_file_path(content_type, name, scope)
 
         # 读取当前内容以检查 MD5
         if file_path.exists():
@@ -264,7 +268,7 @@ class ClaudeMarkdownOperations:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(content)
 
-    def save_markdown_content(
+    async def save_markdown_content(
         self,
         content_type: str,
         name: str,
@@ -291,7 +295,7 @@ class ClaudeMarkdownOperations:
         if scope == ConfigScope.plugin:
             raise ValueError("不允许保存到插件作用域")
 
-        file_path = self._get_markdown_file_path(content_type, name, scope)
+        file_path = await self._get_markdown_file_path(content_type, name, scope)
 
         # 检查文件是否已存在
         if file_path.exists():
@@ -308,7 +312,7 @@ class ClaudeMarkdownOperations:
         md5_hash = hashlib.md5(content.encode("utf-8")).hexdigest()
         return MarkdownContentDTO(md5=md5_hash, content=content)
 
-    def rename_markdown_content(
+    async def rename_markdown_content(
         self,
         content_type: str,
         name: str,
@@ -341,7 +345,7 @@ class ClaudeMarkdownOperations:
             raise ValueError("不允许重命名或移动插件作用域的内容")
 
         # 获取源文件路径
-        source_path = self._get_markdown_file_path(content_type, name, scope)
+        source_path = await self._get_markdown_file_path(content_type, name, scope)
 
         # 检查源文件是否存在
         if not source_path.exists():
@@ -350,7 +354,7 @@ class ClaudeMarkdownOperations:
         # 获取目标文件路径（先用 new_name 构造路径来检查是否已存在）
         # 对于 skill 类型，需要特殊处理文件夹
         if content_type == "skill":
-            target_path = self._get_markdown_file_path(
+            target_path = await self._get_markdown_file_path(
                 content_type, new_name, new_scope
             )
             # 检查目标文件夹是否已存在
@@ -358,7 +362,7 @@ class ClaudeMarkdownOperations:
             if target_dir.exists():
                 raise ValueError(f"skill '{new_name}' 已存在")
         else:
-            target_path = self._get_markdown_file_path(
+            target_path = await self._get_markdown_file_path(
                 content_type, new_name, new_scope
             )
             # 检查目标文件是否已存在
@@ -386,9 +390,11 @@ class ClaudeMarkdownOperations:
             # 使用 helper 函数更新文件中的 name 字段
             success = update_file_name_field(target_path, actual_name)
             if not success:
-                logger.warning(f"Failed to update name field for {content_type} '{new_name}'")
+                logger.warning(
+                    f"Failed to update name field for {content_type} '{new_name}'"
+                )
 
-    def delete_markdown_content(
+    async def delete_markdown_content(
         self, content_type: str, name: str, scope: ConfigScope = ConfigScope.project
     ) -> None:
         """
@@ -408,7 +414,7 @@ class ClaudeMarkdownOperations:
             raise ValueError("不允许删除插件作用域的内容")
 
         # 获取文件路径
-        file_path = self._get_markdown_file_path(content_type, name, scope)
+        file_path = await self._get_markdown_file_path(content_type, name, scope)
 
         # 检查文件是否存在
         if not file_path.exists():
@@ -425,7 +431,7 @@ class ClaudeMarkdownOperations:
         except Exception as e:
             raise ValueError(f"删除 {content_type} '{name}' 失败: {str(e)}")
 
-    def _markdown_content_exists(
+    async def _markdown_content_exists(
         self,
         content_type: str,
         name: str = None,
@@ -443,12 +449,12 @@ class ClaudeMarkdownOperations:
             bool: 内容是否存在
         """
         try:
-            file_path = self._get_markdown_file_path(content_type, name, scope)
+            file_path = await self._get_markdown_file_path(content_type, name, scope)
             return file_path.exists()
         except ValueError:
             return False
 
-    def scan_memory(self) -> ClaudeMemoryInfo:
+    async def scan_memory(self) -> ClaudeMemoryInfo:
         """
         扫描 CLAUDE.md 配置信息
 
@@ -456,19 +462,21 @@ class ClaudeMarkdownOperations:
             ClaudeMemoryInfo: CLAUDE.md 配置信息
         """
         return ClaudeMemoryInfo(
-            project_claude_md=self._markdown_content_exists(
+            project_claude_md=await self._markdown_content_exists(
                 "memory", "project_claude_md"
             ),
-            claude_dir_claude_md=self._markdown_content_exists(
+            claude_dir_claude_md=await self._markdown_content_exists(
                 "memory", "claude_dir_claude_md"
             ),
-            local_claude_md=self._markdown_content_exists("memory", "local_claude_md"),
-            user_global_claude_md=self._markdown_content_exists(
+            local_claude_md=await self._markdown_content_exists(
+                "memory", "local_claude_md"
+            ),
+            user_global_claude_md=await self._markdown_content_exists(
                 "memory", "user_global_claude_md"
             ),
         )
 
-    def scan_agents(self, scope: ConfigScope | None = None) -> List[AgentInfo]:
+    async def scan_agents(self, scope: ConfigScope | None = None) -> List[AgentInfo]:
         """
         扫描 Agents（包括用户全局和项目路径）
 
@@ -500,7 +508,9 @@ class ClaudeMarkdownOperations:
                             )
                         )
                     except Exception as e:
-                        logger.error(f"Failed to scan project Agent file {agent_file}: {e}")
+                        logger.error(
+                            f"Failed to scan project Agent file {agent_file}: {e}"
+                        )
 
         # 根据 scope 决定扫描哪些路径
         # 如果 scope 为 None 或为 user agents
@@ -522,13 +532,15 @@ class ClaudeMarkdownOperations:
                             )
                         )
                     except Exception as e:
-                        logger.error(f"Failed to scan user Agent file {agent_file}: {e}")
+                        logger.error(
+                            f"Failed to scan user Agent file {agent_file}: {e}"
+                        )
 
         # 如果 scope 为 None 或为 plugin，扫描已启用插件的 agents
         if (scope is None or scope == ConfigScope.plugin) and self.plugin_ops:
             try:
                 # 使用新的 get_plugin_agents 方法获取插件 agents
-                plugin_agents = self.plugin_ops.get_plugin_agents()
+                plugin_agents = await self.plugin_ops.get_plugin_agents()
 
                 # 为插件 agents 添加前缀: <plugin_name>:
                 for agent in plugin_agents:
@@ -550,7 +562,9 @@ class ClaudeMarkdownOperations:
 
         return agents
 
-    def scan_commands(self, scope: ConfigScope | None = None) -> List[CommandInfo]:
+    async def scan_commands(
+        self, scope: ConfigScope | None = None
+    ) -> List[CommandInfo]:
         """
         扫描 Slash Commands（包括用户全局和项目路径）
 
@@ -594,7 +608,9 @@ class ClaudeMarkdownOperations:
                         )
                     except Exception as e:
                         # 记录错误但继续扫描其他文件
-                        logger.error(f"Failed to scan project command file {cmd_file}: {e}")
+                        logger.error(
+                            f"Failed to scan project command file {cmd_file}: {e}"
+                        )
 
         # 如果 scope 为 None 或为 user，扫描用户全局 commands
         if scope is None or scope == ConfigScope.user:
@@ -626,13 +642,15 @@ class ClaudeMarkdownOperations:
                         )
                     except Exception as e:
                         # 记录错误但继续扫描其他文件
-                        logger.error(f"Failed to scan user command file {cmd_file}: {e}")
+                        logger.error(
+                            f"Failed to scan user command file {cmd_file}: {e}"
+                        )
 
         # 如果 scope 为 None 或为 plugin，扫描已启用插件的 commands
         if (scope is None or scope == ConfigScope.plugin) and self.plugin_ops:
             try:
                 # 使用新的 get_plugin_commands 方法获取插件 commands
-                plugin_commands = self.plugin_ops.get_plugin_commands()
+                plugin_commands = await self.plugin_ops.get_plugin_commands()
 
                 # 为插件命令添加前缀: <plugin_name>:
                 for cmd in plugin_commands:
@@ -654,7 +672,7 @@ class ClaudeMarkdownOperations:
 
         return commands
 
-    def scan_skills(self, scope: ConfigScope | None = None) -> List[SkillInfo]:
+    async def scan_skills(self, scope: ConfigScope | None = None) -> List[SkillInfo]:
         """
         扫描 Skills（包括用户全局和项目路径）
 
@@ -694,7 +712,9 @@ class ClaudeMarkdownOperations:
                                     )
                                 )
                         except Exception as e:
-                            logger.error(f"Failed to scan project Skill directory {skill_dir}: {e}")
+                            logger.error(
+                                f"Failed to scan project Skill directory {skill_dir}: {e}"
+                            )
 
         # 如果 scope 为 None 或为 user，扫描用户全局 skills
         if scope is None or scope == ConfigScope.user:
@@ -722,13 +742,15 @@ class ClaudeMarkdownOperations:
                                     )
                                 )
                         except Exception as e:
-                            logger.error(f"Failed to scan user Skill directory {skill_dir}: {e}")
+                            logger.error(
+                                f"Failed to scan user Skill directory {skill_dir}: {e}"
+                            )
 
         # 如果 scope 为 None 或为 plugin，扫描已启用插件的 skills
         if (scope is None or scope == ConfigScope.plugin) and self.plugin_ops:
             try:
                 # 使用新的 get_plugin_skills 方法获取插件 skills
-                plugin_skills = self.plugin_ops.get_plugin_skills()
+                plugin_skills = await self.plugin_ops.get_plugin_skills()
 
                 # 为插件 skills 添加前缀: <plugin_name>:
                 for skill in plugin_skills:

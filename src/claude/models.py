@@ -25,6 +25,13 @@ class McpServerType(str, enum.Enum):
     sse = "sse"
 
 
+class LSPTransport(str, enum.Enum):
+    """LSP 服务器传输类型"""
+
+    stdio = "stdio"
+    socket = "socket"
+
+
 # 支持的 Hook 事件类型
 class HookEvent(str, enum.Enum):
     PreToolUse = "PreToolUse"
@@ -75,6 +82,31 @@ class MCPServer(BaseModel):
     headers: Optional[Dict[str, str]] = None  # HTTP 请求头
 
 
+class LSPServerLoggingConfig(BaseModel):
+    """LSP 服务器调试日志配置"""
+
+    args: Optional[List[str]] = None  # 额外的命令行参数
+    env: Optional[Dict[str, str]] = None  # 额外的环境变量
+
+
+class LSPServer(BaseModel):
+    """LSP 服务器信息"""
+
+    command: str  # LSP 二进制文件路径
+    extensionToLanguage: Dict[str, str]  # 文件扩展名到语言标识符的映射
+    args: Optional[List[str]] = None  # 命令行参数
+    transport: Optional[LSPTransport] = LSPTransport.stdio  # 通信传输方式
+    env: Optional[Dict[str, str]] = None  # 环境变量
+    initializationOptions: Optional[Dict[str, Any]] = None  # 初始化选项
+    settings: Optional[Dict[str, Any]] = None  # 工作区配置
+    workspaceFolder: Optional[str] = None  # 工作区文件夹路径
+    startupTimeout: Optional[int] = None  # 启动超时（毫秒）
+    shutdownTimeout: Optional[int] = None  # 关闭超时（毫秒）
+    restartOnCrash: Optional[bool] = None  # 崩溃时是否自动重启
+    maxRestarts: Optional[int] = None  # 最大重启次数
+    loggingConfig: Optional[LSPServerLoggingConfig] = None  # 调试日志配置
+
+
 class MCPServerInfo(BaseModel):
     """MCP 服务器信息（包含名称和作用域）"""
 
@@ -86,6 +118,18 @@ class MCPServerInfo(BaseModel):
     plugin_name: Optional[str] = None  # 所属插件名称
     marketplace_name: Optional[str] = None  # 所属 marketplace 名称
     file_path: Optional[str] = None  # .mcp.json 文件绝对路径
+
+
+class LSPServerInfo(BaseModel):
+    """LSP 服务器信息（包含名称和作用域）"""
+
+    name: str
+    scope: ConfigScope
+    lspServer: LSPServer
+    plugin_name: Optional[str] = None  # 所属插件名称
+    marketplace_name: Optional[str] = None  # 所属 marketplace 名称
+    file_path: Optional[str] = None  # .lsp.json 或 plugin.json 文件绝对路径
+    command_installed: Optional[bool] = None  # LSP 命令是否已在系统中安装
 
 
 class SettingsInfoWithValue(BaseModel):
@@ -451,6 +495,7 @@ class PluginTools(BaseModel):
     agents: Optional[List[AgentInfo]] = None  # 可用的 agents
     mcp_servers: Optional[List[MCPServerInfo]] = None  # 可用的 mcp servers
     hooks: Optional[List[HookConfigInfo]] = None  # 可用的 hooks
+    lsp_servers: Optional[List[LSPServerInfo]] = None  # 可用的 lsp servers
 
 
 class PluginConfig(BaseModel):
@@ -478,3 +523,4 @@ class PluginInfo(BaseModel):
     enabled: Optional[bool] = None  # 是否已启用
     enabled_scope: Optional[ConfigScope] = None  # 启用配置的作用域
     tools: Optional[PluginTools] = None  # 插件工具能力
+    readme_content_exists: bool = False  # README 文件是否存在

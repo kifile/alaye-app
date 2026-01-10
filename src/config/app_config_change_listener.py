@@ -31,11 +31,15 @@ class AppConfigChangeListener(ConfigChangeListener):
 
                 if system_language:
                     await config_service.set_setting("app.language", system_language)
-                    logger.info(f"Application language set to: {system_language} based on system language")
+                    logger.info(
+                        f"Application language set to: {system_language} based on system language"
+                    )
                 else:
                     # 如果无法检测系统语言，默认使用英文
                     await config_service.set_setting("app.language", "en")
-                    logger.info("Unable to detect system language, using default language: en")
+                    logger.info(
+                        "Unable to detect system language, using default language: en"
+                    )
 
         except Exception as e:
             logger.error(f"Failed to detect system language: {str(e)}")

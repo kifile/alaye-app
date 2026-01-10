@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from ..utils.process_utils import ProcessResult
 from .claude_hooks_operations import ClaudeHooksOperations
+from .claude_lsp_operations import ClaudeLSPOperations
 from .claude_markdown_operations import ClaudeMarkdownOperations
 from .claude_mcp_operations import ClaudeMCPOperations
 from .claude_plugin_operations import ClaudePluginOperations
@@ -19,6 +20,7 @@ from .models import (
     HookConfig,
     HookEvent,
     HooksInfo,
+    LSPServerInfo,
     MarkdownContentDTO,
     MCPInfo,
     MCPServer,
@@ -58,10 +60,13 @@ class ClaudeConfigManager:
         self.mcp_ops = ClaudeMCPOperations(
             self.project_path, self.user_home, self.plugin_ops
         )
+        self.lsp_ops = ClaudeLSPOperations(
+            self.project_path, self.user_home, self.plugin_ops
+        )
         self.settings_ops = ClaudeSettingsOperations(self.project_path, self.user_home)
 
     # MCP 相关操作
-    def scan_mcp_servers(self, scope: ConfigScope | None = None) -> MCPInfo:
+    async def scan_mcp_servers(self, scope: ConfigScope | None = None) -> MCPInfo:
         """
         扫描 MCP 服务器配置
 
@@ -72,7 +77,7 @@ class ClaudeConfigManager:
         Returns:
             MCPInfo: MCP 配置信息
         """
-        return self.mcp_ops.scan_mcp(scope)
+        return await self.mcp_ops.scan_mcp(scope)
 
     def remove_mcp_server(
         self, name: str, scope: ConfigScope = ConfigScope.project
@@ -114,17 +119,33 @@ class ClaudeConfigManager:
         """更新 enableAllProjectMcpServers 配置"""
         return self.mcp_ops.update_enable_all_project_mcp_servers(value)
 
+    # LSP 相关操作
+    async def scan_lsp_servers(
+        self, scope: ConfigScope | None = None
+    ) -> List[LSPServerInfo]:
+        """
+        扫描 LSP 服务器配置
+
+        Args:
+            scope: 可选的作用域过滤器。如果指定，只返回该作用域的 LSP 服务器。
+                   None 表示返回所有作用域的服务器。
+
+        Returns:
+            List[LSPServerInfo]: LSP 服务器信息列表
+        """
+        return await self.lsp_ops.scan_lsp(scope)
+
     # Markdown 相关操作
-    def load_markdown_content(
+    async def load_markdown_content(
         self,
         content_type: str,
         name: str = None,
         scope: ConfigScope = ConfigScope.project,
     ) -> MarkdownContentDTO:
         """加载 Markdown 内容"""
-        return self.markdown_ops.load_markdown_content(content_type, name, scope)
+        return await self.markdown_ops.load_markdown_content(content_type, name, scope)
 
-    def update_markdown_content(
+    async def update_markdown_content(
         self,
         content_type: str,
         name: str = None,
@@ -133,11 +154,11 @@ class ClaudeConfigManager:
         scope: ConfigScope = ConfigScope.project,
     ) -> None:
         """更新 Markdown 内容"""
-        return self.markdown_ops.update_markdown_content(
+        return await self.markdown_ops.update_markdown_content(
             content_type, name, from_md5, content, scope
         )
 
-    def rename_markdown_content(
+    async def rename_markdown_content(
         self,
         content_type: str,
         name: str,
@@ -146,11 +167,11 @@ class ClaudeConfigManager:
         new_scope: ConfigScope = None,
     ) -> None:
         """重命名 Markdown 内容"""
-        return self.markdown_ops.rename_markdown_content(
+        return await self.markdown_ops.rename_markdown_content(
             content_type, name, new_name, scope, new_scope
         )
 
-    def save_markdown_content(
+    async def save_markdown_content(
         self,
         content_type: str,
         name: str,
@@ -158,15 +179,17 @@ class ClaudeConfigManager:
         scope: ConfigScope = ConfigScope.project,
     ) -> MarkdownContentDTO:
         """保存（新增）Markdown 内容"""
-        return self.markdown_ops.save_markdown_content(
+        return await self.markdown_ops.save_markdown_content(
             content_type, name, content, scope
         )
 
-    def delete_markdown_content(
+    async def delete_markdown_content(
         self, content_type: str, name: str, scope: ConfigScope = ConfigScope.project
     ) -> None:
         """删除 Markdown 内容"""
-        return self.markdown_ops.delete_markdown_content(content_type, name, scope)
+        return await self.markdown_ops.delete_markdown_content(
+            content_type, name, scope
+        )
 
     # Settings 相关操作
     def scan_settings(self, scope: ConfigScope) -> ClaudeSettingsInfoDTO:
@@ -212,7 +235,7 @@ class ClaudeConfigManager:
         return self.settings_ops.update_settings_scope(old_scope, new_scope, key)
 
     # Hooks CRUD 相关操作
-    def scan_hooks_info(self, scope: ConfigScope | None = None) -> HooksInfo:
+    async def scan_hooks_info(self, scope: ConfigScope | None = None) -> HooksInfo:
         """
         扫描 Hooks 配置
 
@@ -223,7 +246,7 @@ class ClaudeConfigManager:
         Returns:
             HooksInfo: Hooks 配置信息
         """
-        return self.hooks_ops.scan_hooks_info(scope)
+        return await self.hooks_ops.scan_hooks_info(scope)
 
     def add_hook(
         self,
@@ -256,11 +279,11 @@ class ClaudeConfigManager:
         """更新 disableAllHooks 配置"""
         return self.hooks_ops.update_disable_all_hooks(value)
 
-    def scan_memory(self) -> ClaudeMemoryInfo:
+    async def scan_memory(self) -> ClaudeMemoryInfo:
         """加载 CLAUDE.md 配置信息"""
-        return self.markdown_ops.scan_memory()
+        return await self.markdown_ops.scan_memory()
 
-    def scan_agents(self, scope: ConfigScope | None = None):
+    async def scan_agents(self, scope: ConfigScope | None = None):
         """
         扫描 Agents 配置信息
 
@@ -271,9 +294,9 @@ class ClaudeConfigManager:
         Returns:
             List[AgentInfo]: Agent 信息列表
         """
-        return self.markdown_ops.scan_agents(scope)
+        return await self.markdown_ops.scan_agents(scope)
 
-    def scan_commands(self, scope: ConfigScope | None = None):
+    async def scan_commands(self, scope: ConfigScope | None = None):
         """
         扫描 Commands 配置信息
 
@@ -284,9 +307,9 @@ class ClaudeConfigManager:
         Returns:
             List[CommandInfo]: Command 信息列表
         """
-        return self.markdown_ops.scan_commands(scope)
+        return await self.markdown_ops.scan_commands(scope)
 
-    def scan_skills(self, scope: ConfigScope | None = None):
+    async def scan_skills(self, scope: ConfigScope | None = None):
         """
         扫描 Skills 配置信息
 
@@ -297,14 +320,14 @@ class ClaudeConfigManager:
         Returns:
             List[SkillInfo]: Skill 信息列表
         """
-        return self.markdown_ops.scan_skills(scope)
+        return await self.markdown_ops.scan_skills(scope)
 
     # Plugin Marketplace 相关操作
     def scan_plugin_marketplaces(self) -> List[PluginMarketplaceInfo]:
         """扫描已安装的 marketplace 列表"""
         return self.plugin_ops.scan_marketplaces()
 
-    def scan_plugins(
+    async def scan_plugins(
         self, marketplace_names: Optional[List[str]] = None
     ) -> List[PluginInfo]:
         """
@@ -316,7 +339,7 @@ class ClaudeConfigManager:
         Returns:
             插件信息列表，按安装数量从大到小排序
         """
-        return self.plugin_ops.scan_plugins(marketplace_names)
+        return await self.plugin_ops.scan_plugins(marketplace_names)
 
     async def install_marketplace(self, source: str) -> ProcessResult:
         """
@@ -392,3 +415,18 @@ class ClaudeConfigManager:
             new_scope: 新的配置作用域
         """
         self.plugin_ops.move_plugin(plugin_name, old_scope, new_scope)
+
+    def read_plugin_readme(
+        self, marketplace_name: str, plugin_name: str
+    ) -> Optional[str]:
+        """
+        读取指定插件的 README 文件内容
+
+        Args:
+            marketplace_name: marketplace 名称
+            plugin_name: 插件名称
+
+        Returns:
+            Optional[str]: README 文件内容，如果文件不存在或读取失败返回 None
+        """
+        return self.plugin_ops.read_plugin_readme_content(marketplace_name, plugin_name)

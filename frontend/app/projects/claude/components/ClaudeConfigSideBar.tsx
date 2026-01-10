@@ -16,6 +16,7 @@ type ConfigSection =
   | 'memory'
   | 'plugins'
   | 'mcpServers'
+  | 'lspServers'
   | 'commands'
   | 'subAgents'
   | 'hooks'
@@ -76,6 +77,13 @@ export function ClaudeConfigSideBar({
       icon: <Server className='h-3 w-3' />,
       description: t('sidebar.sections.mcpServers.description'),
       color: 'text-blue-600 bg-blue-100 border-blue-200',
+    },
+    {
+      key: 'lspServers' as const,
+      title: t('sidebar.sections.lspServers.title'),
+      icon: <Server className='h-3 w-3' />,
+      description: t('sidebar.sections.lspServers.description'),
+      color: 'text-cyan-600 bg-cyan-100 border-cyan-200',
     },
     {
       key: 'hooks' as const,

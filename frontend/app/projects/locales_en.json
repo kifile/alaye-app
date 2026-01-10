@@ -305,6 +305,10 @@
         "title": "MCP Servers",
         "description": "External services"
       },
+      "lspServers": {
+        "title": "LSP Servers",
+        "description": "Language servers"
+      },
       "commands": {
         "title": "Commands",
         "description": "Command tools"
@@ -335,6 +339,10 @@
     "mcpServers": {
       "title": "MCP Servers",
       "description": "Configure and manage Model Context Protocol (MCP) servers"
+    },
+    "lspServers": {
+      "title": "LSP Servers",
+      "description": "View Language Server Protocol (LSP) servers from plugins"
     },
     "commands": {
       "title": "Commands",
@@ -651,7 +659,8 @@
     "matcher": "Matcher:",
     "commandLabel": "Command:",
     "promptLabel": "Prompt:",
-    "timeoutLabel": "Timeout:"
+    "timeoutLabel": "Timeout:",
+    "dependencyNotInstalled": "Dependency Not Installed"
   },
   "mcpServerItem": {
     "overridden": "Overridden",
@@ -728,6 +737,8 @@
     "noCurrentScope": "Plugin current scope is empty, cannot change",
     "scopeMoved": "Plugin scope updated to {{scope}}",
     "moveScopeFailed": "Failed to update plugin scope",
+    "readme": "Readme",
+    "viewReadme": "View Readme",
     "scope": {
       "local": "Local",
       "localDesc": "Project directory/.claude/settings.local.json",
@@ -735,6 +746,41 @@
       "projectDesc": "Project directory/.claude/settings.json",
       "user": "User",
       "userDesc": "~/.claude/settings.json"
+    },
+    "dependencyNotInstalledDesc": "LSP server dependencies are not installed, click to view tools details",
+    "dependencyNotInstalledClickToView": "LSP server dependencies are not installed, click to view README",
+    "dependencyNotInstalledNoReadme": "LSP server dependencies are not installed, and no README available"
+  },
+  "pluginReadmeDialog": {
+    "title": "- README Documentation",
+    "loading": "Loading README documentation...",
+    "loadFailed": "Failed to load README",
+    "refresh": "Refresh",
+    "noContent": "No README content available"
+  },
+  "lspServers": {
+    "scanFailed": "Failed to scan LSP Servers",
+    "loadFailed": "Failed to load LSP server configuration",
+    "loadConfigFailed": "Failed to load LSP server configuration",
+    "loading": "Loading LSP server configuration...",
+    "noServers": "No LSP Server Configuration",
+    "noServersDesc": "LSP servers are provided by enabled plugins. Install and enable plugins that provide LSP servers.",
+    "noSearchResults": "No LSP servers found matching your search",
+    "filter": {
+      "searchPlaceholder": "Search LSP servers..."
     }
+  },
+  "lspServerItem": {
+    "command": "Command:",
+    "arguments": "Arguments ({{count}})",
+    "extensionMapping": "Extension to Language Mapping",
+    "envVars": "Environment Variables ({{count}})",
+    "workspaceFolder": "Workspace Folder",
+    "copySuccess": "{{type}} copied to clipboard",
+    "copyFailed": "Copy failed",
+    "commandNotInstalled": "Command Not Installed",
+    "commandNotInstalledTooltip": "The LSP server command is not available in the system PATH. Please install the required dependencies.",
+    "fromPlugin": "From plugin:",
+    "fromMarketplace": "Marketplace:"
   }
 }

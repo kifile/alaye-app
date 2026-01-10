@@ -66,12 +66,9 @@ export function PluginDetail({ projectId }: PluginDetailProps) {
   // 加载插件列表
   const loadPlugins = useCallback(async () => {
     try {
+      // 始终获取所有插件，前端过滤即可
       const response = await scanClaudePlugins({
         project_id: projectId,
-        marketplace_names:
-          selectedMarketplaces.includes('_all_') || selectedMarketplaces.length === 0
-            ? undefined
-            : selectedMarketplaces,
       });
 
       if (response.success && response.data) {
@@ -85,7 +82,7 @@ export function PluginDetail({ projectId }: PluginDetailProps) {
       toast.error(t('plugins.loadListFailed'));
       setPlugins([]);
     }
-  }, [projectId, selectedMarketplaces, t]);
+  }, [projectId, t]);
 
   // 组件加载时获取数据
   useEffect(() => {
@@ -93,6 +90,9 @@ export function PluginDetail({ projectId }: PluginDetailProps) {
       setIsLoading(true);
       try {
         await loadMarketplaces();
+        // 等待市场列表加载完成后，立即加载插件列表
+        // 这样可以避免中间态的空状态显示
+        await loadPlugins();
       } finally {
         setIsLoading(false);
       }
@@ -101,14 +101,7 @@ export function PluginDetail({ projectId }: PluginDetailProps) {
     if (projectId) {
       loadData();
     }
-  }, [projectId, loadMarketplaces]);
-
-  // 当选择的市场改变时,重新加载插件列表
-  useEffect(() => {
-    if (marketplaces.length > 0) {
-      loadPlugins();
-    }
-  }, [selectedMarketplaces, marketplaces, loadPlugins]);
+  }, [projectId, loadMarketplaces, loadPlugins]);
 
   // 提取 Marketplace 选项
   const marketplaceOptions: FilterOption[] = useMemo(

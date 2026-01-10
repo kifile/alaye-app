@@ -17,6 +17,7 @@ from ..claude.models import (
     ClaudeSettingsInfoDTO,
     CommandInfo,
     HooksInfo,
+    LSPServerInfo,
     MarkdownContentDTO,
     MCPInfo,
     PluginInfo,
@@ -56,6 +57,7 @@ from .api_models import (
     LogRequest,
     MoveClaudePluginRequest,
     NewTerminalRequest,
+    ReadPluginReadmeRequest,
     RemoveClaudeHookRequest,
     RenameMarkdownContentRequest,
     RenameMCPServerRequest,
@@ -69,6 +71,7 @@ from .api_models import (
     ScanClaudePluginsRequest,
     ScanClaudeSettingsRequest,
     ScanClaudeSkillsRequest,
+    ScanLSPServersRequest,
     ScanMCPServersRequest,
     ScanSingleProjectRequest,
     SetTerminalSizeRequest,
@@ -538,7 +541,7 @@ class APICore:
             包含Claude Memory扫描结果的响应
         """
         config_manager = await self._get_config_manager(input_data.project_id)
-        memory_info = config_manager.scan_memory()
+        memory_info = await config_manager.scan_memory()
         return ApiResponse.success_response(memory_info)
 
     @expose_api(
@@ -561,7 +564,7 @@ class APICore:
             包含Claude Agents扫描结果的响应
         """
         config_manager = await self._get_config_manager(input_data.project_id)
-        agents_info = config_manager.scan_agents(input_data.scope)
+        agents_info = await config_manager.scan_agents(input_data.scope)
         return ApiResponse.success_response(agents_info)
 
     @expose_api(
@@ -586,7 +589,7 @@ class APICore:
             包含Claude Commands扫描结果的响应
         """
         config_manager = await self._get_config_manager(input_data.project_id)
-        commands_info = config_manager.scan_commands(input_data.scope)
+        commands_info = await config_manager.scan_commands(input_data.scope)
         return ApiResponse.success_response(commands_info)
 
     @expose_api(
@@ -611,7 +614,7 @@ class APICore:
             包含Claude Skills扫描结果的响应
         """
         config_manager = await self._get_config_manager(input_data.project_id)
-        skills_info = config_manager.scan_skills(input_data.scope)
+        skills_info = await config_manager.scan_skills(input_data.scope)
         return ApiResponse.success_response(skills_info)
 
     @expose_api(ListProjectsRequest, List[AIProjectInDB], "获取所有 Claude 项目列表API")
@@ -677,7 +680,7 @@ class APICore:
             包含Markdown内容的响应
         """
         config_manager = await self._get_config_manager(input_data.project_id)
-        content = config_manager.load_markdown_content(
+        content = await config_manager.load_markdown_content(
             input_data.content_type,
             input_data.name,
             input_data.scope,
@@ -706,7 +709,7 @@ class APICore:
             操作是否成功完成
         """
         config_manager = await self._get_config_manager(input_data.project_id)
-        config_manager.update_markdown_content(
+        await config_manager.update_markdown_content(
             input_data.content_type,
             input_data.name,
             input_data.from_md5,
@@ -740,7 +743,7 @@ class APICore:
             ApiResponse[MarkdownContentDTO]: 保存后的内容信息（包含 MD5）
         """
         config_manager = await self._get_config_manager(input_data.project_id)
-        content_dto = config_manager.save_markdown_content(
+        content_dto = await config_manager.save_markdown_content(
             input_data.content_type,
             input_data.name,
             input_data.content,
@@ -850,7 +853,7 @@ class APICore:
             操作是否成功完成
         """
         config_manager = await self._get_config_manager(input_data.project_id)
-        config_manager.rename_markdown_content(
+        await config_manager.rename_markdown_content(
             input_data.content_type,
             input_data.name,
             input_data.new_name,
@@ -875,7 +878,7 @@ class APICore:
             ApiResponse[dict]: 删除结果
         """
         config_manager = await self._get_config_manager(request.project_id)
-        config_manager.delete_markdown_content(
+        await config_manager.delete_markdown_content(
             content_type=request.content_type,
             name=request.name,
             scope=request.scope,
@@ -902,7 +905,7 @@ class APICore:
             包含项目配置扫描结果的响应（其中包含MCP配置）
         """
         config_manager = await self._get_config_manager(input_data.project_id)
-        mcp_info = config_manager.scan_mcp_servers(input_data.scope)
+        mcp_info = await config_manager.scan_mcp_servers(input_data.scope)
         return ApiResponse.success_response(mcp_info)
 
     @expose_api(AddMCPServerRequest, bool, "添加指定项目的MCP服务器API")
@@ -1089,6 +1092,31 @@ class APICore:
         config_manager.update_enable_all_project_mcp_servers(input_data.value)
         return ApiResponse.success_response(True)
 
+    # ==================== LSP 服务器管理方法 ====================
+
+    @expose_api(
+        ScanLSPServersRequest, List[LSPServerInfo], "扫描指定项目的LSP服务器配置API"
+    )
+    @api_logging
+    @api_exception_handler
+    async def scan_claude_lsp_servers(
+        self, input_data: ScanLSPServersRequest
+    ) -> ApiResponse[List[LSPServerInfo]]:
+        """
+        扫描指定项目LSP服务器配置的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - project_id: 项目ID
+                - scope: 可选的作用域过滤器
+
+        Returns:
+            包含项目配置扫描结果的响应（其中包含LSP配置）
+        """
+        config_manager = await self._get_config_manager(input_data.project_id)
+        lsp_servers = await config_manager.scan_lsp_servers(input_data.scope)
+        return ApiResponse.success_response(lsp_servers)
+
     # ==================== Hooks 管理方法 ====================
 
     @expose_api(ScanClaudeHooksRequest, HooksInfo, "扫描指定项目的Hooks配置API")
@@ -1109,7 +1137,7 @@ class APICore:
             包含项目Hooks配置扫描结果的响应
         """
         config_manager = await self._get_config_manager(input_data.project_id)
-        hooks_info = config_manager.scan_hooks_info(input_data.scope)
+        hooks_info = await config_manager.scan_hooks_info(input_data.scope)
         return ApiResponse.success_response(hooks_info)
 
     @expose_api(AddClaudeHookRequest, bool, "添加指定项目的Hook API")
@@ -1285,7 +1313,7 @@ class APICore:
             包含插件列表的响应，按安装数量从大到小排序
         """
         config_manager = await self._get_config_manager(input_data.project_id)
-        plugins = config_manager.scan_plugins(input_data.marketplace_names)
+        plugins = await config_manager.scan_plugins(input_data.marketplace_names)
         return ApiResponse.success_response(plugins)
 
     @expose_api(InstallClaudePluginRequest, ProcessResult, "安装Claude插件API")
@@ -1407,6 +1435,36 @@ class APICore:
             input_data.plugin_name, input_data.old_scope, input_data.new_scope
         )
         return ApiResponse.success_response(True)
+
+    @expose_api(ReadPluginReadmeRequest, str, "读取指定插件README内容API")
+    @api_logging
+    @api_exception_handler
+    async def read_plugin_readme(
+        self, input_data: ReadPluginReadmeRequest
+    ) -> ApiResponse[str]:
+        """
+        读取指定插件README内容的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - project_id: 项目ID
+                - marketplace_name: marketplace 名称
+                - plugin_name: 插件名称
+
+        Returns:
+            包含README内容的响应
+        """
+        config_manager = await self._get_config_manager(input_data.project_id)
+        readme_content = config_manager.read_plugin_readme(
+            input_data.marketplace_name, input_data.plugin_name
+        )
+
+        if readme_content is None:
+            return ApiResponse.error_response(
+                404, f"插件 '{input_data.plugin_name}' 的 README 文件不存在或读取失败"
+            )
+
+        return ApiResponse.success_response(readme_content)
 
 
 # 创建全局 API 核心实例

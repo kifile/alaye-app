@@ -305,6 +305,10 @@
         "title": "MCP 服务器",
         "description": "外部服务"
       },
+      "lspServers": {
+        "title": "LSP 服务器",
+        "description": "语言服务器"
+      },
       "commands": {
         "title": "Commands",
         "description": "命令工具"
@@ -335,6 +339,10 @@
     "mcpServers": {
       "title": "MCP 服务器",
       "description": "配置和管理 Model Context Protocol (MCP) 服务器"
+    },
+    "lspServers": {
+      "title": "LSP 服务器",
+      "description": "查看来自插件的语言服务器"
     },
     "commands": {
       "title": "Commands 命令",
@@ -651,7 +659,8 @@
     "matcher": "匹配器:",
     "commandLabel": "命令:",
     "promptLabel": "提示:",
-    "timeoutLabel": "超时:"
+    "timeoutLabel": "超时:",
+    "dependencyNotInstalled": "依赖未安装"
   },
   "mcpServerItem": {
     "overridden": "被覆盖",
@@ -728,6 +737,8 @@
     "noCurrentScope": "插件当前作用域为空，无法切换",
     "scopeMoved": "插件作用域已更新为 {{scope}}",
     "moveScopeFailed": "更新插件作用域失败",
+    "readme": "文档",
+    "viewReadme": "查看文档",
     "scope": {
       "local": "Local (本地)",
       "localDesc": "项目目录/.claude/settings.local.json",
@@ -735,6 +746,41 @@
       "projectDesc": "项目目录/.claude/settings.json",
       "user": "User (全局)",
       "userDesc": "~/.claude/settings.json"
+    },
+    "dependencyNotInstalledDesc": "该插件的 LSP 服务器依赖未安装，点击查看工具详情",
+    "dependencyNotInstalledClickToView": "该插件的 LSP 服务器依赖未安装，点击查看 README",
+    "dependencyNotInstalledNoReadme": "该插件的 LSP 服务器依赖未安装，且暂无 README 文档"
+  },
+  "pluginReadmeDialog": {
+    "title": "- README 文档",
+    "loading": "正在加载 README 文档...",
+    "loadFailed": "加载 README 失败",
+    "refresh": "刷新",
+    "noContent": "暂无 README 内容"
+  },
+  "lspServers": {
+    "scanFailed": "扫描 LSP 服务器失败",
+    "loadFailed": "加载 LSP 服务器配置失败",
+    "loadConfigFailed": "加载 LSP 服务器配置失败",
+    "loading": "正在加载 LSP 服务器配置...",
+    "noServers": "暂无 LSP 服务器配置",
+    "noServersDesc": "LSP 服务器由已启用的插件提供。请安装并启用提供 LSP 服务器的插件。",
+    "noSearchResults": "未找到匹配的 LSP 服务器",
+    "filter": {
+      "searchPlaceholder": "搜索 LSP 服务器..."
     }
+  },
+  "lspServerItem": {
+    "command": "命令：",
+    "arguments": "参数 ({{count}})",
+    "extensionMapping": "扩展名到语言映射",
+    "envVars": "环境变量 ({{count}})",
+    "workspaceFolder": "工作目录",
+    "copySuccess": "{{type}} 已复制到剪贴板",
+    "copyFailed": "复制失败",
+    "commandNotInstalled": "命令未安装",
+    "commandNotInstalledTooltip": "LSP 服务器命令在系统 PATH 中不可用。请安装所需的依赖项。",
+    "fromPlugin": "来自插件：",
+    "fromMarketplace": "插件市场："
   }
 }

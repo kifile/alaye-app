@@ -307,6 +307,7 @@ class TerminalManagerService:
 
             # 等待进程真正退出（最多2秒）
             import time
+
             for _ in range(20):  # 2秒，每次检查0.1秒
                 if not instance.is_running:
                     break

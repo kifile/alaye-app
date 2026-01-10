@@ -175,7 +175,7 @@ def start_async_event_loop():
     background_thread_async_executor.set_loop(loop)
 
     # 在事件循环中运行协程
-    task = loop.create_task(run_event_loop())
+    loop.create_task(run_event_loop())
 
     try:
         loop.run_forever()
@@ -190,9 +190,7 @@ def start_async_event_loop():
 
             # 等待任务取消完成（最多等待2秒）
             if tasks:
-                loop.run_until_complete(
-                    asyncio.gather(*tasks, return_exceptions=True)
-                )
+                loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
         except Exception as e:
             logger.error(f"Error cancelling tasks: {e}")
 

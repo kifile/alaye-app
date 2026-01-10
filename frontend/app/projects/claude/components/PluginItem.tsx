@@ -22,10 +22,13 @@ import {
   Power,
   PowerOff,
   MoreVertical,
+  Code,
+  FileText,
 } from 'lucide-react';
 import { ConfigScope } from '@/api/types';
 import type { PluginInfo, ProcessResult } from '@/api/types';
 import { PluginToolsDialog } from './PluginToolsDialog';
+import { PluginReadmeDialog } from './PluginReadmeDialog';
 import { ScopeBadgeUpdater } from './ScopeBadgeUpdater';
 import {
   installClaudePlugin,
@@ -90,6 +93,7 @@ interface PluginItemProps {
 export function PluginItem({ plugin, projectId, onPluginChange }: PluginItemProps) {
   const { t } = useTranslation('projects');
   const [toolsDialogOpen, setToolsDialogOpen] = useState(false);
+  const [readmeDialogOpen, setReadmeDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [toggling, setToggling] = useState(false);
   const [errorResult, setErrorResult] = useState<ProcessResult | null>(null);
@@ -106,15 +110,31 @@ export function PluginItem({ plugin, projectId, onPluginChange }: PluginItemProp
     const skillsCount = plugin.tools?.skills?.length || 0;
     const agentsCount = plugin.tools?.agents?.length || 0;
     const mcpServersCount = plugin.tools?.mcp_servers?.length || 0;
+    const lspServersCount = plugin.tools?.lsp_servers?.length || 0;
     const hooksCount = plugin.tools?.hooks?.length || 0;
     return {
       commands: commandsCount,
       skills: skillsCount,
       agents: agentsCount,
       mcpServers: mcpServersCount,
+      lspServers: lspServersCount,
       hooks: hooksCount,
-      total: commandsCount + skillsCount + agentsCount + mcpServersCount + hooksCount,
+      total:
+        commandsCount +
+        skillsCount +
+        agentsCount +
+        mcpServersCount +
+        lspServersCount +
+        hooksCount,
     };
+  }, [plugin.tools]);
+
+  // 检查是否有未安装的 LSP 依赖
+  const hasLspDependencyIssue = useMemo(() => {
+    if (!plugin.tools?.lsp_servers || plugin.tools.lsp_servers.length === 0) {
+      return false;
+    }
+    return plugin.tools.lsp_servers.some(server => server.command_installed === false);
   }, [plugin.tools]);
 
   // 创建通用错误对象
@@ -264,6 +284,41 @@ export function PluginItem({ plugin, projectId, onPluginChange }: PluginItemProp
               </span>
             )}
           </div>
+
+          {/* Readme 标签 - 如果存在 readme 内容则显示 */}
+          {(plugin.readme_content_exists || hasLspDependencyIssue) && (
+            <div className='flex items-center gap-1'>
+              {plugin.readme_content_exists && (
+                <button
+                  onClick={() => setReadmeDialogOpen(true)}
+                  className='text-xs px-2 py-0.5 bg-green-50 text-green-700 rounded border border-green-200 flex items-center gap-1 hover:bg-green-100 transition-colors cursor-pointer'
+                  title={t('pluginItem.viewReadme')}
+                >
+                  <FileText className='w-3 h-3' />
+                  {t('pluginItem.readme')}
+                </button>
+              )}
+              {hasLspDependencyIssue &&
+                (plugin.readme_content_exists ? (
+                  <button
+                    onClick={() => setReadmeDialogOpen(true)}
+                    className='text-xs px-2 py-0.5 bg-yellow-50 text-yellow-700 rounded border border-yellow-200 flex items-center gap-1 hover:bg-yellow-100 transition-colors cursor-pointer'
+                    title={t('pluginItem.dependencyNotInstalledClickToView')}
+                  >
+                    <AlertCircle className='w-3 h-3' />
+                    {t('pluginToolsDialog.dependencyNotInstalled')}
+                  </button>
+                ) : (
+                  <span
+                    className='text-xs px-2 py-0.5 bg-yellow-50 text-yellow-700 rounded border border-yellow-200 flex items-center gap-1'
+                    title={t('pluginItem.dependencyNotInstalledNoReadme')}
+                  >
+                    <AlertCircle className='w-3 h-3' />
+                    {t('pluginToolsDialog.dependencyNotInstalled')}
+                  </span>
+                ))}
+            </div>
+          )}
 
           {/* 插件描述 */}
           {plugin.config.description && (
@@ -500,6 +555,12 @@ export function PluginItem({ plugin, projectId, onPluginChange }: PluginItemProp
                 <span className='font-medium'>{toolsCount.mcpServers}</span>
               </div>
             )}
+            {toolsCount.lspServers > 0 && (
+              <div className='flex items-center gap-0.5'>
+                <Code className='w-3 h-3' />
+                <span className='font-medium'>{toolsCount.lspServers}</span>
+              </div>
+            )}
             {toolsCount.hooks > 0 && (
               <div className='flex items-center gap-0.5'>
                 <Workflow className='w-3 h-3' />
@@ -515,6 +576,14 @@ export function PluginItem({ plugin, projectId, onPluginChange }: PluginItemProp
         open={toolsDialogOpen}
         onOpenChange={setToolsDialogOpen}
         plugin={plugin}
+      />
+
+      {/* README 对话框 */}
+      <PluginReadmeDialog
+        open={readmeDialogOpen}
+        onOpenChange={setReadmeDialogOpen}
+        plugin={plugin}
+        projectId={projectId}
       />
     </>
   );

@@ -75,13 +75,13 @@ async def lifespan(app: FastAPI):
     logger.info("FastAPI server starting up...")
 
     # 启动时初始化应用
-    from src.database import init_db
     from src.config import (
         app_config_listener,
         config_change_manager,
         config_service,
         tool_config_listener,
     )
+    from src.database import init_db
     from src.project.project_service import project_service
     from src.terminal.terminal_manager_service import get_terminal_manager
 
@@ -120,6 +120,7 @@ async def lifespan(app: FastAPI):
 
         # 关闭数据库连接
         from src.database import close_db
+
         await close_db()
 
         logger.info("Application cleanup completed")

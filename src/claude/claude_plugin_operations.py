@@ -3,6 +3,7 @@ Claude 插件市场操作模块
 处理 Claude Code 插件市场和插件的扫描、管理等操作
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from ..config.config_service import config_service
+from ..utils.file_utils import find_tool_in_system
 from ..utils.process_utils import ProcessResult, run_process
 from .markdown_helper import extract_description
 from .models import (
@@ -21,6 +23,7 @@ from .models import (
     HookConfigInfo,
     HookEvent,
     HooksSettings,
+    LSPServerInfo,
     MCPServer,
     MCPServerInfo,
     PluginConfig,
@@ -119,7 +122,9 @@ class ClaudePluginOperations:
         if result.success:
             logger.info(f"Plugin marketplace {source} installation succeeded")
         else:
-            logger.error(f"Plugin marketplace {source} installation failed: {result.error_message}")
+            logger.error(
+                f"Plugin marketplace {source} installation failed: {result.error_message}"
+            )
 
         return result
 
@@ -215,7 +220,7 @@ class ClaudePluginOperations:
         else:
             raise ValueError(f"Settings 不支持作用域: {scope}")
 
-    def scan_plugins(
+    async def scan_plugins(
         self, marketplace_names: Optional[List[str]] = None
     ) -> List[PluginInfo]:
         """
@@ -258,7 +263,7 @@ class ClaudePluginOperations:
                 marketplace_data = load_config(marketplace_json_path)
 
                 # 解析插件列表
-                plugins = self._parse_plugins(
+                plugins = await self._parse_plugins(
                     marketplace_data.get("plugins", []),
                     marketplace.name,
                     marketplace.installLocation,
@@ -290,7 +295,7 @@ class ClaudePluginOperations:
 
         return all_plugins
 
-    def _scan_plugin_tools(
+    async def _scan_plugin_tools(
         self,
         plugin_config: PluginConfig,
         marketplace_name: str,
@@ -298,7 +303,9 @@ class ClaudePluginOperations:
         tool_types: Optional[List[str]] = None,
     ) -> Optional[PluginTools]:
         """
-        扫描插件的工具能力（commands, skills, agents, hooks, mcp_servers）
+        扫描插件的工具能力（commands, skills, agents, hooks, mcp_servers, lsp_servers）
+
+        所有扫描操作并发执行，提升性能。
 
         Args:
             plugin_config: 插件配置
@@ -331,40 +338,83 @@ class ClaudePluginOperations:
 
         # 如果未指定 tool_types，扫描所有类型
         if tool_types is None:
-            tool_types = ["commands", "skills", "agents", "mcp_servers", "hooks"]
+            tool_types = [
+                "commands",
+                "skills",
+                "agents",
+                "mcp_servers",
+                "hooks",
+                "lsp_servers",
+            ]
 
-        # 扫描工具能力（只扫描指定类型）
+        # 并发扫描工具能力（只扫描指定类型）
         try:
-            return PluginTools(
-                commands=(
+            # 创建所有需要执行的任务
+            tasks = []
+            task_indices = []  # 记录任务类型到索引的映射
+
+            if "commands" in tool_types:
+                tasks.append(
                     self._scan_plugin_commands(
                         plugin_root, plugin_name, marketplace_name
                     )
-                    if "commands" in tool_types
-                    else None
-                ),
-                skills=(
+                )
+                task_indices.append("commands")
+            if "skills" in tool_types:
+                tasks.append(
                     self._scan_plugin_skills(plugin_root, plugin_name, marketplace_name)
-                    if "skills" in tool_types
-                    else None
-                ),
-                agents=(
+                )
+                task_indices.append("skills")
+            if "agents" in tool_types:
+                tasks.append(
                     self._scan_plugin_agents(plugin_root, plugin_name, marketplace_name)
-                    if "agents" in tool_types
-                    else None
-                ),
-                mcp_servers=(
+                )
+                task_indices.append("agents")
+            if "mcp_servers" in tool_types:
+                tasks.append(
                     self._scan_plugin_mcp_servers(
                         plugin_root, plugin_name, marketplace_name
                     )
-                    if "mcp_servers" in tool_types
-                    else None
-                ),
-                hooks=(
+                )
+                task_indices.append("mcp_servers")
+            if "hooks" in tool_types:
+                tasks.append(
                     self._scan_plugin_hooks(plugin_root, plugin_name, marketplace_name)
-                    if "hooks" in tool_types
-                    else None
-                ),
+                )
+                task_indices.append("hooks")
+            if "lsp_servers" in tool_types:
+                tasks.append(
+                    self._scan_plugin_lsp_servers(
+                        plugin_root,
+                        plugin_name,
+                        marketplace_name,
+                        plugin_config.lspServers,
+                    )
+                )
+                task_indices.append("lsp_servers")
+
+            # 并发执行所有任务
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # 构建结果字典
+            result_map = {}
+            for task_type, result in zip(task_indices, results):
+                if isinstance(result, Exception):
+                    logger.error(
+                        f"Error scanning {task_type} for plugin '{plugin_name}': {result}"
+                    )
+                    result_map[task_type] = None
+                else:
+                    result_map[task_type] = result
+
+            # 返回 PluginTools 对象
+            return PluginTools(
+                commands=result_map.get("commands"),
+                skills=result_map.get("skills"),
+                agents=result_map.get("agents"),
+                mcp_servers=result_map.get("mcp_servers"),
+                hooks=result_map.get("hooks"),
+                lsp_servers=result_map.get("lsp_servers"),
             )
         except Exception as e:
             logger.error(f"Error scanning tools for plugin '{plugin_name}': {e}")
@@ -413,7 +463,7 @@ class ClaudePluginOperations:
 
         return max_version_dir
 
-    def _scan_plugin_commands(
+    async def _scan_plugin_commands(
         self, plugin_root: Path, plugin_name: str, marketplace_name: str
     ) -> Optional[List[CommandInfo]]:
         """
@@ -461,7 +511,7 @@ class ClaudePluginOperations:
 
         return commands if commands else None
 
-    def _scan_plugin_skills(
+    async def _scan_plugin_skills(
         self, plugin_root: Path, plugin_name: str, marketplace_name: str
     ) -> Optional[List[SkillInfo]]:
         """
@@ -507,7 +557,7 @@ class ClaudePluginOperations:
 
         return skills if skills else None
 
-    def _scan_plugin_agents(
+    async def _scan_plugin_agents(
         self, plugin_root: Path, plugin_name: str, marketplace_name: str
     ) -> Optional[List[AgentInfo]]:
         """
@@ -548,7 +598,7 @@ class ClaudePluginOperations:
 
         return agents if agents else None
 
-    def _scan_plugin_mcp_servers(
+    async def _scan_plugin_mcp_servers(
         self, plugin_root: Path, plugin_name: str, marketplace_name: str
     ) -> Optional[List[MCPServerInfo]]:
         """
@@ -598,7 +648,7 @@ class ClaudePluginOperations:
             logger.error(f"Error loading .mcp.json: {e}")
             return None
 
-    def _scan_plugin_hooks(
+    async def _scan_plugin_hooks(
         self, plugin_root: Path, plugin_name: str, marketplace_name: str
     ) -> Optional[List[HookConfigInfo]]:
         """
@@ -653,6 +703,142 @@ class ClaudePluginOperations:
         except Exception as e:
             logger.error(f"Error scanning hooks: {e}")
             return None
+
+    async def _scan_plugin_lsp_servers(
+        self,
+        plugin_root: Path,
+        plugin_name: str,
+        marketplace_name: str,
+        lsp_servers_config: Optional[dict] = None,
+    ) -> Optional[List[LSPServerInfo]]:
+        """
+        扫描插件的 LSP 服务器
+
+        从插件的 .lsp.json 文件和 plugin.json 中的 lspServers 字段读取 LSP 服务器配置，
+        并合并两个来源的配置。
+
+        合并规则：
+        1. 如果 .lsp.json 存在，先加载其中的配置
+        2. 如果 plugin.json 中有 lspServers，用其中的配置覆盖同名服务器
+        3. plugin.json 的优先级更高（因为它更具体到当前插件）
+
+        Args:
+            plugin_root: 插件根目录
+            plugin_name: 插件名称
+            marketplace_name: marketplace 名称
+            lsp_servers_config: 可选的 LSP 服务器配置（从 plugin.json 的 lspServers 字段获取）
+
+        Returns:
+            Optional[List[LSPServerInfo]]: LSP 服务器信息列表
+        """
+        from .models import LSPServer
+
+        merged_lsp_data = {}
+        source_files = {}  # 记录每个服务器的来源文件
+
+        # 1. 先从 .lsp.json 文件加载（作为基础配置）
+        lsp_file = plugin_root / ".lsp.json"
+        if lsp_file.exists():
+            try:
+                lsp_file_data = load_config(lsp_file)
+                merged_lsp_data.update(lsp_file_data)
+                # 记录来源，稍后可能会被覆盖
+                for name in lsp_file_data.keys():
+                    source_files[name] = str(lsp_file.absolute())
+            except Exception as e:
+                logger.error(f"Error loading .lsp.json: {e}")
+
+        # 2. 然后从 plugin.json 的 lspServers 字段加载（会覆盖同名配置）
+        if lsp_servers_config:
+            merged_lsp_data.update(lsp_servers_config)
+            # 记录或更新来源
+            for name in lsp_servers_config.keys():
+                source_files[name] = "plugin.json"
+
+        # 如果没有任何配置，返回 None
+        if not merged_lsp_data:
+            return None
+
+        # 3. 构建最终的 LSP 服务器列表
+        lsp_servers = []
+
+        for name, server_config in merged_lsp_data.items():
+            try:
+                lsp_server = LSPServer.model_validate(server_config)
+                # 检查 LSP 命令是否已安装
+                command_installed = await self._check_lsp_command_installed(
+                    lsp_server.command
+                )
+                lsp_servers.append(
+                    LSPServerInfo(
+                        name=name,
+                        scope=ConfigScope.plugin,  # 插件资源使用 plugin 作用域
+                        lspServer=lsp_server,
+                        plugin_name=plugin_name,
+                        marketplace_name=marketplace_name,
+                        file_path=source_files.get(name, "unknown"),
+                        command_installed=command_installed,  # 添加命令安装状态
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Error parsing LSP server '{name}': {e}")
+                continue
+
+        return lsp_servers if lsp_servers else None
+
+    async def _check_lsp_command_installed(self, command: str) -> bool:
+        """
+        检查 LSP 命令是否已在系统中安装
+
+        Args:
+            command: LSP 命令路径或命令名
+
+        Returns:
+            bool: 命令是否已安装
+        """
+        if not command:
+            return False
+
+        # 如果 command 是绝对路径，直接检查文件是否存在
+        command_path = Path(command)
+        if command_path.is_absolute():
+            # 检查文件是否存在且可执行
+            return command_path.exists() and command_path.is_file()
+
+        # 如果是命令名，使用 find_tool_in_system 检查是否在 PATH 中
+        try:
+            result = await find_tool_in_system(command)
+            return result is not None
+        except Exception as e:
+            logger.warning(f"Failed to check command '{command}' installation: {e}")
+            return False
+
+    def _check_plugin_readme_exists(self, plugin_root: Path) -> bool:
+        """
+        检查插件根目录下是否存在 README 文件
+
+        检查以下文件是否存在：
+        1. README.md
+        2. README
+        3. readme.md
+        4. readme
+
+        Args:
+            plugin_root: 插件根目录
+
+        Returns:
+            bool: README 文件是否存在
+        """
+        # 按优先级检查的 README 文件名
+        readme_filenames = ["README.md", "README", "readme.md", "readme"]
+
+        for filename in readme_filenames:
+            readme_path = plugin_root / filename
+            if readme_path.exists():
+                logger.debug(f"Found plugin README at {readme_path}")
+                return True
+
+        return False
 
     def _generate_hook_id(
         self,
@@ -712,7 +898,7 @@ class ClaudePluginOperations:
             # 如果文件不存在或加载失败，返回空字典
             return {}
 
-    def _parse_plugins(
+    async def _parse_plugins(
         self,
         plugins_data: List[Dict],
         marketplace_name: str,
@@ -765,9 +951,28 @@ class ClaudePluginOperations:
                 # 构建 PluginConfig
                 plugin_config = PluginConfig.model_validate(plugin_data)
 
+                # 确定插件根目录，用于读取 README
+                plugin_root = None
+                source = plugin_config.source
+                if isinstance(source, str):
+                    # source 是字符串，说明插件已在本地
+                    # 根据 installLocation + source 的相对路径确定插件根目录
+                    plugin_root = Path(install_location) / source
+                elif source is not None:
+                    # source 是对象，插件可能未安装
+                    # 从缓存目录获取最大版本
+                    plugin_root = self._get_plugin_cache_dir(
+                        marketplace_name, plugin_name, source
+                    )
+
+                # 检查 README 文件是否存在
+                readme_exists = False
+                if plugin_root and plugin_root.exists():
+                    readme_exists = self._check_plugin_readme_exists(plugin_root)
+
                 # 扫描插件工具能力（传递 tool_types）
                 # 只有通过过滤的插件才会扫描文件
-                tools = self._scan_plugin_tools(
+                tools = await self._scan_plugin_tools(
                     plugin_config, marketplace_name, install_location, tool_types
                 )
 
@@ -780,6 +985,7 @@ class ClaudePluginOperations:
                     enabled=is_enabled if is_enabled else False,
                     enabled_scope=enabled_scope,
                     tools=tools,
+                    readme_content_exists=readme_exists,  # 添加 README 存在标识
                 )
                 plugins.append(plugin_info)
             except Exception as e:
@@ -823,7 +1029,9 @@ class ClaudePluginOperations:
         )
 
         if result.success:
-            logger.info(f"Plugin {plugin_name} installed successfully in {scope.value} scope")
+            logger.info(
+                f"Plugin {plugin_name} installed successfully in {scope.value} scope"
+            )
         else:
             logger.error(
                 f"Plugin {plugin_name} installation failed in {scope.value} scope: {result.error_message}"
@@ -864,7 +1072,9 @@ class ClaudePluginOperations:
         )
 
         if result.success:
-            logger.info(f"Plugin {plugin_name} uninstalled successfully from {scope.value} scope")
+            logger.info(
+                f"Plugin {plugin_name} uninstalled successfully from {scope.value} scope"
+            )
         else:
             logger.error(
                 f"Plugin {plugin_name} uninstallation failed in {scope.value} scope: {result.error_message}"
@@ -966,7 +1176,9 @@ class ClaudePluginOperations:
             operations.move_plugin("code-review@anthropics", ConfigScope.local, ConfigScope.project)
         """
         if old_scope == new_scope:
-            logger.info(f"Plugin {plugin_name} is already in {old_scope} scope, no need to move")
+            logger.info(
+                f"Plugin {plugin_name} is already in {old_scope} scope, no need to move"
+            )
             return
 
         # 获取插件在旧作用域的启用状态
@@ -998,7 +1210,9 @@ class ClaudePluginOperations:
                     f"Plugin {plugin_name} already exists in {new_scope} scope, current enabled status: {new_enabled}"
                 )
         except Exception as e:
-            logger.warning(f"Failed to read new scope configuration (file may not exist): {e}")
+            logger.warning(
+                f"Failed to read new scope configuration (file may not exist): {e}"
+            )
 
         # 先在旧作用域中禁用（删除）
         try:
@@ -1011,7 +1225,9 @@ class ClaudePluginOperations:
             )
             logger.info(f"Plugin {plugin_name} removed from {old_scope} scope")
         except Exception as e:
-            logger.error(f"Failed to remove plugin {plugin_name} from {old_scope} scope: {e}")
+            logger.error(
+                f"Failed to remove plugin {plugin_name} from {old_scope} scope: {e}"
+            )
             raise ValueError(
                 f"Failed to remove plugin {plugin_name} from {old_scope} scope: {e}"
             ) from e
@@ -1050,7 +1266,9 @@ class ClaudePluginOperations:
                     f"Plugin {plugin_name} rolled back to {old_scope} scope, enabled status: {old_enabled}"
                 )
             except Exception as rollback_error:
-                logger.error(f"Failed to rollback plugin {plugin_name}: {rollback_error}")
+                logger.error(
+                    f"Failed to rollback plugin {plugin_name}: {rollback_error}"
+                )
             raise ValueError(
                 f"Failed to add plugin {plugin_name} to {new_scope} scope: {e}"
             ) from e
@@ -1087,7 +1305,9 @@ class ClaudePluginOperations:
         plugin_records = plugins.get(plugin_name, [])
 
         if not plugin_records:
-            logger.warning(f"Plugin {plugin_name} has no record in installed_plugins.json")
+            logger.warning(
+                f"Plugin {plugin_name} has no record in installed_plugins.json"
+            )
             return
 
         # 查找并更新匹配当前项目的记录
@@ -1131,7 +1351,9 @@ class ClaudePluginOperations:
                 break
 
         if not updated:
-            logger.warning(f"Plugin {plugin_name} installation record not found in scope {old_scope}")
+            logger.warning(
+                f"Plugin {plugin_name} installation record not found in scope {old_scope}"
+            )
             return
 
         # 保存配置
@@ -1142,7 +1364,7 @@ class ClaudePluginOperations:
         except Exception as e:
             raise ValueError(f"Failed to save installed_plugins.json: {e}") from e
 
-    def _scan_plugins_with_tools(
+    async def _scan_plugins_with_tools(
         self,
         tool_types: List[str],
         marketplace_names: Optional[List[str]] = None,
@@ -1186,7 +1408,7 @@ class ClaudePluginOperations:
                 marketplace_data = load_config(marketplace_json_path)
 
                 # 解析插件列表（传递过滤条件）
-                plugins = self._parse_plugins(
+                plugins = await self._parse_plugins(
                     marketplace_data.get("plugins", []),
                     marketplace.name,
                     marketplace.installLocation,
@@ -1208,7 +1430,7 @@ class ClaudePluginOperations:
 
         return all_plugins
 
-    def get_plugin_commands(
+    async def get_plugin_commands(
         self, plugin_name_filter: Optional[str] = None
     ) -> List[CommandInfo]:
         """
@@ -1221,7 +1443,7 @@ class ClaudePluginOperations:
             List[CommandInfo]: Command 信息列表
         """
         # 只扫描已安装且已启用插件的 commands，不扫描其他类型
-        plugins = self._scan_plugins_with_tools(
+        plugins = await self._scan_plugins_with_tools(
             tool_types=["commands"],
             installed_only=True,  # 只扫描已安装的
             enabled_only=True,  # 只扫描已启用的
@@ -1237,7 +1459,7 @@ class ClaudePluginOperations:
 
         return all_commands
 
-    def get_plugin_agents(
+    async def get_plugin_agents(
         self, plugin_name_filter: Optional[str] = None
     ) -> List[AgentInfo]:
         """
@@ -1250,7 +1472,7 @@ class ClaudePluginOperations:
             List[AgentInfo]: Agent 信息列表
         """
         # 只扫描已安装且已启用插件的 agents，不扫描其他类型
-        plugins = self._scan_plugins_with_tools(
+        plugins = await self._scan_plugins_with_tools(
             tool_types=["agents"],
             installed_only=True,  # 只扫描已安装的
             enabled_only=True,  # 只扫描已启用的
@@ -1266,7 +1488,7 @@ class ClaudePluginOperations:
 
         return all_agents
 
-    def get_plugin_skills(
+    async def get_plugin_skills(
         self, plugin_name_filter: Optional[str] = None
     ) -> List[SkillInfo]:
         """
@@ -1279,7 +1501,7 @@ class ClaudePluginOperations:
             List[SkillInfo]: Skill 信息列表
         """
         # 只扫描已安装且已启用插件的 skills，不扫描其他类型
-        plugins = self._scan_plugins_with_tools(
+        plugins = await self._scan_plugins_with_tools(
             tool_types=["skills"],
             installed_only=True,  # 只扫描已安装的
             enabled_only=True,  # 只扫描已启用的
@@ -1295,7 +1517,7 @@ class ClaudePluginOperations:
 
         return all_skills
 
-    def get_plugin_mcps(
+    async def get_plugin_mcps(
         self, plugin_name_filter: Optional[str] = None
     ) -> List[MCPServerInfo]:
         """
@@ -1308,7 +1530,7 @@ class ClaudePluginOperations:
             List[MCPServerInfo]: MCP 服务器信息列表
         """
         # 只扫描已安装且已启用插件的 mcp_servers，不扫描其他类型
-        plugins = self._scan_plugins_with_tools(
+        plugins = await self._scan_plugins_with_tools(
             tool_types=["mcp_servers"],
             installed_only=True,  # 只扫描已安装的
             enabled_only=True,  # 只扫描已启用的
@@ -1324,7 +1546,7 @@ class ClaudePluginOperations:
 
         return all_mcps
 
-    def get_plugin_hooks(
+    async def get_plugin_hooks(
         self, plugin_name_filter: Optional[str] = None
     ) -> List[HookConfigInfo]:
         """
@@ -1337,7 +1559,7 @@ class ClaudePluginOperations:
             List[HookConfigInfo]: Hook 配置信息列表
         """
         # 只扫描已安装且已启用插件的 hooks，不扫描其他类型
-        plugins = self._scan_plugins_with_tools(
+        plugins = await self._scan_plugins_with_tools(
             tool_types=["hooks"],
             installed_only=True,  # 只扫描已安装的
             enabled_only=True,  # 只扫描已启用的
@@ -1352,3 +1574,123 @@ class ClaudePluginOperations:
                 all_hooks.extend(plugin.tools.hooks)
 
         return all_hooks
+
+    async def get_plugin_lsp_servers(
+        self, plugin_name_filter: Optional[str] = None
+    ) -> List[LSPServerInfo]:
+        """
+        获取已启用插件的 LSP servers
+
+        Args:
+            plugin_name_filter: 可选的插件名称过滤器。如果指定，只返回该插件的 LSP servers。
+
+        Returns:
+            List[LSPServerInfo]: LSP 服务器信息列表
+        """
+        # 只扫描已安装且已启用插件的 lsp_servers，不扫描其他类型
+        plugins = await self._scan_plugins_with_tools(
+            tool_types=["lsp_servers"],
+            installed_only=True,  # 只扫描已安装的
+            enabled_only=True,  # 只扫描已启用的
+        )
+
+        all_lsp_servers = []
+        for plugin in plugins:
+            if plugin_name_filter and plugin.config.name != plugin_name_filter:
+                continue
+
+            if plugin.tools and plugin.tools.lsp_servers:
+                all_lsp_servers.extend(plugin.tools.lsp_servers)
+
+        return all_lsp_servers
+
+    def read_plugin_readme_content(
+        self, marketplace_name: str, plugin_name: str
+    ) -> Optional[str]:
+        """
+        读取指定插件的 README 文件内容
+
+        Args:
+            marketplace_name: marketplace 名称
+            plugin_name: 插件名称
+
+        Returns:
+            Optional[str]: README 文件内容，如果文件不存在或读取失败返回 None
+        """
+        # 获取指定的 marketplace
+        marketplaces = self.scan_marketplaces()
+        marketplaces = [m for m in marketplaces if m.name == marketplace_name]
+
+        if not marketplaces:
+            logger.warning(f"Marketplace '{marketplace_name}' not found")
+            return None
+
+        # 按优先级尝试的 README 文件名
+        readme_filenames = ["README.md", "README", "readme.md", "readme"]
+
+        # 遍历 marketplace 查找插件
+        for marketplace in marketplaces:
+            try:
+                # 构建 marketplace.json 文件路径
+                marketplace_json_path = (
+                    Path(marketplace.installLocation)
+                    / ".claude-plugin"
+                    / "marketplace.json"
+                )
+
+                # 使用 load_config 加载配置
+                marketplace_data = load_config(marketplace_json_path)
+
+                # 查找目标插件
+                plugin_data = None
+                for plugin in marketplace_data.get("plugins", []):
+                    if plugin.get("name") == plugin_name:
+                        plugin_data = plugin
+                        break
+
+                if not plugin_data:
+                    continue
+
+                # 构建 PluginConfig
+                plugin_config = PluginConfig.model_validate(plugin_data)
+
+                # 确定插件根目录
+                source = plugin_config.source
+                plugin_root = None
+
+                if isinstance(source, str):
+                    # source 是字符串，说明插件已在本地
+                    plugin_root = Path(marketplace.installLocation) / source
+                elif source is not None:
+                    # source 是对象，从缓存目录获取最大版本
+                    plugin_root = self._get_plugin_cache_dir(
+                        marketplace.name, plugin_name, source
+                    )
+
+                if plugin_root is None or not plugin_root.exists():
+                    continue
+
+                # 尝试读取 README 文件
+                for filename in readme_filenames:
+                    readme_path = plugin_root / filename
+                    if readme_path.exists():
+                        try:
+                            with open(readme_path, "r", encoding="utf-8") as f:
+                                content = f.read()
+                                logger.info(f"Read plugin README from {readme_path}")
+                                return content
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to read README file {readme_path}: {e}"
+                            )
+                            continue
+
+            except Exception as e:
+                logger.error(
+                    f"Error reading README for plugin '{plugin_name}' from marketplace '{marketplace.name}': {e}"
+                )
+                continue
+
+        # 如果没有找到任何 README 文件，返回 None
+        logger.warning(f"README file not found for plugin '{plugin_name}'")
+        return None

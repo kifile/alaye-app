@@ -76,9 +76,7 @@ class ToolConfigChangeListener(ConfigChangeListener):
         """
         配置键更新后的处理
         """
-        logger.info(
-            f"onKeyUpdated - Key: {event.key}, New value: {event.new_value}"
-        )
+        logger.info(f"onKeyUpdated - Key: {event.key}, New value: {event.new_value}")
         try:
             key = event.key
 
