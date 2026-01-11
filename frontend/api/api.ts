@@ -43,9 +43,11 @@ import type {
   AddMCPServerRequest,
   UpdateMCPServerRequest,
   DeleteMCPServerRequest,
+  RenameMCPServerRequest,
   EnableMCPServerRequest,
   DisableMCPServerRequest,
   UpdateEnableAllProjectMcpServersRequest,
+  ScanLSPServersRequest,
   ScanClaudeHooksRequest,
   AddClaudeHookRequest,
   RemoveClaudeHookRequest,
@@ -59,6 +61,7 @@ import type {
   EnableClaudePluginRequest,
   DisableClaudePluginRequest,
   MoveClaudePluginRequest,
+  ReadPluginReadmeRequest,
   LogData,
   LoadSettingsData,
   ShowFileDialogData,
@@ -95,10 +98,12 @@ import type {
   ScanMCPServersResponse,
   AddMCPServerResponse,
   UpdateMCPServerResponse,
+  RenameMCPServerResponse,
   DeleteMCPServerResponse,
   EnableMCPServerResponse,
   DisableMCPServerResponse,
   UpdateEnableAllProjectMcpServersResponse,
+  ScanLSPServersResponse,
   ScanClaudeHooksResponse,
   AddClaudeHookResponse,
   RemoveClaudeHookResponse,
@@ -110,6 +115,7 @@ import type {
   CommandInfo,
   HooksInfo,
   SkillInfo,
+  LSPServerInfo,
   PluginMarketplaceInfo,
   PluginInfo,
   ProcessResult,
@@ -121,6 +127,7 @@ import type {
   EnableClaudePluginResponse,
   DisableClaudePluginResponse,
   MoveClaudePluginResponse,
+  ReadPluginReadmeResponse,
 } from './types';
 
 // 重新导出所有类型定义，供其他模块使用
@@ -478,6 +485,30 @@ export const updateEnableAllProjectMcpServers = async (
   return await callAPI<boolean>('update_enable_all_project_mcp_servers', request);
 };
 
+/**
+ * 重命名指定项目的MCP服务器API
+ * @param request 重命名MCP服务器请求参数
+ * @returns Promise<RenameMCPServerResponse>
+ */
+export const renameClaudeMCPServer = async (
+  request: RenameMCPServerRequest
+): Promise<RenameMCPServerResponse> => {
+  return await callAPI<boolean>('rename_claude_mcp_server', request);
+};
+
+// ===== LSP 服务器管理 API =====
+
+/**
+ * 扫描指定项目的LSP服务器配置API
+ * @param request 扫描LSP服务器请求参数
+ * @returns Promise<ScanLSPServersResponse>
+ */
+export const scanClaudeLSPServers = async (
+  request: ScanLSPServersRequest
+): Promise<ScanLSPServersResponse> => {
+  return await callAPI<LSPServerInfo[]>('scan_claude_lsp_servers', request);
+};
+
 // ===== Hooks 管理 API =====
 
 /**
@@ -626,6 +657,17 @@ export const moveClaudePlugin = async (
   request: MoveClaudePluginRequest
 ): Promise<MoveClaudePluginResponse> => {
   return await callAPI<boolean>('move_claude_plugin', request);
+};
+
+/**
+ * 读取指定插件README内容
+ * @param request 请求参数
+ * @returns Promise<ReadPluginReadmeResponse>
+ */
+export const readPluginReadme = async (
+  request: ReadPluginReadmeRequest
+): Promise<ReadPluginReadmeResponse> => {
+  return await callAPI<string>('read_plugin_readme', request);
 };
 
 // ===== 通用 API 调用方法 =====

@@ -71,9 +71,61 @@ manager = ConnectionManager()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """FastAPI 应用生命周期管理"""
     logger.info("FastAPI server starting up...")
+
+    # 启动时初始化应用
+    from src.config import (
+        app_config_listener,
+        config_change_manager,
+        config_service,
+        tool_config_listener,
+    )
+    from src.database import init_db
+    from src.project.project_service import project_service
+    from src.terminal.terminal_manager_service import get_terminal_manager
+
+    try:
+        # 初始化数据库
+        await init_db()
+
+        # 注册工具配置监听器
+        config_change_manager.add_listener(tool_config_listener)
+
+        # 注册应用配置监听器
+        config_change_manager.add_listener(app_config_listener)
+
+        # 初始化配置服务
+        await config_service.initialize()
+
+        # 扫描所有 Claude 项目
+        try:
+            await project_service.scan_and_save_all_projects()
+        except Exception as e:
+            logger.warning(f"Claude projects scan failed: {e}")
+
+        logger.info("Application initialization completed")
+    except Exception as e:
+        logger.error(f"Failed to initialize application: {e}")
+        raise
+
     yield
+
+    # 关闭时清理资源
     logger.info("FastAPI server shutting down...")
+    try:
+        # 清理终端管理服务
+        terminal_manager = get_terminal_manager()
+        terminal_manager.cleanup()
+
+        # 关闭数据库连接
+        from src.database import close_db
+
+        await close_db()
+
+        logger.info("Application cleanup completed")
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
 
 
 def create_fastapi_app() -> FastAPI:

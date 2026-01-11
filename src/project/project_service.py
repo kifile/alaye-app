@@ -53,13 +53,13 @@ class ProjectService:
         Returns:
             操作是否成功
         """
-        logger.info("开始扫描 Claude 项目...")
+        logger.info("Starting to scan Claude projects...")
 
         # 执行扫描
         projects = self.scanner.scan_all_projects()
 
         if not projects:
-            logger.info("没有找到任何项目")
+            logger.info("No projects found")
             return True
 
         # 获取数据库会话
@@ -72,12 +72,12 @@ class ProjectService:
                     )
 
                 await db.commit()
-                logger.info(f"扫描完成，处理了 {len(projects)} 个项目")
+                logger.info(f"Scan completed, processed {len(projects)} projects")
                 return True
 
             except Exception as e:
                 await db.rollback()
-                logger.error(f"扫描过程中发生错误: {e}")
+                logger.error(f"Error occurred during scan: {e}")
                 raise e
 
     async def scan_and_save_single_project(self, project_id: str) -> bool:
@@ -90,7 +90,7 @@ class ProjectService:
         Returns:
             操作是否成功
         """
-        logger.info(f"开始扫描项目: {project_id}")
+        logger.info(f"Starting to scan project: {project_id}")
 
         # 先从数据库获取项目信息
         async for db in get_db():
@@ -98,20 +98,22 @@ class ProjectService:
                 # 获取项目信息
                 project = await ai_project_crud._read_by_id(db, id=project_id)
                 if not project:
-                    logger.warning(f"项目不存在: {project_id}")
+                    logger.warning(f"Project does not exist: {project_id}")
                     return None
 
                 # 从项目信息获取项目路径
                 project_path = project.project_path
                 if not project_path:
-                    logger.warning(f"项目 {project_id} 没有配置项目路径")
+                    logger.warning(
+                        f"Project {project_id} has no project path configured"
+                    )
                     return None
 
                 # 构建项目目录路径（从完整路径提取目录名）
                 path_obj = Path(project_path)
                 project_dir = path_obj.name
 
-                logger.info(f"扫描项目路径: {project_dir}")
+                logger.info(f"Scanning project path: {project_dir}")
 
                 # 调用扫描器扫描指定项目
                 claude_project = self.scanner.scan_project_sessions(
@@ -119,19 +121,19 @@ class ProjectService:
                 )
 
                 if claude_project is None:
-                    logger.warning(f"扫描项目失败: {project_id}")
+                    logger.warning(f"Failed to scan project: {project_id}")
                     return False
 
                 # 保存项目到数据库
                 await self._save_project_to_db(db, claude_project, AiToolType.CLAUDE)
                 await db.commit()
-                logger.info(f"项目扫描完成: {project_id}")
+                logger.info(f"Project scan completed: {project_id}")
 
                 return True
 
             except Exception as e:
                 await db.rollback()
-                logger.error(f"扫描项目 {project_id} 时发生错误: {e}")
+                logger.error(f"Error occurred while scanning project {project_id}: {e}")
                 raise e
 
     async def _save_project_to_db(
@@ -162,7 +164,7 @@ class ProjectService:
             existing_project = await ai_project_crud.update(
                 db, id=existing_project.id, obj_update=update_data
             )
-            logger.debug(f"更新项目: {claude_project.project_name}")
+            logger.debug(f"Updating project: {claude_project.project_name}")
         else:
             # 创建新项目数据
             create_data = AIProjectCreate(
@@ -173,7 +175,7 @@ class ProjectService:
                 last_active_at=claude_project.last_active_at,
             )
             existing_project = await ai_project_crud.create(db, obj_in=create_data)
-            logger.debug(f"创建新项目: {claude_project.project_name}")
+            logger.debug(f"Creating new project: {claude_project.project_name}")
 
         # 处理项目会话
         for session_key, claude_session in claude_project.sessions.items():
@@ -216,9 +218,9 @@ class ProjectService:
                 await ai_project_session_crud.update(
                     db, id=existing_session.id, obj_update=update_data
                 )
-                logger.debug(f"更新会话: {claude_session.session_id}")
+                logger.debug(f"Updating session: {claude_session.session_id}")
             else:
-                logger.debug(f"会话无变化: {claude_session.session_id}")
+                logger.debug(f"Session unchanged: {claude_session.session_id}")
         else:
             # 创建新会话数据
             create_data = AIProjectSessionCreate(
@@ -234,7 +236,7 @@ class ProjectService:
                 last_active_at=claude_session.last_active_at,
             )
             await ai_project_session_crud.create(db, obj_in=create_data)
-            logger.debug(f"创建新会话: {claude_session.session_id}")
+            logger.debug(f"Creating new session: {claude_session.session_id}")
 
     async def get_project_status(self, project_id: str) -> Optional[Dict]:
         """
@@ -277,7 +279,7 @@ class ProjectService:
                 }
 
             except Exception as e:
-                logger.error(f"获取项目状态时发生错误: {e}")
+                logger.error(f"Error occurred while getting project status: {e}")
                 raise
 
     async def list_projects(self) -> List[AIProjectInDB]:

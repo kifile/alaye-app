@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { Terminal, Save, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 import { saveClaudeMarkdownContent } from '@/api/api';
 import type { ConfigScope } from '@/api/types';
 import { ConfigScope as ConfigScopeEnum } from '@/api/types';
@@ -21,14 +22,17 @@ export function NewCommandContentView({
   onSaved,
   onCancelled,
 }: NewCommandContentViewProps) {
+  const { t } = useTranslation('projects');
   const [commandName, setCommandName] = useState<string>('');
   const [commandScope, setCommandScope] = useState<ConfigScope>(initialScope);
-  const [commandContent, setCommandContent] = useState<string>('');
+  // originalContent 始终为空（新建模式）
+  // pendingContent 跟踪用户编辑的内容
+  const [pendingContent, setPendingContent] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // 处理编辑器内容变化
   const handleEditorChange = useCallback((value: string) => {
-    setCommandContent(value);
+    setPendingContent(value);
   }, []);
 
   // 处理标题变更
@@ -45,12 +49,12 @@ export function NewCommandContentView({
 
     // 验证输入
     if (!commandName.trim()) {
-      toast.error('请输入命令名称');
+      toast.error(t('commands.enterName'));
       return;
     }
 
-    if (!commandContent.trim()) {
-      toast.error('请输入命令内容');
+    if (!pendingContent.trim()) {
+      toast.error(t('commands.enterContent'));
       return;
     }
 
@@ -60,35 +64,35 @@ export function NewCommandContentView({
         project_id: projectId,
         content_type: 'command',
         name: commandName.trim(),
-        content: commandContent,
+        content: pendingContent,
         scope: commandScope,
       });
 
       if (response.success) {
-        toast.success('创建成功', {
-          description: `Command "${commandName}" 已创建`,
+        toast.success(t('commands.createSuccess'), {
+          description: t('commands.createSuccessDesc', { name: commandName }),
         });
         onSaved(commandName.trim(), commandScope);
       } else {
-        toast.error('创建失败', {
-          description: response.error || '未知错误',
+        toast.error(t('commands.createFailed'), {
+          description: response.error || t('unknownError'),
         });
       }
     } catch (error) {
       console.error('Save command error:', error);
-      toast.error('创建失败', {
-        description: error instanceof Error ? error.message : '网络错误',
+      toast.error(t('commands.createFailed'), {
+        description: error instanceof Error ? error.message : t('networkError'),
       });
     } finally {
       setIsSaving(false);
     }
-  }, [projectId, commandName, commandContent, commandScope, onSaved]);
+  }, [projectId, commandName, pendingContent, commandScope, onSaved, t]);
 
   // 自定义标题 ReactNode - 新建模式
   const titleNode = useMemo(() => {
     return (
       <ClaudeEditorTitle
-        title={commandName || 'New Command'}
+        title={commandName || t('commands.newCommand')}
         scope={commandScope}
         availableScopes={[ConfigScopeEnum.USER, ConfigScopeEnum.PROJECT]}
         onConfirm={handleTitleChange}
@@ -98,35 +102,40 @@ export function NewCommandContentView({
         onCancel={onCancelled}
       />
     );
-  }, [commandName, commandScope, handleTitleChange, onCancelled]);
+  }, [commandName, commandScope, handleTitleChange, onCancelled, t]);
 
   // 自定义 toolbar - 只显示保存按钮和取消按钮
   const customToolbar = useMemo(() => {
     return (
       <div className='flex items-center gap-2'>
-        <Button variant='ghost' size='sm' onClick={onCancelled} title='取消'>
+        <Button
+          variant='ghost'
+          size='sm'
+          onClick={onCancelled}
+          title={t('commands.cancel')}
+        >
           <X className='h-4 w-4 mr-2' />
-          取消
+          {t('commands.cancel')}
         </Button>
         <Button
           variant='default'
           size='sm'
           onClick={handleSave}
           disabled={isSaving || !commandName.trim()}
-          title='保存'
+          title={t('commands.save')}
         >
           <Save className='h-4 w-4 mr-2' />
-          {isSaving ? '保存中...' : '保存'}
+          {isSaving ? t('commands.saving') : t('commands.save')}
         </Button>
       </div>
     );
-  }, [handleSave, isSaving, commandName, onCancelled]);
+  }, [handleSave, isSaving, commandName, onCancelled, t]);
 
   return (
     <div className='h-full flex flex-col'>
       <MarkdownEditor
         title={titleNode}
-        value={commandContent}
+        defaultValue=''
         onChange={handleEditorChange}
         onSave={handleSave}
         isLoading={false}

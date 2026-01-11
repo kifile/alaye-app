@@ -86,6 +86,7 @@ export function PluginToolsDialog({
       count: tools?.agents?.length || 0,
     },
     { key: 'mcp', label: 'MCP', value: 'mcp', count: tools?.mcp_servers?.length || 0 },
+    { key: 'lsp', label: 'LSP', value: 'lsp', count: tools?.lsp_servers?.length || 0 },
     { key: 'hooks', label: 'Hooks', value: 'hooks', count: tools?.hooks?.length || 0 },
   ] as const;
 
@@ -206,11 +207,17 @@ export function PluginToolsDialog({
                             </span>
                             <span className='font-medium'>{server.name}</span>
                           </div>
-                          <div className='text-xs text-muted-foreground mt-1'>
+                          <div className='text-xs text-muted-foreground mt-1 space-y-0.5'>
                             {server.mcpServer.command && (
                               <div>
-                                {t('pluginToolsDialog.command')}{' '}
+                                <span className='font-medium'>
+                                  {t('pluginToolsDialog.command')}
+                                </span>{' '}
                                 {server.mcpServer.command}
+                                {server.mcpServer.args &&
+                                  server.mcpServer.args.length > 0 && (
+                                    <span>{' ' + server.mcpServer.args.join(' ')}</span>
+                                  )}
                               </div>
                             )}
                             {server.mcpServer.url && (
@@ -218,6 +225,53 @@ export function PluginToolsDialog({
                                 {t('pluginToolsDialog.url')}: {server.mcpServer.url}
                               </div>
                             )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </TabsContent>
+            )}
+
+            {/* LSP Servers Tab */}
+            {tools?.lsp_servers && tools.lsp_servers.length > 0 && (
+              <TabsContent value='lsp' className='mt-4'>
+                <ScrollArea className='h-[400px] pr-4'>
+                  <div className='space-y-2'>
+                    {tools.lsp_servers.map((server, index) => (
+                      <div
+                        key={`lsp-${index}`}
+                        className='flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors'
+                      >
+                        <div className='flex-1'>
+                          <div className='flex items-center gap-2'>
+                            <span className='font-medium'>{server.name}</span>
+                            <span className='text-xs text-muted-foreground'>
+                              ({server.lspServer.transport || 'stdio'})
+                            </span>
+                            {server.command_installed === false && (
+                              <Badge
+                                variant='outline'
+                                className='text-xs bg-yellow-50 text-yellow-700 border-yellow-200'
+                              >
+                                {t('pluginToolsDialog.dependencyNotInstalled')}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className='text-xs text-muted-foreground mt-1 space-y-0.5'>
+                            <div>
+                              <span className='font-medium'>
+                                {t('pluginToolsDialog.command')}
+                              </span>{' '}
+                              <code className='bg-muted px-1 py-0.5 rounded'>
+                                {server.lspServer.command}
+                              </code>
+                              {server.lspServer.args &&
+                                server.lspServer.args.length > 0 && (
+                                  <span>{' ' + server.lspServer.args.join(' ')}</span>
+                                )}
+                            </div>
                           </div>
                         </div>
                       </div>

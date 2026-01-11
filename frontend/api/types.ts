@@ -229,6 +229,8 @@ export interface MCPServerInfo {
   mcpServer: MCPServer;
   enabled?: boolean; // 服务器最终启用状态
   override: boolean; // 是否被同名的更高优先级服务器覆盖
+  plugin_name?: string; // 所属插件名称
+  marketplace_name?: string; // 所属 marketplace 名称
 }
 
 export interface SettingsInfoWithValue {
@@ -307,6 +309,8 @@ export interface HookConfigInfo {
   event: HookEvent;
   matcher?: string;
   hook_config: HookConfig;
+  plugin_name?: string; // 所属插件名称
+  marketplace_name?: string; // 所属 marketplace 名称
 }
 
 export interface HooksInfo {
@@ -343,6 +347,39 @@ export interface UpdateClaudeHookRequest {
 export interface UpdateDisableAllHooksRequest {
   project_id: number;
   value: boolean; // disableAllHooks的值
+}
+
+// ===== LSP 服务器管理相关类型 =====
+
+export enum LSPTransport {
+  STDIO = 'stdio',
+  SOCKET = 'socket',
+}
+
+export interface LSPServer {
+  command: string;
+  extensionToLanguage: Record<string, string>;
+  args?: string[];
+  transport?: LSPTransport;
+  env?: Record<string, string>;
+  initializationOptions?: Record<string, any>;
+  settings?: Record<string, any>;
+  workspaceFolder?: string;
+}
+
+export interface LSPServerInfo {
+  name: string;
+  scope: ConfigScope;
+  lspServer: LSPServer;
+  plugin_name?: string;
+  marketplace_name?: string;
+  file_path?: string;
+  command_installed?: boolean; // LSP 命令是否已在系统中安装
+}
+
+export interface ScanLSPServersRequest {
+  project_id: number;
+  scope?: ConfigScope | null;
 }
 
 // ===== 响应接口定义 =====
@@ -411,6 +448,9 @@ export interface CommandInfo {
   scope: ConfigScope;
   description?: string;
   last_modified_str?: string; // Formatted datetime string
+  plugin_name?: string; // 所属插件名称
+  marketplace_name?: string; // 所属 marketplace 名称
+  file_path?: string; // 文件绝对路径
 }
 
 export interface AgentInfo {
@@ -418,11 +458,16 @@ export interface AgentInfo {
   scope: ConfigScope;
   description?: string;
   last_modified_str?: string; // Formatted datetime string
+  plugin_name?: string; // 所属插件名称
+  marketplace_name?: string; // 所属 marketplace 名称
+  file_path?: string; // 文件绝对路径
 }
 
 export interface HookInfo {
   name: string;
   last_modified_str?: string; // Formatted datetime string
+  plugin_name?: string; // 所属插件名称
+  marketplace_name?: string; // 所属 marketplace名称
 }
 
 export interface SkillInfo {
@@ -430,6 +475,9 @@ export interface SkillInfo {
   scope: ConfigScope;
   description?: string;
   last_modified_str?: string; // Formatted datetime string
+  plugin_name?: string; // 所属插件名称
+  marketplace_name?: string; // 所属 marketplace 名称
+  file_path?: string; // Skill 目录绝对路径
 }
 
 // Claude Settings DTO 类型
@@ -530,6 +578,9 @@ export type EnableMCPServerResponse = ApiResponse<boolean>;
 export type DisableMCPServerResponse = ApiResponse<boolean>;
 export type UpdateEnableAllProjectMcpServersResponse = ApiResponse<boolean>;
 
+// LSP 服务器管理响应类型
+export type ScanLSPServersResponse = ApiResponse<LSPServerInfo[]>;
+
 // Hooks 管理响应类型
 export type ScanClaudeHooksResponse = ApiResponse<HooksInfo>;
 export type AddClaudeHookResponse = ApiResponse<boolean>;
@@ -579,6 +630,7 @@ export interface PluginTools {
   skills?: SkillInfo[];
   agents?: AgentInfo[];
   mcp_servers?: MCPServerInfo[];
+  lsp_servers?: LSPServerInfo[];
   hooks?: HookConfigInfo[];
 }
 
@@ -590,6 +642,7 @@ export interface PluginInfo {
   enabled?: boolean;
   enabled_scope?: ConfigScope;
   tools?: PluginTools;
+  readme_content_exists: boolean; // README 文件是否存在
 }
 
 // Plugin Marketplace 管理请求类型
@@ -640,6 +693,12 @@ export interface MoveClaudePluginRequest {
   new_scope: ConfigScope;
 }
 
+export interface ReadPluginReadmeRequest {
+  project_id: number;
+  marketplace_name: string;
+  plugin_name: string;
+}
+
 // ProcessResult 进程执行结果
 export interface ProcessResult {
   success: boolean;
@@ -660,3 +719,4 @@ export type UninstallClaudePluginResponse = ApiResponse<ProcessResult>;
 export type EnableClaudePluginResponse = ApiResponse<boolean>;
 export type DisableClaudePluginResponse = ApiResponse<boolean>;
 export type MoveClaudePluginResponse = ApiResponse<boolean>;
+export type ReadPluginReadmeResponse = ApiResponse<string>;

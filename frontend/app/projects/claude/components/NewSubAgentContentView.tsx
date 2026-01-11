@@ -26,12 +26,14 @@ export function NewSubAgentContentView({
 
   const [agentName, setAgentName] = useState<string>('');
   const [agentScope, setAgentScope] = useState<ConfigScope>(initialScope);
-  const [agentContent, setAgentContent] = useState<string>('');
+  // originalContent 始终为空（新建模式）
+  // pendingContent 跟踪用户编辑的内容
+  const [pendingContent, setPendingContent] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // 处理编辑器内容变化
   const handleEditorChange = useCallback((value: string) => {
-    setAgentContent(value);
+    setPendingContent(value);
   }, []);
 
   // 处理标题变更
@@ -52,7 +54,7 @@ export function NewSubAgentContentView({
       return;
     }
 
-    if (!agentContent.trim()) {
+    if (!pendingContent.trim()) {
       toast.error(t('subAgents.enterContent'));
       return;
     }
@@ -63,7 +65,7 @@ export function NewSubAgentContentView({
         project_id: projectId,
         content_type: 'agent',
         name: agentName.trim(),
-        content: agentContent,
+        content: pendingContent,
         scope: agentScope,
       });
 
@@ -85,7 +87,7 @@ export function NewSubAgentContentView({
     } finally {
       setIsSaving(false);
     }
-  }, [projectId, agentName, agentContent, agentScope, onSaved, t]);
+  }, [projectId, agentName, pendingContent, agentScope, onSaved, t]);
 
   // 自定义标题 ReactNode - 新建模式
   const titleNode = useMemo(() => {
@@ -134,7 +136,7 @@ export function NewSubAgentContentView({
     <div className='h-full flex flex-col'>
       <MarkdownEditor
         title={titleNode}
-        value={agentContent}
+        defaultValue=''
         onChange={handleEditorChange}
         onSave={handleSave}
         isLoading={false}

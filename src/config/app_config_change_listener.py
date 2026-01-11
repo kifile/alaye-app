@@ -21,7 +21,6 @@ class AppConfigChangeListener(ConfigChangeListener):
         """
         初始化时检测系统语言，并设置默认的应用语言
         """
-        logger.info("响应配置初始化事件 - 开始检测系统语言")
         try:
             # 检查是否已经设置了语言
             existing_language = await config_service.get_setting("app.language")
@@ -32,19 +31,23 @@ class AppConfigChangeListener(ConfigChangeListener):
 
                 if system_language:
                     await config_service.set_setting("app.language", system_language)
-                    logger.info(f"已根据系统语言设置应用语言为: {system_language}")
+                    logger.info(
+                        f"Application language set to: {system_language} based on system language"
+                    )
                 else:
                     # 如果无法检测系统语言，默认使用英文
                     await config_service.set_setting("app.language", "en")
-                    logger.info("无法检测系统语言，使用默认语言: en")
+                    logger.info(
+                        "Unable to detect system language, using default language: en"
+                    )
 
         except Exception as e:
-            logger.error(f"检测系统语言失败: {str(e)}")
+            logger.error(f"Failed to detect system language: {str(e)}")
             # 发生错误时，设置默认语言
             try:
                 await config_service.set_setting("app.language", "en")
             except Exception as set_error:
-                logger.error(f"设置默认语言失败: {str(set_error)}")
+                logger.error(f"Failed to set default language: {str(set_error)}")
 
     def _detect_system_language(self) -> Optional[str]:
         """
@@ -69,7 +72,7 @@ class AppConfigChangeListener(ConfigChangeListener):
                 return "en"
 
         except Exception as e:
-            logger.error(f"检测系统语言时出错: {str(e)}")
+            logger.error(f"Error detecting system language: {str(e)}")
             return "en"
 
 

@@ -18,6 +18,7 @@ import { ConfigScope } from '@/api/types';
 type ConfigSection =
   | 'memory'
   | 'mcpServers'
+  | 'lspServers'
   | 'commands'
   | 'subAgents'
   | 'hooks'
@@ -71,6 +72,12 @@ export function DetailHeader({
         description: t('header.mcpServers.description'),
         icon: <Server className='h-4 w-4' />,
         doc: 'https://code.claude.com/docs/en/mcp',
+      },
+      lspServers: {
+        title: t('header.lspServers.title'),
+        description: t('header.lspServers.description'),
+        icon: <Server className='h-4 w-4' />,
+        doc: 'https://code.claude.com/docs/en/plugins-reference#lsp-servers',
       },
       commands: {
         title: t('header.commands.title'),

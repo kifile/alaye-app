@@ -3,6 +3,7 @@ MCP 配置操作模块
 处理 MCP 服务器的配置、添加、删除、更新等操作
 """
 
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -29,6 +30,9 @@ from .settings_helper import (
     update_project_config,
 )
 
+# Configure logger
+logger = logging.getLogger("claude")
+
 
 class ClaudeMCPOperations:
     """Claude MCP 操作类"""
@@ -51,7 +55,7 @@ class ClaudeMCPOperations:
         self.user_home = user_home if user_home else Path.home()
         self.plugin_ops = plugin_ops
 
-    def scan_mcp(self, scope: ConfigScope | None = None) -> MCPInfo:
+    async def scan_mcp(self, scope: ConfigScope | None = None) -> MCPInfo:
         """
         扫描并合并所有 MCP 配置
 
@@ -102,7 +106,7 @@ class ClaudeMCPOperations:
         if (scope is None or scope == ConfigScope.plugin) and self.plugin_ops:
             try:
                 # 获取已安装的插件列表
-                plugins = self.plugin_ops.scan_plugins()
+                plugins = await self.plugin_ops.scan_plugins()
 
                 # 筛选出已启用的插件
                 enabled_plugins = [p for p in plugins if p.enabled and p.tools]
@@ -110,9 +114,16 @@ class ClaudeMCPOperations:
                 # 从已启用插件中提取 MCP 服务器
                 for plugin in enabled_plugins:
                     if plugin.tools and plugin.tools.mcp_servers:
-                        mcp_info.servers.extend(plugin.tools.mcp_servers)
+                        # 为每个 MCP 服务器添加插件信息
+                        for server in plugin.tools.mcp_servers:
+                            # 确保服务器有 plugin_name 和 marketplace_name 字段
+                            if not server.plugin_name:
+                                server.plugin_name = plugin.config.name
+                            if not server.marketplace_name:
+                                server.marketplace_name = plugin.marketplace
+                            mcp_info.servers.append(server)
             except Exception as e:
-                print(f"扫描插件 MCP 服务器失败: {e}")
+                logger.error(f"Failed to scan plugin MCP servers: {e}")
 
         return mcp_info
 

@@ -56,14 +56,16 @@ class TestClaudeMCPOperations:
 
     # ========== 测试 scan_mcp ==========
 
-    def test_scan_mcp_empty_configs(self, mcp_ops):
+    @pytest.mark.asyncio
+    async def test_scan_mcp_empty_configs(self, mcp_ops):
         """测试扫描空的 MCP 配置"""
-        mcp_info = mcp_ops.scan_mcp()
+        mcp_info = await mcp_ops.scan_mcp()
 
         assert mcp_info.servers == []
         assert mcp_info.enable_all_project_mcp_servers.value is None
 
-    def test_scan_mcp_user_servers(self, temp_user_home, mcp_ops):
+    @pytest.mark.asyncio
+    async def test_scan_mcp_user_servers(self, temp_user_home, mcp_ops):
         """测试扫描 user scope 的 MCP 服务器"""
         claude_json = temp_user_home / ".claude.json"
         test_data = {
@@ -73,13 +75,14 @@ class TestClaudeMCPOperations:
         with open(claude_json, "w", encoding="utf-8") as f:
             json.dump(test_data, f)
 
-        mcp_info = mcp_ops.scan_mcp()
+        mcp_info = await mcp_ops.scan_mcp()
 
         assert len(mcp_info.servers) == 1
         assert mcp_info.servers[0].name == "user-server"
         assert mcp_info.servers[0].scope == ConfigScope.user
 
-    def test_scan_mcp_project_servers(self, temp_project_dir, mcp_ops):
+    @pytest.mark.asyncio
+    async def test_scan_mcp_project_servers(self, temp_project_dir, mcp_ops):
         """测试扫描 project scope 的 MCP 服务器"""
         mcp_json = temp_project_dir / ".mcp.json"
         test_data = {
@@ -89,13 +92,16 @@ class TestClaudeMCPOperations:
         with open(mcp_json, "w", encoding="utf-8") as f:
             json.dump(test_data, f)
 
-        mcp_info = mcp_ops.scan_mcp()
+        mcp_info = await mcp_ops.scan_mcp()
 
         assert len(mcp_info.servers) == 1
         assert mcp_info.servers[0].name == "project-server"
         assert mcp_info.servers[0].scope == ConfigScope.project
 
-    def test_scan_mcp_local_servers(self, temp_user_home, temp_project_dir, mcp_ops):
+    @pytest.mark.asyncio
+    async def test_scan_mcp_local_servers(
+        self, temp_user_home, temp_project_dir, mcp_ops
+    ):
         """测试扫描 local scope 的 MCP 服务器"""
         claude_json = temp_user_home / ".claude.json"
         test_data = {
@@ -110,14 +116,15 @@ class TestClaudeMCPOperations:
         with open(claude_json, "w", encoding="utf-8") as f:
             json.dump(test_data, f)
 
-        mcp_info = mcp_ops.scan_mcp()
+        mcp_info = await mcp_ops.scan_mcp()
 
         # 应该有两个服务器：global (user) 和 local
         assert len(mcp_info.servers) == 2
         scopes = {server.scope for server in mcp_info.servers}
         assert scopes == {ConfigScope.user, ConfigScope.local}
 
-    def test_scan_mcp_server_priority_and_override(
+    @pytest.mark.asyncio
+    async def test_scan_mcp_server_priority_and_override(
         self, temp_user_home, temp_project_dir, mcp_ops
     ):
         """测试 MCP 服务器优先级和覆盖（local > project > user）"""
@@ -140,7 +147,7 @@ class TestClaudeMCPOperations:
         with open(mcp_json, "w", encoding="utf-8") as f:
             json.dump(project_data, f)
 
-        mcp_info = mcp_ops.scan_mcp()
+        mcp_info = await mcp_ops.scan_mcp()
 
         # 应该有 3 个服务器
         assert len(mcp_info.servers) == 3
@@ -158,7 +165,10 @@ class TestClaudeMCPOperations:
         # 按照代码逻辑，user 的服务器会因为被 project 覆盖而标记为 override
         assert user_server1.override is True
 
-    def test_scan_mcp_enable_all_project_mcp_servers(self, temp_project_dir, mcp_ops):
+    @pytest.mark.asyncio
+    async def test_scan_mcp_enable_all_project_mcp_servers(
+        self, temp_project_dir, mcp_ops
+    ):
         """测试扫描 enableAllProjectMcpServers 配置"""
         settings_file = temp_project_dir / ".claude" / "settings.json"
         test_data = {"enableAllProjectMcpServers": True}
@@ -166,12 +176,13 @@ class TestClaudeMCPOperations:
         with open(settings_file, "w", encoding="utf-8") as f:
             json.dump(test_data, f)
 
-        mcp_info = mcp_ops.scan_mcp()
+        mcp_info = await mcp_ops.scan_mcp()
 
         assert mcp_info.enable_all_project_mcp_servers.value is True
         assert mcp_info.enable_all_project_mcp_servers.scope == ConfigScope.project
 
-    def test_scan_mcp_enable_all_priority(self, temp_project_dir, mcp_ops):
+    @pytest.mark.asyncio
+    async def test_scan_mcp_enable_all_priority(self, temp_project_dir, mcp_ops):
         """测试 enableAllProjectMcpServers 优先级（local > project）"""
         # Project settings
         project_settings = temp_project_dir / ".claude" / "settings.json"
@@ -185,7 +196,7 @@ class TestClaudeMCPOperations:
         with open(local_settings, "w", encoding="utf-8") as f:
             json.dump(local_data, f)
 
-        mcp_info = mcp_ops.scan_mcp()
+        mcp_info = await mcp_ops.scan_mcp()
 
         # Local 配置应该覆盖 project 配置
         assert mcp_info.enable_all_project_mcp_servers.value is True
@@ -539,7 +550,8 @@ class TestClaudeMCPOperations:
 
     # ========== 测试集成场景 ==========
 
-    def test_full_mcp_server_lifecycle(self, mcp_ops, temp_project_dir):
+    @pytest.mark.asyncio
+    async def test_full_mcp_server_lifecycle(self, mcp_ops, temp_project_dir):
         """测试 MCP 服务器的完整生命周期"""
         server = MCPServer(
             type=McpServerType.stdio,
@@ -551,7 +563,7 @@ class TestClaudeMCPOperations:
         # Create: 添加服务器
         mcp_ops.add_mcp_server("lifecycle-server", server, ConfigScope.project)
 
-        mcp_info = mcp_ops.scan_mcp()
+        mcp_info = await mcp_ops.scan_mcp()
         assert len(mcp_info.servers) == 1
         assert mcp_info.servers[0].name == "lifecycle-server"
 
@@ -566,13 +578,13 @@ class TestClaudeMCPOperations:
             "lifecycle-server", updated_server, ConfigScope.project
         )
 
-        mcp_info = mcp_ops.scan_mcp()
+        mcp_info = await mcp_ops.scan_mcp()
         assert mcp_info.servers[0].mcpServer.command == "python"
 
         # Delete: 删除服务器
         mcp_ops.remove_mcp_server("lifecycle-server", ConfigScope.project)
 
-        mcp_info = mcp_ops.scan_mcp()
+        mcp_info = await mcp_ops.scan_mcp()
         assert len(mcp_info.servers) == 0
 
     def test_http_mcp_server(self, mcp_ops, temp_project_dir):

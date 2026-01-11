@@ -26,12 +26,14 @@ export function NewSkillContentView({
 
   const [skillName, setSkillName] = useState<string>('');
   const [skillScope, setSkillScope] = useState<ConfigScope>(initialScope);
-  const [skillContent, setSkillContent] = useState<string>('');
+  // originalContent 始终为空（新建模式）
+  // pendingContent 跟踪用户编辑的内容
+  const [pendingContent, setPendingContent] = useState<string>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // 处理编辑器内容变化
   const handleEditorChange = useCallback((value: string) => {
-    setSkillContent(value);
+    setPendingContent(value);
   }, []);
 
   // 处理标题变更
@@ -52,7 +54,7 @@ export function NewSkillContentView({
       return;
     }
 
-    if (!skillContent.trim()) {
+    if (!pendingContent.trim()) {
       toast.error(t('skills.enterContent'));
       return;
     }
@@ -63,7 +65,7 @@ export function NewSkillContentView({
         project_id: projectId,
         content_type: 'skill',
         name: skillName.trim(),
-        content: skillContent,
+        content: pendingContent,
         scope: skillScope,
       });
 
@@ -85,7 +87,7 @@ export function NewSkillContentView({
     } finally {
       setIsSaving(false);
     }
-  }, [projectId, skillName, skillContent, skillScope, onSaved, t]);
+  }, [projectId, skillName, pendingContent, skillScope, onSaved, t]);
 
   // 自定义标题 ReactNode - 新建模式
   const titleNode = useMemo(() => {
@@ -134,7 +136,7 @@ export function NewSkillContentView({
     <div className='h-full flex flex-col'>
       <MarkdownEditor
         title={titleNode}
-        value={skillContent}
+        defaultValue=''
         onChange={handleEditorChange}
         onSave={handleSave}
         isLoading={false}

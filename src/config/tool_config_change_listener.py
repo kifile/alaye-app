@@ -34,7 +34,6 @@ class ToolConfigChangeListener(ConfigChangeListener):
         """
         初始化时检测工具状态
         """
-        logger.info("响应配置初始化事件 - 开始检测所有工具状态")
         try:
             for tool_name, config_keys in self.tool_keys.items():
                 await self._detect_and_update_tool_config(tool_name, config_keys)
@@ -52,7 +51,7 @@ class ToolConfigChangeListener(ConfigChangeListener):
         配置键更新前的验证
         """
         logger.info(
-            f"响应配置键更新前验证事件 - 键: {event.key}, 旧值: {event.old_value}, 新值: {event.new_value}"
+            f"beforeKeyUpdate - Key: {event.key}, Old value: {event.old_value}, New value: {event.new_value}"
         )
         try:
             key = event.key
@@ -77,9 +76,7 @@ class ToolConfigChangeListener(ConfigChangeListener):
         """
         配置键更新后的处理
         """
-        logger.info(
-            f"响应配置键更新后处理事件 - 键: {event.key}, 新值: {event.new_value}"
-        )
+        logger.info(f"onKeyUpdated - Key: {event.key}, New value: {event.new_value}")
         try:
             key = event.key
 

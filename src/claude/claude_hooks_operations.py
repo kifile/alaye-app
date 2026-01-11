@@ -4,6 +4,7 @@ Hooks 配置操作模块
 """
 
 import hashlib
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -22,6 +23,9 @@ from .settings_helper import (
     save_config,
     update_config,
 )
+
+# Configure logger
+logger = logging.getLogger("claude")
 
 
 class ClaudeHooksOperations:
@@ -45,7 +49,7 @@ class ClaudeHooksOperations:
         self.user_home = user_home if user_home else Path.home()
         self.plugin_ops = plugin_ops
 
-    def scan_hooks_info(self, scope: ConfigScope | None = None) -> HooksInfo:
+    async def scan_hooks_info(self, scope: ConfigScope | None = None) -> HooksInfo:
         """
         扫描并合并所有 Hooks 配置
 
@@ -83,7 +87,7 @@ class ClaudeHooksOperations:
         if (scope is None or scope == ConfigScope.plugin) and self.plugin_ops:
             try:
                 # 获取已安装的插件列表
-                plugins = self.plugin_ops.scan_plugins()
+                plugins = await self.plugin_ops.scan_plugins()
 
                 # 筛选出已启用的插件
                 enabled_plugins = [
@@ -93,9 +97,16 @@ class ClaudeHooksOperations:
                 # 从已启用插件中提取 hooks
                 for plugin in enabled_plugins:
                     if plugin.tools and plugin.tools.hooks:
-                        hooks_info.matchers.extend(plugin.tools.hooks)
+                        # 为每个 hook 配置添加插件信息
+                        for hook in plugin.tools.hooks:
+                            # 确保配置有 plugin_name 和 marketplace_name 字段
+                            if not hook.plugin_name:
+                                hook.plugin_name = plugin.config.name
+                            if not hook.marketplace_name:
+                                hook.marketplace_name = plugin.marketplace
+                            hooks_info.matchers.append(hook)
             except Exception as e:
-                print(f"扫描插件 hooks 失败: {e}")
+                logger.error(f"Failed to scan plugin hooks: {e}")
 
         return hooks_info
 

@@ -78,35 +78,27 @@ logger = logging.getLogger(__name__)
 
 async def initialize_app():
     """初始化应用程序"""
-    logger.info("正在初始化应用...")
+    logger.info("Initializing application...")
 
     # 初始化数据库
-    logger.info("初始化数据库...")
     await init_db()
-    logger.info("数据库初始化完成")
 
     # 注册工具配置监听器
-    logger.info("注册工具配置监听器...")
     config_change_manager.add_listener(tool_config_listener)
 
     # 注册应用配置监听器
-    logger.info("注册应用配置监听器...")
     config_change_manager.add_listener(app_config_listener)
 
     # 初始化配置服务
-    logger.info("初始化配置服务...")
     await config_service.initialize()
-    logger.info("配置服务初始化完成")
 
     # 扫描所有 Claude 项目
-    logger.info("扫描 Claude 项目...")
     try:
         await project_service.scan_and_save_all_projects()
-        logger.info("Claude 项目扫描完成")
     except Exception as e:
-        logger.warning(f"Claude 项目扫描失败: {e}")
+        logger.warning(f"Claude projects scan failed: {e}")
 
-    logger.info("应用初始化完成")
+    logger.info("Application initialization completed")
 
 
 def get_resource_path(relative_path: str) -> str:
@@ -122,10 +114,10 @@ def get_app_url():
 
     if env_mode == "browser":
         # FastAPI 模式：不在窗口中运行，只需启动 FastAPI 服务器
-        logger.info("FastAPI 模式：将在 http://127.0.0.1:8000 启动 HTTP 服务")
+        logger.info("FastAPI mode: Starting HTTP service at http://127.0.0.1:8000")
         return None
     elif env_mode == "development":
-        logger.info("使用开发模式: http://localhost:3000")
+        logger.info("Using development mode: http://localhost:3000")
         return "http://localhost:3000"
     else:
         # 静态文件模式：使用相对路径让 pywebview 自动启动 HTTP 服务器
@@ -137,11 +129,11 @@ def get_app_url():
 
         # 检查文件是否存在
         if not os.path.exists(absolute_path):
-            logger.error(f"错误: 静态文件不存在: {absolute_path}")
-            logger.error("请先构建前端: cd frontend && npm run build")
+            logger.error(f"Error: Static file does not exist: {absolute_path}")
+            logger.error("Please build frontend first: cd frontend && npm run build")
             sys.exit(1)
 
-        logger.info(f"使用静态资源模式（通过 HTTP 服务器）: {static_path}")
+        logger.info(f"Using static resource mode (via HTTP server): {static_path}")
         return static_path
 
 
@@ -169,10 +161,12 @@ def start_async_event_loop():
         """运行事件循环，保持应用生命周期"""
         try:
             # 事件循环一直运行，直到被停止
-            while True:
-                await asyncio.sleep(1)
+            while not background_thread_async_executor._stop_event.is_set():
+                await asyncio.sleep(0.5)
         except asyncio.CancelledError:
-            logger.info("Async event loop stopped")
+            logger.info("Async event loop task cancelled")
+        except Exception as e:
+            logger.error(f"Event loop task error: {e}")
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -181,14 +175,29 @@ def start_async_event_loop():
     background_thread_async_executor.set_loop(loop)
 
     # 在事件循环中运行协程
-    task = loop.create_task(run_event_loop())
+    loop.create_task(run_event_loop())
 
     try:
         loop.run_forever()
+    except KeyboardInterrupt:
+        logger.info("Event loop received keyboard interrupt")
     finally:
-        task.cancel()
-        loop.run_until_complete(asyncio.sleep(0.1))  # 给任务时间取消
-        loop.close()
+        # 取消所有任务
+        try:
+            tasks = [t for t in asyncio.all_tasks(loop) if not t.done()]
+            for t in tasks:
+                t.cancel()
+
+            # 等待任务取消完成（最多等待2秒）
+            if tasks:
+                loop.run_until_complete(asyncio.gather(*tasks, return_exceptions=True))
+        except Exception as e:
+            logger.error(f"Error cancelling tasks: {e}")
+
+        # 停止循环
+        loop.stop()
+        background_thread_async_executor._stop_event.set()
+        logger.info("Async event loop stopped")
 
 
 def setup_fastapi_terminal_system():
@@ -207,36 +216,21 @@ def setup_fastapi_terminal_system():
     # 将事件监听器设置到终端管理器中
     terminal_manager.set_event_listener(event_listener)
 
-    logger.info("FastAPI 模式终端系统已初始化")
+    logger.info("FastAPI mode terminal system initialized")
 
 
 async def run_fastapi_mode():
-    logger.info("启动 FastAPI 模式...")
+    """FastAPI 模式：让 FastAPI/Uvicorn 管理应用生命周期"""
+    logger.info("Starting FastAPI mode...")
 
-    # 初始化应用
-    await initialize_app()
-
-    # 设置 FastAPI 模式的终端系统
+    # 设置 FastAPI 模式的终端系统（在 lifespan 之前设置）
     setup_fastapi_terminal_system()
 
-    logger.info("启动 FastAPI 服务器...")
-    logger.info("服务地址: http://127.0.0.1:8000")
-    logger.info("提示: 按 Ctrl+C 退出服务器")
-    logger.info("API 文档: http://127.0.0.1:8000/docs")
+    logger.info("Server address: http://127.0.0.1:8000")
+    logger.info("Hint: Press Ctrl+C to exit the server")
 
-    try:
-        await run_fastapi_server()
-    except KeyboardInterrupt:
-        logger.warning("收到中断信号，正在关闭服务器...")
-    finally:
-        # 清理终端管理服务
-        logger.info("正在清理终端管理服务...")
-        terminal_manager = get_terminal_manager()
-        terminal_manager.cleanup()
-
-        # 关闭数据库连接
-        await close_db()
-        logger.info("服务器已关闭")
+    # 启动 FastAPI 服务器（lifespan 会处理初始化和清理）
+    await run_fastapi_server()
 
 
 def run_pywebview_mode(app_url):
@@ -293,29 +287,59 @@ def run_pywebview_mode(app_url):
 
     # 设置完整的终端系统架构
     setup_terminal_system(window)
-    logger.info("终端系统已初始化")
 
-    logger.info("启动应用...")
-    logger.info(f"窗口标题: Alaye App")
-    logger.info(f"使用 HTTP 服务器模式，根目录: {static_root}")
-    logger.info("提示: 按 Ctrl+C 或关闭窗口退出应用")
+    logger.info("Starting application...")
+    logger.info(f"Window title: Alaye App")
+    logger.info(f"Using HTTP server mode, root directory: {static_root}")
+    logger.info("Hint: Press Ctrl+C or close window to exit application")
 
     try:
         # 启动应用
         webview.start()
     except KeyboardInterrupt:
-        logger.warning("收到中断信号，正在关闭应用...")
+        logger.warning("Received interrupt signal, shutting down application...")
     finally:
-        # 清理终端管理服务
-        logger.info("正在清理终端管理服务...")
+        logger.info("Starting resource cleanup...")
+
+        # 1. 先在事件循环中关闭数据库（需要循环还在运行）
+        if loop and loop.is_running():
+            logger.info("Closing database...")
+            try:
+                future = asyncio.run_coroutine_threadsafe(close_db(), loop)
+                future.result(timeout=3.0)  # Wait max 3 seconds
+                logger.info("Database closed successfully")
+            except asyncio.TimeoutError:
+                logger.error("Database close timeout")
+            except Exception as e:
+                logger.error(f"Database close failed: {e}")
+
+        # 2. 清理终端管理服务
+        logger.info("Cleaning up terminal manager service...")
         terminal_manager = get_terminal_manager()
         terminal_manager.cleanup()
 
-        # 关闭数据库连接
-        if loop:
-            asyncio.run_coroutine_threadsafe(close_db(), loop)
+        # 3. 停止后台事件循环（在所有异步操作完成后）
+        if loop and loop.is_running():
+            logger.info("Stopping event loop...")
+            background_thread_async_executor.stop_loop()
+            time.sleep(0.1)  # Give loop some time to stop
 
-        logger.info("应用已关闭")
+        # 4. 等待事件循环线程结束
+        if event_loop_thread.is_alive():
+            logger.info("Waiting for event loop thread to end...")
+            event_loop_thread.join(timeout=2.0)
+            if event_loop_thread.is_alive():
+                logger.warning("Event loop thread did not end in time")
+            else:
+                logger.info("Event loop thread ended")
+
+        logger.info("Application closed")
+
+        # Force exit to prevent Qt backend from hanging
+        # os._exit is necessary because sys.exit may not work with Qt's event loop
+        # All cleanup has been done above, so this is safe
+        logger.info("Force exiting process...")
+        os._exit(0)
 
 
 def main():
@@ -325,7 +349,13 @@ def main():
 
     if env_mode == "browser":
         # FastAPI 模式
-        asyncio.run(run_fastapi_mode())
+        try:
+            asyncio.run(run_fastapi_mode())
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt")
+        except asyncio.CancelledError:
+            # Uvicorn 正常关闭时会取消任务，这是预期行为
+            logger.info("FastAPI server shutdown completed")
     else:
         # PyWebView 模式
         run_pywebview_mode(app_url)

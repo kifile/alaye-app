@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -26,6 +27,7 @@ import {
   Clock,
   Copy,
   Filter,
+  Store,
 } from 'lucide-react';
 import type { HookConfigInfo, HookEvent } from '@/api/types';
 import { toast } from 'sonner';
@@ -60,7 +62,10 @@ export function HookItem({
   isProcessing = false,
 }: HookItemProps) {
   const { t } = useTranslation('projects');
-  const { scope, event, matcher, hook_config } = hookInfo;
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { scope, event, matcher, hook_config, plugin_name, marketplace_name } =
+    hookInfo;
 
   const [commandExpanded, setCommandExpanded] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
@@ -79,6 +84,21 @@ export function HookItem({
     } catch {
       toast.error(t('hookItem.copyFailed'));
     }
+  };
+
+  // 跳转到插件页面
+  const handleGoToPlugin = () => {
+    if (!plugin_name) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('section', 'plugins');
+    params.set('search', plugin_name);
+
+    if (marketplace_name) {
+      params.set('marketplaces', marketplace_name);
+    }
+
+    router.push(`?${params.toString()}`);
   };
 
   return (
@@ -145,6 +165,25 @@ export function HookItem({
 
           {/* 右侧：操作按钮 */}
           <div className='flex items-center gap-2 flex-shrink-0'>
+            {/* 跳转到插件按钮 */}
+            {isReadonly && plugin_name && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size='sm'
+                    variant='ghost'
+                    onClick={handleGoToPlugin}
+                    className='text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+                  >
+                    <Store className='w-4 h-4' />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{t('hookItem.goToPlugin')}</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button

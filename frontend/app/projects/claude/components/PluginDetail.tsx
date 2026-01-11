@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,6 +24,8 @@ interface PluginDetailProps {
 
 export function PluginDetail({ projectId }: PluginDetailProps) {
   const { t } = useTranslation('projects');
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [marketplaces, setMarketplaces] = useState<PluginMarketplaceInfo[]>([]);
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
@@ -33,6 +36,7 @@ export function PluginDetail({ projectId }: PluginDetailProps) {
   const [isAddMarketplaceOpen, setIsAddMarketplaceOpen] = useState(false);
   const [newMarketplaceSource, setNewMarketplaceSource] = useState('');
   const [isInstalling, setIsInstalling] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // 判断是否有过滤器激活
   const hasActiveFilters = useMemo(() => {
@@ -66,12 +70,9 @@ export function PluginDetail({ projectId }: PluginDetailProps) {
   // 加载插件列表
   const loadPlugins = useCallback(async () => {
     try {
+      // 始终获取所有插件，前端过滤即可
       const response = await scanClaudePlugins({
         project_id: projectId,
-        marketplace_names:
-          selectedMarketplaces.includes('_all_') || selectedMarketplaces.length === 0
-            ? undefined
-            : selectedMarketplaces,
       });
 
       if (response.success && response.data) {
@@ -85,7 +86,88 @@ export function PluginDetail({ projectId }: PluginDetailProps) {
       toast.error(t('plugins.loadListFailed'));
       setPlugins([]);
     }
-  }, [projectId, selectedMarketplaces, t]);
+  }, [projectId, t]);
+
+  // 更新 URL 查询参数
+  const updateURLParams = useCallback(
+    (params: { search?: string; marketplaces?: string[]; categories?: string[] }) => {
+      const newParams = new URLSearchParams(searchParams.toString());
+
+      // 更新搜索参数
+      if (params.search !== undefined) {
+        if (params.search) {
+          newParams.set('search', params.search);
+        } else {
+          newParams.delete('search');
+        }
+      }
+
+      // 更新 marketplace 参数
+      if (params.marketplaces !== undefined) {
+        if (params.marketplaces.includes('_all_') || params.marketplaces.length === 0) {
+          newParams.delete('marketplaces');
+        } else {
+          newParams.set('marketplaces', params.marketplaces.join(','));
+        }
+      }
+
+      // 更新 categories 参数
+      if (params.categories !== undefined) {
+        if (params.categories.includes('_all_') || params.categories.length === 0) {
+          newParams.delete('categories');
+        } else {
+          newParams.set('categories', params.categories.join(','));
+        }
+      }
+
+      // 只有当参数真正改变时才更新 URL
+      const newUrl = `?${newParams.toString()}`;
+      if (newUrl !== `?${searchParams.toString()}`) {
+        router.replace(newUrl);
+      }
+    },
+    [searchParams, router]
+  );
+
+  // 从 URL 初始化筛选条件
+  useEffect(() => {
+    if (isInitialized) return;
+
+    const search = searchParams.get('search');
+    const marketplacesParam = searchParams.get('marketplaces');
+    const categoriesParam = searchParams.get('categories');
+
+    if (search) {
+      setSearchQuery(search);
+    }
+
+    if (marketplacesParam) {
+      setSelectedMarketplaces(marketplacesParam.split(','));
+    }
+
+    if (categoriesParam) {
+      setSelectedCategories(categoriesParam.split(','));
+    }
+
+    setIsInitialized(true);
+  }, [searchParams, isInitialized]);
+
+  // 监听筛选条件变化，同步到 URL
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    updateURLParams({
+      search: searchQuery,
+      marketplaces: selectedMarketplaces,
+      categories: selectedCategories,
+    });
+  }, [
+    searchQuery,
+    selectedMarketplaces,
+    selectedCategories,
+    isInitialized,
+    updateURLParams,
+  ]);
 
   // 组件加载时获取数据
   useEffect(() => {
@@ -93,6 +175,9 @@ export function PluginDetail({ projectId }: PluginDetailProps) {
       setIsLoading(true);
       try {
         await loadMarketplaces();
+        // 等待市场列表加载完成后，立即加载插件列表
+        // 这样可以避免中间态的空状态显示
+        await loadPlugins();
       } finally {
         setIsLoading(false);
       }
@@ -101,14 +186,7 @@ export function PluginDetail({ projectId }: PluginDetailProps) {
     if (projectId) {
       loadData();
     }
-  }, [projectId, loadMarketplaces]);
-
-  // 当选择的市场改变时,重新加载插件列表
-  useEffect(() => {
-    if (marketplaces.length > 0) {
-      loadPlugins();
-    }
-  }, [selectedMarketplaces, marketplaces, loadPlugins]);
+  }, [projectId, loadMarketplaces, loadPlugins]);
 
   // 提取 Marketplace 选项
   const marketplaceOptions: FilterOption[] = useMemo(

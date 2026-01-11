@@ -3,13 +3,75 @@ import { Terminal, Plus, ExternalLink } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDetailHeader } from '../context/DetailHeaderContext';
 import { EmptyView } from '@/components/EmptyView';
-import { CommandSelector } from './CommandSelector';
+import { ClaudeToolSelectBar, ToolGroup } from './ClaudeToolSelectBar';
 import { CommandContentView } from './CommandContentView';
 import { NewCommandContentView } from './NewCommandContentView';
 import { scanClaudeCommands } from '@/api/api';
-import type { ConfigScope, CommandInfo } from '@/api/types';
-import { ConfigScope as ConfigScopeEnum } from '@/api/types';
+import { ConfigScope, CommandInfo } from '@/api/types';
 import { useTranslation } from 'react-i18next';
+
+// 分组函数：按照 scope + pluginName 分组
+function groupCommandsByScope(
+  commands: CommandInfo[],
+  t: (key: string, params?: Record<string, string | number>) => string
+): ToolGroup[] {
+  const scopeOrder: ConfigScope[] = [
+    ConfigScope.LOCAL,
+    ConfigScope.PROJECT,
+    ConfigScope.USER,
+    ConfigScope.PLUGIN,
+  ];
+  const groups: ToolGroup[] = [];
+
+  // 非插件 scope 的分组
+  for (const scope of scopeOrder) {
+    if (scope === ConfigScope.PLUGIN) continue; // 插件单独处理
+
+    const items = commands
+      .filter(cmd => cmd.scope === scope)
+      .map(cmd => ({
+        name: cmd.name,
+        scope: cmd.scope,
+        description: cmd.description,
+      }));
+
+    if (items.length > 0) {
+      groups.push({
+        label: t(`toolSelectBar.groups.${scope}`),
+        items,
+      });
+    }
+  }
+
+  // 插件 scope：按 pluginName 分组
+  const pluginCommands = commands.filter(cmd => cmd.scope === ConfigScope.PLUGIN);
+  const pluginsMap = new Map<string, CommandInfo[]>();
+
+  pluginCommands.forEach(cmd => {
+    const pluginName = cmd.plugin_name || 'Unknown';
+    if (!pluginsMap.has(pluginName)) {
+      pluginsMap.set(pluginName, []);
+    }
+    pluginsMap.get(pluginName)!.push(cmd);
+  });
+
+  // 按插件名称排序后添加分组
+  Array.from(pluginsMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .forEach(([pluginName, cmds]) => {
+      groups.push({
+        label: t('toolSelectBar.groups.plugin', { name: pluginName }),
+        items: cmds.map(cmd => ({
+          name: cmd.name,
+          scope: cmd.scope,
+          description: cmd.description,
+          pluginName,
+        })),
+      });
+    });
+
+  return groups;
+}
 
 // 加载状态组件
 function LoadingState({ message }: { message: string }) {
@@ -63,6 +125,11 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
         (!selectedCommand.scope || cmd.scope === selectedCommand.scope)
     );
   }, [selectedCommand, commandsList]);
+
+  // 分组后的命令列表
+  const groupedCommands = useMemo(() => {
+    return groupCommandsByScope(commandsList, t);
+  }, [commandsList, t]);
 
   // 扫描命令列表
   const scanCommandsList = useCallback(
@@ -143,10 +210,12 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
   useEffect(() => {
     setScopeSwitcher({
       enabled: true,
-      supportedScopes: ['mixed', 'user', 'project', 'plugin'] as (
-        | ConfigScope
-        | 'mixed'
-      )[],
+      supportedScopes: [
+        'mixed',
+        ConfigScope.USER,
+        ConfigScope.PROJECT,
+        ConfigScope.PLUGIN,
+      ] as (ConfigScope | 'mixed')[],
       value: currentScope,
       onChange: setCurrentScope,
     });
@@ -219,11 +288,10 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
           {viewMode === 'new' && (
             <>
               <div className='mb-4 flex-shrink-0'>
-                <CommandSelector
-                  commandsList={commandsList}
-                  selectedCommand={selectedCommand}
-                  currentCommand={currentCommand}
-                  onSelectCommand={handleSelectCommand}
+                <ClaudeToolSelectBar
+                  groups={groupedCommands}
+                  selectedItem={selectedCommand}
+                  onSelectItem={handleSelectCommand}
                   onRefresh={() => selectedCommand && scanCommandsList(selectedCommand)}
                   onNew={handleNewCommand}
                 />
@@ -231,7 +299,7 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
               <div className='flex-1 min-h-0'>
                 <NewCommandContentView
                   projectId={projectId}
-                  initialScope={ConfigScopeEnum.PROJECT}
+                  initialScope={ConfigScope.PROJECT}
                   onSaved={handleCommandSaved}
                   onCancelled={handleCancelNew}
                 />
@@ -243,11 +311,10 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
             <>
               {/* 命令选择器 */}
               <div className='mb-4 flex-shrink-0'>
-                <CommandSelector
-                  commandsList={commandsList}
-                  selectedCommand={selectedCommand}
-                  currentCommand={currentCommand}
-                  onSelectCommand={handleSelectCommand}
+                <ClaudeToolSelectBar
+                  groups={groupedCommands}
+                  selectedItem={selectedCommand}
+                  onSelectItem={handleSelectCommand}
                   onRefresh={() => selectedCommand && scanCommandsList(selectedCommand)}
                   onNew={handleNewCommand}
                 />
@@ -270,18 +337,17 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
             <>
               {/* 命令选择器 */}
               <div className='mb-4'>
-                <CommandSelector
-                  commandsList={commandsList}
-                  selectedCommand={selectedCommand}
-                  currentCommand={currentCommand}
-                  onSelectCommand={handleSelectCommand}
+                <ClaudeToolSelectBar
+                  groups={groupedCommands}
+                  selectedItem={selectedCommand}
+                  onSelectItem={handleSelectCommand}
                   onRefresh={() => selectedCommand && scanCommandsList(selectedCommand)}
                   onNew={handleNewCommand}
                 />
               </div>
 
               {/* 提示用户选择命令 */}
-              {currentScope === 'plugin' ? (
+              {currentScope === ConfigScope.PLUGIN ? (
                 <EmptyView
                   icon={<Terminal />}
                   title={t('commands.pluginScopeTitle')}

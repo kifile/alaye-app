@@ -3,6 +3,7 @@ Claude 插件市场操作模块
 处理 Claude Code 插件市场和插件的扫描、管理等操作
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -11,6 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from ..config.config_service import config_service
+from ..utils.file_utils import find_tool_in_system
 from ..utils.process_utils import ProcessResult, run_process
 from .markdown_helper import extract_description
 from .models import (
@@ -21,6 +23,7 @@ from .models import (
     HookConfigInfo,
     HookEvent,
     HooksSettings,
+    LSPServerInfo,
     MCPServer,
     MCPServerInfo,
     PluginConfig,
@@ -31,7 +34,7 @@ from .models import (
 )
 from .settings_helper import load_config, update_config
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("claude")
 
 
 class ClaudePluginOperations:
@@ -81,7 +84,7 @@ class ClaudePluginOperations:
         if not path_obj.exists():
             raise RuntimeError(f"claude 路径不存在: {claude_path}")
 
-        logger.info(f"使用 claude 命令: {claude_path}")
+        logger.info(f"Using claude command: {claude_path}")
 
         # 缓存结果
         self._claude_command = claude_path
@@ -103,7 +106,7 @@ class ClaudePluginOperations:
             operations = ClaudePluginOperations(project_path)
             result = await operations.install_marketplace("anthropics")
             if result.success:
-                print(f"安装成功: {result.stdout}")
+                logger.info(f"Installation succeeded: {result.stdout}")
         """
         # 获取 claude 命令路径
         claude_cmd = await self._get_claude_command()
@@ -117,9 +120,11 @@ class ClaudePluginOperations:
         )
 
         if result.success:
-            logger.info(f"插件市场 {source} 安装成功")
+            logger.info(f"Plugin marketplace {source} installation succeeded")
         else:
-            logger.error(f"插件市场 {source} 安装失败: {result.error_message}")
+            logger.error(
+                f"Plugin marketplace {source} installation failed: {result.error_message}"
+            )
 
         return result
 
@@ -157,16 +162,62 @@ class ClaudePluginOperations:
 
     def _load_enabled_plugins(self) -> Dict[str, Dict[str, bool]]:
         """
-        加载已启用的插件列表
+        加载已安装和已启用的插件列表
 
-        从 user、project、local 的 settings.json 加载 enabledPlugins，
-        按照 scope 优先级合并（local > project > user）
+        从 $HOME/.claude/plugins/installed_plugins.json 读取已安装的插件列表，
+        从 user、project、local 的 settings.json 加载启用状态。
+
+        只有在 installed_plugins.json 中的插件才被认为是"已安装"的。
+        已安装的插件才能被启用。
 
         Returns:
-            Dict[str, Dict[str, bool]]: 插件键到启用状态和作用域的映射
-                格式: {"plugin@marketplace": {"enabled": bool, "scope": ConfigScope}}
+            Dict[str, Dict[str, bool]]: 插件键到状态信息的映射
+                格式: {"plugin@marketplace": {"installed": bool, "enabled": bool, "scope": ConfigScope, "enabled_scope": ConfigScope}}
+                    - installed: 是否在 installed_plugins.json 中
+                    - enabled: 是否启用（从 settings.json 读取）
+                    - scope: 安装作用域（从 installed_plugins.json 读取）
+                    - enabled_scope: 启用作用域（从 settings.json 读取）
         """
-        enabled_plugins: Dict[str, Dict[str, bool]] = {}
+        plugins_status: Dict[str, Dict[str, bool]] = {}
+        project_path_str = str(self.project_path)
+
+        # 1. 从 installed_plugins.json 读取已安装的插件
+        installed_plugins_file = (
+            self.user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+
+        try:
+            installed_config = load_config(installed_plugins_file)
+            plugins = installed_config.get("plugins", {})
+
+            for plugin_key, records in plugins.items():
+                if not records:
+                    continue
+
+                # 查找匹配当前项目的记录
+                for record in records:
+                    record_scope = ConfigScope(record.get("scope"))
+                    record_project_path = record.get("projectPath")
+
+                    # 检查是否匹配
+                    # user 作用域的记录没有 projectPath
+                    if (
+                        record_scope == ConfigScope.user and record_project_path is None
+                    ) or (
+                        record_scope != ConfigScope.user
+                        and record_project_path == project_path_str
+                    ):
+                        plugins_status[plugin_key] = {
+                            "installed": True,
+                            "enabled": False,  # 默认未启用，稍后从 settings.json 更新
+                            "scope": record_scope,
+                            "enabled_scope": None,
+                        }
+                        break
+        except Exception as e:
+            logger.warning(f"Failed to load installed_plugins.json: {e}")
+
+        # 2. 从 settings.json 读取启用状态（local > project > user）
         scope_priority = [
             ConfigScope.local,
             ConfigScope.project,
@@ -181,17 +232,24 @@ class ClaudePluginOperations:
                 scope_enabled_plugins = settings_data.get("enabledPlugins", {})
 
                 for plugin_key, enabled in scope_enabled_plugins.items():
-                    # 只有当插件键不存在或当前 scope 优先级更高时才更新
-                    if plugin_key not in enabled_plugins:
-                        enabled_plugins[plugin_key] = {
+                    if plugin_key not in plugins_status:
+                        # 插件未安装，但在 settings.json 中有启用记录
+                        # 这种情况可能是不一致的数据，我们记录但不标记为 installed
+                        plugins_status[plugin_key] = {
+                            "installed": False,
                             "enabled": enabled,
-                            "scope": scope,
+                            "scope": None,
+                            "enabled_scope": scope,
                         }
+                    elif plugins_status[plugin_key]["enabled_scope"] is None:
+                        # 插件已安装，更新启用状态和作用域
+                        plugins_status[plugin_key]["enabled"] = enabled
+                        plugins_status[plugin_key]["enabled_scope"] = scope
             except Exception:
                 # 如果文件不存在或加载失败，跳过
                 continue
 
-        return enabled_plugins
+        return plugins_status
 
     def _get_settings_file_by_scope(self, scope: ConfigScope) -> Path:
         """
@@ -215,7 +273,7 @@ class ClaudePluginOperations:
         else:
             raise ValueError(f"Settings 不支持作用域: {scope}")
 
-    def scan_plugins(
+    async def scan_plugins(
         self, marketplace_names: Optional[List[str]] = None
     ) -> List[PluginInfo]:
         """
@@ -258,7 +316,7 @@ class ClaudePluginOperations:
                 marketplace_data = load_config(marketplace_json_path)
 
                 # 解析插件列表
-                plugins = self._parse_plugins(
+                plugins = await self._parse_plugins(
                     marketplace_data.get("plugins", []),
                     marketplace.name,
                     marketplace.installLocation,
@@ -277,11 +335,17 @@ class ClaudePluginOperations:
                 )
                 continue
 
-        # 排序优先级：installed 降序 > enabled 降序 > 安装数量降序 > name 升序 > marketplace 升序
+        # 排序优先级：
+        # 1. enabled 降序（已启用的排前面，包括未安装但 enabled=True 的历史插件）
+        # 2. installed 降序（已安装的排前面）
+        # 3. 安装数量降序
+        # 4. 名称升序
+        # 5. marketplace 升序
+        # 这样未安装但 enabled=True 的插件会与已安装的插件排在一起
         all_plugins.sort(
             key=lambda p: (
-                -(p.installed or 0),  # installed 降序（已安装的排前面）
                 -(p.enabled or 0),  # enabled 降序（已启用的排前面）
+                -(p.installed or 0),  # installed 降序（已安装的排前面）
                 -(p.unique_installs or 0),  # 数量降序（用负数实现）
                 p.config.name or "",  # 名称升序
                 p.marketplace or "",  # marketplace 升序
@@ -290,7 +354,7 @@ class ClaudePluginOperations:
 
         return all_plugins
 
-    def _scan_plugin_tools(
+    async def _scan_plugin_tools(
         self,
         plugin_config: PluginConfig,
         marketplace_name: str,
@@ -298,7 +362,9 @@ class ClaudePluginOperations:
         tool_types: Optional[List[str]] = None,
     ) -> Optional[PluginTools]:
         """
-        扫描插件的工具能力（commands, skills, agents, hooks, mcp_servers）
+        扫描插件的工具能力（commands, skills, agents, hooks, mcp_servers, lsp_servers）
+
+        所有扫描操作并发执行，提升性能。
 
         Args:
             plugin_config: 插件配置
@@ -331,40 +397,83 @@ class ClaudePluginOperations:
 
         # 如果未指定 tool_types，扫描所有类型
         if tool_types is None:
-            tool_types = ["commands", "skills", "agents", "mcp_servers", "hooks"]
+            tool_types = [
+                "commands",
+                "skills",
+                "agents",
+                "mcp_servers",
+                "hooks",
+                "lsp_servers",
+            ]
 
-        # 扫描工具能力（只扫描指定类型）
+        # 并发扫描工具能力（只扫描指定类型）
         try:
-            return PluginTools(
-                commands=(
+            # 创建所有需要执行的任务
+            tasks = []
+            task_indices = []  # 记录任务类型到索引的映射
+
+            if "commands" in tool_types:
+                tasks.append(
                     self._scan_plugin_commands(
                         plugin_root, plugin_name, marketplace_name
                     )
-                    if "commands" in tool_types
-                    else None
-                ),
-                skills=(
+                )
+                task_indices.append("commands")
+            if "skills" in tool_types:
+                tasks.append(
                     self._scan_plugin_skills(plugin_root, plugin_name, marketplace_name)
-                    if "skills" in tool_types
-                    else None
-                ),
-                agents=(
+                )
+                task_indices.append("skills")
+            if "agents" in tool_types:
+                tasks.append(
                     self._scan_plugin_agents(plugin_root, plugin_name, marketplace_name)
-                    if "agents" in tool_types
-                    else None
-                ),
-                mcp_servers=(
+                )
+                task_indices.append("agents")
+            if "mcp_servers" in tool_types:
+                tasks.append(
                     self._scan_plugin_mcp_servers(
                         plugin_root, plugin_name, marketplace_name
                     )
-                    if "mcp_servers" in tool_types
-                    else None
-                ),
-                hooks=(
+                )
+                task_indices.append("mcp_servers")
+            if "hooks" in tool_types:
+                tasks.append(
                     self._scan_plugin_hooks(plugin_root, plugin_name, marketplace_name)
-                    if "hooks" in tool_types
-                    else None
-                ),
+                )
+                task_indices.append("hooks")
+            if "lsp_servers" in tool_types:
+                tasks.append(
+                    self._scan_plugin_lsp_servers(
+                        plugin_root,
+                        plugin_name,
+                        marketplace_name,
+                        plugin_config.lspServers,
+                    )
+                )
+                task_indices.append("lsp_servers")
+
+            # 并发执行所有任务
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # 构建结果字典
+            result_map = {}
+            for task_type, result in zip(task_indices, results):
+                if isinstance(result, Exception):
+                    logger.error(
+                        f"Error scanning {task_type} for plugin '{plugin_name}': {result}"
+                    )
+                    result_map[task_type] = None
+                else:
+                    result_map[task_type] = result
+
+            # 返回 PluginTools 对象
+            return PluginTools(
+                commands=result_map.get("commands"),
+                skills=result_map.get("skills"),
+                agents=result_map.get("agents"),
+                mcp_servers=result_map.get("mcp_servers"),
+                hooks=result_map.get("hooks"),
+                lsp_servers=result_map.get("lsp_servers"),
             )
         except Exception as e:
             logger.error(f"Error scanning tools for plugin '{plugin_name}': {e}")
@@ -413,7 +522,7 @@ class ClaudePluginOperations:
 
         return max_version_dir
 
-    def _scan_plugin_commands(
+    async def _scan_plugin_commands(
         self, plugin_root: Path, plugin_name: str, marketplace_name: str
     ) -> Optional[List[CommandInfo]]:
         """
@@ -461,7 +570,7 @@ class ClaudePluginOperations:
 
         return commands if commands else None
 
-    def _scan_plugin_skills(
+    async def _scan_plugin_skills(
         self, plugin_root: Path, plugin_name: str, marketplace_name: str
     ) -> Optional[List[SkillInfo]]:
         """
@@ -507,7 +616,7 @@ class ClaudePluginOperations:
 
         return skills if skills else None
 
-    def _scan_plugin_agents(
+    async def _scan_plugin_agents(
         self, plugin_root: Path, plugin_name: str, marketplace_name: str
     ) -> Optional[List[AgentInfo]]:
         """
@@ -548,7 +657,7 @@ class ClaudePluginOperations:
 
         return agents if agents else None
 
-    def _scan_plugin_mcp_servers(
+    async def _scan_plugin_mcp_servers(
         self, plugin_root: Path, plugin_name: str, marketplace_name: str
     ) -> Optional[List[MCPServerInfo]]:
         """
@@ -598,7 +707,7 @@ class ClaudePluginOperations:
             logger.error(f"Error loading .mcp.json: {e}")
             return None
 
-    def _scan_plugin_hooks(
+    async def _scan_plugin_hooks(
         self, plugin_root: Path, plugin_name: str, marketplace_name: str
     ) -> Optional[List[HookConfigInfo]]:
         """
@@ -653,6 +762,142 @@ class ClaudePluginOperations:
         except Exception as e:
             logger.error(f"Error scanning hooks: {e}")
             return None
+
+    async def _scan_plugin_lsp_servers(
+        self,
+        plugin_root: Path,
+        plugin_name: str,
+        marketplace_name: str,
+        lsp_servers_config: Optional[dict] = None,
+    ) -> Optional[List[LSPServerInfo]]:
+        """
+        扫描插件的 LSP 服务器
+
+        从插件的 .lsp.json 文件和 plugin.json 中的 lspServers 字段读取 LSP 服务器配置，
+        并合并两个来源的配置。
+
+        合并规则：
+        1. 如果 .lsp.json 存在，先加载其中的配置
+        2. 如果 plugin.json 中有 lspServers，用其中的配置覆盖同名服务器
+        3. plugin.json 的优先级更高（因为它更具体到当前插件）
+
+        Args:
+            plugin_root: 插件根目录
+            plugin_name: 插件名称
+            marketplace_name: marketplace 名称
+            lsp_servers_config: 可选的 LSP 服务器配置（从 plugin.json 的 lspServers 字段获取）
+
+        Returns:
+            Optional[List[LSPServerInfo]]: LSP 服务器信息列表
+        """
+        from .models import LSPServer
+
+        merged_lsp_data = {}
+        source_files = {}  # 记录每个服务器的来源文件
+
+        # 1. 先从 .lsp.json 文件加载（作为基础配置）
+        lsp_file = plugin_root / ".lsp.json"
+        if lsp_file.exists():
+            try:
+                lsp_file_data = load_config(lsp_file)
+                merged_lsp_data.update(lsp_file_data)
+                # 记录来源，稍后可能会被覆盖
+                for name in lsp_file_data.keys():
+                    source_files[name] = str(lsp_file.absolute())
+            except Exception as e:
+                logger.error(f"Error loading .lsp.json: {e}")
+
+        # 2. 然后从 plugin.json 的 lspServers 字段加载（会覆盖同名配置）
+        if lsp_servers_config:
+            merged_lsp_data.update(lsp_servers_config)
+            # 记录或更新来源
+            for name in lsp_servers_config.keys():
+                source_files[name] = "plugin.json"
+
+        # 如果没有任何配置，返回 None
+        if not merged_lsp_data:
+            return None
+
+        # 3. 构建最终的 LSP 服务器列表
+        lsp_servers = []
+
+        for name, server_config in merged_lsp_data.items():
+            try:
+                lsp_server = LSPServer.model_validate(server_config)
+                # 检查 LSP 命令是否已安装
+                command_installed = await self._check_lsp_command_installed(
+                    lsp_server.command
+                )
+                lsp_servers.append(
+                    LSPServerInfo(
+                        name=name,
+                        scope=ConfigScope.plugin,  # 插件资源使用 plugin 作用域
+                        lspServer=lsp_server,
+                        plugin_name=plugin_name,
+                        marketplace_name=marketplace_name,
+                        file_path=source_files.get(name, "unknown"),
+                        command_installed=command_installed,  # 添加命令安装状态
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Error parsing LSP server '{name}': {e}")
+                continue
+
+        return lsp_servers if lsp_servers else None
+
+    async def _check_lsp_command_installed(self, command: str) -> bool:
+        """
+        检查 LSP 命令是否已在系统中安装
+
+        Args:
+            command: LSP 命令路径或命令名
+
+        Returns:
+            bool: 命令是否已安装
+        """
+        if not command:
+            return False
+
+        # 如果 command 是绝对路径，直接检查文件是否存在
+        command_path = Path(command)
+        if command_path.is_absolute():
+            # 检查文件是否存在且可执行
+            return command_path.exists() and command_path.is_file()
+
+        # 如果是命令名，使用 find_tool_in_system 检查是否在 PATH 中
+        try:
+            result = await find_tool_in_system(command)
+            return result is not None
+        except Exception as e:
+            logger.warning(f"Failed to check command '{command}' installation: {e}")
+            return False
+
+    def _check_plugin_readme_exists(self, plugin_root: Path) -> bool:
+        """
+        检查插件根目录下是否存在 README 文件
+
+        检查以下文件是否存在：
+        1. README.md
+        2. README
+        3. readme.md
+        4. readme
+
+        Args:
+            plugin_root: 插件根目录
+
+        Returns:
+            bool: README 文件是否存在
+        """
+        # 按优先级检查的 README 文件名
+        readme_filenames = ["README.md", "README", "readme.md", "readme"]
+
+        for filename in readme_filenames:
+            readme_path = plugin_root / filename
+            if readme_path.exists():
+                logger.debug(f"Found plugin README at {readme_path}")
+                return True
+
+        return False
 
     def _generate_hook_id(
         self,
@@ -712,7 +957,7 @@ class ClaudePluginOperations:
             # 如果文件不存在或加载失败，返回空字典
             return {}
 
-    def _parse_plugins(
+    async def _parse_plugins(
         self,
         plugins_data: List[Dict],
         marketplace_name: str,
@@ -747,13 +992,11 @@ class ClaudePluginOperations:
                 # 构建插件键：plugin@marketplace
                 plugin_key = f"{plugin_name}@{marketplace_name}"
 
-                # 获取插件启用状态
+                # 获取插件状态（从 installed_plugins.json 和 settings.json）
                 plugin_status = enabled_plugins.get(plugin_key, {})
-                is_enabled = plugin_status.get("enabled")
-                enabled_scope = plugin_status.get("scope")
-
-                # 判断是否已安装（在 enabledPlugins 中表示已安装）
-                is_installed = is_enabled is not None
+                is_installed = plugin_status.get("installed", False)
+                is_enabled = plugin_status.get("enabled", False)
+                enabled_scope = plugin_status.get("enabled_scope")
 
                 # 应用过滤条件：在扫描工具文件之前就过滤掉不需要的插件
                 if installed_only and not is_installed:
@@ -765,9 +1008,28 @@ class ClaudePluginOperations:
                 # 构建 PluginConfig
                 plugin_config = PluginConfig.model_validate(plugin_data)
 
+                # 确定插件根目录，用于读取 README
+                plugin_root = None
+                source = plugin_config.source
+                if isinstance(source, str):
+                    # source 是字符串，说明插件已在本地
+                    # 根据 installLocation + source 的相对路径确定插件根目录
+                    plugin_root = Path(install_location) / source
+                elif source is not None:
+                    # source 是对象，插件可能未安装
+                    # 从缓存目录获取最大版本
+                    plugin_root = self._get_plugin_cache_dir(
+                        marketplace_name, plugin_name, source
+                    )
+
+                # 检查 README 文件是否存在
+                readme_exists = False
+                if plugin_root and plugin_root.exists():
+                    readme_exists = self._check_plugin_readme_exists(plugin_root)
+
                 # 扫描插件工具能力（传递 tool_types）
                 # 只有通过过滤的插件才会扫描文件
-                tools = self._scan_plugin_tools(
+                tools = await self._scan_plugin_tools(
                     plugin_config, marketplace_name, install_location, tool_types
                 )
 
@@ -780,6 +1042,7 @@ class ClaudePluginOperations:
                     enabled=is_enabled if is_enabled else False,
                     enabled_scope=enabled_scope,
                     tools=tools,
+                    readme_content_exists=readme_exists,  # 添加 README 存在标识
                 )
                 plugins.append(plugin_info)
             except Exception as e:
@@ -809,7 +1072,7 @@ class ClaudePluginOperations:
             operations = ClaudePluginOperations(project_path)
             result = await operations.install_plugin("code-review@anthropics", ConfigScope.local)
             if result.success:
-                print(f"安装成功: {result.stdout}")
+                logger.info(f"Installation succeeded: {result.stdout}")
         """
         # 获取 claude 命令路径
         claude_cmd = await self._get_claude_command()
@@ -823,10 +1086,12 @@ class ClaudePluginOperations:
         )
 
         if result.success:
-            logger.info(f"插件 {plugin_name} 在 {scope.value} 作用域安装成功")
+            logger.info(
+                f"Plugin {plugin_name} installed successfully in {scope.value} scope"
+            )
         else:
             logger.error(
-                f"插件 {plugin_name} 在 {scope.value} 作用域安装失败: {result.error_message}"
+                f"Plugin {plugin_name} installation failed in {scope.value} scope: {result.error_message}"
             )
 
         return result
@@ -837,7 +1102,8 @@ class ClaudePluginOperations:
         """
         卸载插件
 
-        通过执行 claude plugin uninstall 命令来卸载指定的插件。
+        如果插件在 installed_plugins.json 中有记录，则执行 claude plugin uninstall 命令。
+        否则，直接从 settings 配置中清理插件（不需要调用 claude 命令）。
 
         Args:
             plugin_name: 插件名称，格式为 "plugin@marketplace"
@@ -850,27 +1116,115 @@ class ClaudePluginOperations:
             operations = ClaudePluginOperations(project_path)
             result = await operations.uninstall_plugin("code-review@anthropics", ConfigScope.local)
             if result.success:
-                print(f"卸载成功: {result.stdout}")
+                logger.info(f"Uninstallation succeeded: {result.stdout}")
         """
-        # 获取 claude 命令路径
-        claude_cmd = await self._get_claude_command()
+        # 检查插件是否在 installed_plugins.json 中
+        is_installed = self._check_plugin_in_installed_plugins(plugin_name)
 
-        result = run_process(
-            [claude_cmd, "plugin", "uninstall", "-s", scope.value, plugin_name],
-            capture_output=True,
-            text=True,
-            check=False,
-            cwd=self.project_path,
-        )
+        if is_installed:
+            # 插件已安装，需要调用 claude plugin uninstall 命令
+            claude_cmd = await self._get_claude_command()
 
-        if result.success:
-            logger.info(f"插件 {plugin_name} 在 {scope.value} 作用域卸载成功")
-        else:
-            logger.error(
-                f"插件 {plugin_name} 在 {scope.value} 作用域卸载失败: {result.error_message}"
+            result = run_process(
+                [claude_cmd, "plugin", "uninstall", "-s", scope.value, plugin_name],
+                capture_output=True,
+                text=True,
+                check=False,
+                cwd=self.project_path,
             )
 
-        return result
+            if result.success:
+                logger.info(
+                    f"Plugin {plugin_name} uninstalled successfully from {scope.value} scope"
+                )
+            else:
+                logger.error(
+                    f"Plugin {plugin_name} uninstallation failed in {scope.value} scope: {result.error_message}"
+                )
+
+            return result
+        else:
+            # 插件未安装，直接从 settings 配置中清理
+            logger.info(
+                f"Plugin {plugin_name} not found in installed_plugins.json, cleaning up settings only"
+            )
+
+            try:
+                # 从 settings 配置中删除插件
+                settings_file = self._get_settings_file_by_scope(scope)
+                update_config(
+                    settings_file,
+                    key_path=["enabledPlugins"],
+                    key=plugin_name,
+                    value=None,  # 删除键
+                    split_key=False,
+                )
+
+                logger.info(
+                    f"Plugin {plugin_name} removed from settings in {scope.value} scope"
+                )
+
+                # 返回成功结果（虽然没有执行命令）
+                return ProcessResult(
+                    success=True,
+                    stdout=f"Plugin {plugin_name} removed from settings",
+                    stderr="",
+                    return_code=0,
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to remove plugin {plugin_name} from settings: {e}"
+                )
+                # 返回失败结果
+                return ProcessResult(
+                    success=False,
+                    stdout="",
+                    stderr=str(e),
+                    return_code=1,
+                )
+
+    def _check_plugin_in_installed_plugins(self, plugin_name: str) -> bool:
+        """
+        检查插件是否在 installed_plugins.json 中
+
+        Args:
+            plugin_name: 插件名称，格式为 "plugin@marketplace"
+
+        Returns:
+            bool: 插件是否在 installed_plugins.json 中
+        """
+        installed_plugins_file = (
+            self.user_home / ".claude" / "plugins" / "installed_plugins.json"
+        )
+
+        if not installed_plugins_file.exists():
+            return False
+
+        try:
+            config = load_config(installed_plugins_file)
+            plugins = config.get("plugins", {})
+
+            if plugin_name not in plugins:
+                return False
+
+            # 检查是否有匹配当前项目的记录
+            records = plugins[plugin_name]
+            project_path_str = str(self.project_path)
+
+            for record in records:
+                record_scope = record.get("scope")
+                record_project_path = record.get("projectPath")
+
+                # 检查是否匹配
+                if (record_scope == "user" and record_project_path is None) or (
+                    record_scope != "user" and record_project_path == project_path_str
+                ):
+                    return True
+
+            return False
+        except Exception as e:
+            logger.warning(f"Failed to check installed_plugins.json: {e}")
+            return False
 
     def enable_plugin(self, plugin_name: str, scope: ConfigScope) -> None:
         """
@@ -902,10 +1256,10 @@ class ClaudePluginOperations:
                 value=True,
                 split_key=False,
             )
-            logger.info(f"插件 {plugin_name} 已在 {scope.value} 作用域启用")
+            logger.info(f"Plugin {plugin_name} enabled in {scope.value} scope")
         except Exception as e:
-            logger.error(f"启用插件 {plugin_name} 失败: {e}")
-            raise ValueError(f"启用插件 {plugin_name} 失败: {e}") from e
+            logger.error(f"Failed to enable plugin {plugin_name}: {e}")
+            raise ValueError(f"Failed to enable plugin {plugin_name}: {e}") from e
 
     def disable_plugin(self, plugin_name: str, scope: ConfigScope) -> None:
         """
@@ -936,10 +1290,10 @@ class ClaudePluginOperations:
                 value=False,
                 split_key=False,
             )
-            logger.info(f"插件 {plugin_name} 已在 {scope.value} 作用域禁用")
+            logger.info(f"Plugin {plugin_name} disabled in {scope.value} scope")
         except Exception as e:
-            logger.error(f"禁用插件 {plugin_name} 失败: {e}")
-            raise ValueError(f"禁用插件 {plugin_name} 失败: {e}") from e
+            logger.error(f"Failed to disable plugin {plugin_name}: {e}")
+            raise ValueError(f"Failed to disable plugin {plugin_name}: {e}") from e
 
     def move_plugin(
         self, plugin_name: str, old_scope: ConfigScope, new_scope: ConfigScope
@@ -966,7 +1320,9 @@ class ClaudePluginOperations:
             operations.move_plugin("code-review@anthropics", ConfigScope.local, ConfigScope.project)
         """
         if old_scope == new_scope:
-            logger.info(f"插件 {plugin_name} 已经在 {old_scope} 作用域，无需移动")
+            logger.info(
+                f"Plugin {plugin_name} is already in {old_scope} scope, no need to move"
+            )
             return
 
         # 获取插件在旧作用域的启用状态
@@ -977,13 +1333,13 @@ class ClaudePluginOperations:
             old_enabled_plugins = old_settings_data.get("enabledPlugins", {})
             old_enabled = old_enabled_plugins.get(plugin_name, None)
             logger.info(
-                f"插件 {plugin_name} 在 {old_scope} 作用域的启用状态: {old_enabled}"
+                f"Plugin {plugin_name} enabled status in {old_scope} scope: {old_enabled}"
             )
             if old_enabled is None:
                 return
         except Exception as e:
-            logger.error(f"读取旧作用域配置失败: {e}")
-            raise ValueError(f"读取旧作用域配置失败: {e}") from e
+            logger.error(f"Failed to read old scope configuration: {e}")
+            raise ValueError(f"Failed to read old scope configuration: {e}") from e
 
         # 获取插件在新作用域的启用状态（如果存在）
         new_settings_file = self._get_settings_file_by_scope(new_scope)
@@ -992,13 +1348,15 @@ class ClaudePluginOperations:
             new_settings_data = load_config(new_settings_file)
             new_enabled_plugins = new_settings_data.get("enabledPlugins", {})
             if plugin_name in new_enabled_plugins:
-                # 如果新作用域已经有该插件，保持其现有状态
+                # If the plugin already exists in the new scope, keep its current status
                 new_enabled = new_enabled_plugins[plugin_name]
                 logger.info(
-                    f"插件 {plugin_name} 已存在于 {new_scope} 作用域，现有启用状态: {new_enabled}"
+                    f"Plugin {plugin_name} already exists in {new_scope} scope, current enabled status: {new_enabled}"
                 )
         except Exception as e:
-            logger.warning(f"读取新作用域配置失败（可能文件不存在）: {e}")
+            logger.warning(
+                f"Failed to read new scope configuration (file may not exist): {e}"
+            )
 
         # 先在旧作用域中禁用（删除）
         try:
@@ -1009,11 +1367,13 @@ class ClaudePluginOperations:
                 value=None,
                 split_key=False,
             )
-            logger.info(f"插件 {plugin_name} 已从 {old_scope} 作用域移除")
+            logger.info(f"Plugin {plugin_name} removed from {old_scope} scope")
         except Exception as e:
-            logger.error(f"从 {old_scope} 作用域移除插件 {plugin_name} 失败: {e}")
+            logger.error(
+                f"Failed to remove plugin {plugin_name} from {old_scope} scope: {e}"
+            )
             raise ValueError(
-                f"从 {old_scope} 作用域移除插件 {plugin_name} 失败: {e}"
+                f"Failed to remove plugin {plugin_name} from {old_scope} scope: {e}"
             ) from e
 
         # 然后在新作用域中设置启用状态
@@ -1028,12 +1388,12 @@ class ClaudePluginOperations:
                 split_key=False,
             )
             logger.info(
-                f"插件 {plugin_name} 已添加到 {new_scope} 作用域，启用状态: {new_enabled}"
+                f"Plugin {plugin_name} added to {new_scope} scope, enabled status: {new_enabled}"
             )
         except Exception as e:
-            # 如果新作用域添加失败，尝试回滚（恢复旧作用域的启用状态和 installed_plugins.json）
+            # If adding to new scope fails, attempt rollback (restore old scope enabled status and installed_plugins.json)
             logger.error(
-                f"添加插件 {plugin_name} 到 {new_scope} 作用域失败，尝试回滚: {e}"
+                f"Failed to add plugin {plugin_name} to {new_scope} scope, attempting rollback: {e}"
             )
             try:
                 # 回滚 settings.json
@@ -1044,15 +1404,17 @@ class ClaudePluginOperations:
                     value=old_enabled,
                     split_key=False,
                 )
-                # 回滚 installed_plugins.json
+                # Rollback installed_plugins.json
                 self._update_installed_plugins_scope(plugin_name, new_scope, old_scope)
                 logger.info(
-                    f"插件 {plugin_name} 已回滚到 {old_scope} 作用域，启用状态: {old_enabled}"
+                    f"Plugin {plugin_name} rolled back to {old_scope} scope, enabled status: {old_enabled}"
                 )
             except Exception as rollback_error:
-                logger.error(f"回滚插件 {plugin_name} 失败: {rollback_error}")
+                logger.error(
+                    f"Failed to rollback plugin {plugin_name}: {rollback_error}"
+                )
             raise ValueError(
-                f"添加插件 {plugin_name} 到 {new_scope} 作用域失败: {e}"
+                f"Failed to add plugin {plugin_name} to {new_scope} scope: {e}"
             ) from e
 
     def _update_installed_plugins_scope(
@@ -1075,7 +1437,7 @@ class ClaudePluginOperations:
 
         if not installed_plugins_file.exists():
             logger.warning(
-                f"installed_plugins.json 不存在，跳过更新: {installed_plugins_file}"
+                f"installed_plugins.json does not exist, skipping update: {installed_plugins_file}"
             )
             return
 
@@ -1087,7 +1449,9 @@ class ClaudePluginOperations:
         plugin_records = plugins.get(plugin_name, [])
 
         if not plugin_records:
-            logger.warning(f"插件 {plugin_name} 在 installed_plugins.json 中没有记录")
+            logger.warning(
+                f"Plugin {plugin_name} has no record in installed_plugins.json"
+            )
             return
 
         # 查找并更新匹配当前项目的记录
@@ -1126,12 +1490,14 @@ class ClaudePluginOperations:
 
                 updated = True
                 logger.info(
-                    f"已更新插件 {plugin_name} 的作用域: {old_scope} -> {new_scope}"
+                    f"Updated plugin {plugin_name} scope: {old_scope} -> {new_scope}"
                 )
                 break
 
         if not updated:
-            logger.warning(f"未找到插件 {plugin_name} 在作用域 {old_scope} 的安装记录")
+            logger.warning(
+                f"Plugin {plugin_name} installation record not found in scope {old_scope}"
+            )
             return
 
         # 保存配置
@@ -1140,9 +1506,9 @@ class ClaudePluginOperations:
             with open(installed_plugins_file, "w", encoding="utf-8") as f:
                 json.dump(config, f, indent=2, ensure_ascii=False)
         except Exception as e:
-            raise ValueError(f"保存 installed_plugins.json 失败: {e}") from e
+            raise ValueError(f"Failed to save installed_plugins.json: {e}") from e
 
-    def _scan_plugins_with_tools(
+    async def _scan_plugins_with_tools(
         self,
         tool_types: List[str],
         marketplace_names: Optional[List[str]] = None,
@@ -1186,7 +1552,7 @@ class ClaudePluginOperations:
                 marketplace_data = load_config(marketplace_json_path)
 
                 # 解析插件列表（传递过滤条件）
-                plugins = self._parse_plugins(
+                plugins = await self._parse_plugins(
                     marketplace_data.get("plugins", []),
                     marketplace.name,
                     marketplace.installLocation,
@@ -1208,7 +1574,7 @@ class ClaudePluginOperations:
 
         return all_plugins
 
-    def get_plugin_commands(
+    async def get_plugin_commands(
         self, plugin_name_filter: Optional[str] = None
     ) -> List[CommandInfo]:
         """
@@ -1221,7 +1587,7 @@ class ClaudePluginOperations:
             List[CommandInfo]: Command 信息列表
         """
         # 只扫描已安装且已启用插件的 commands，不扫描其他类型
-        plugins = self._scan_plugins_with_tools(
+        plugins = await self._scan_plugins_with_tools(
             tool_types=["commands"],
             installed_only=True,  # 只扫描已安装的
             enabled_only=True,  # 只扫描已启用的
@@ -1237,7 +1603,7 @@ class ClaudePluginOperations:
 
         return all_commands
 
-    def get_plugin_agents(
+    async def get_plugin_agents(
         self, plugin_name_filter: Optional[str] = None
     ) -> List[AgentInfo]:
         """
@@ -1250,7 +1616,7 @@ class ClaudePluginOperations:
             List[AgentInfo]: Agent 信息列表
         """
         # 只扫描已安装且已启用插件的 agents，不扫描其他类型
-        plugins = self._scan_plugins_with_tools(
+        plugins = await self._scan_plugins_with_tools(
             tool_types=["agents"],
             installed_only=True,  # 只扫描已安装的
             enabled_only=True,  # 只扫描已启用的
@@ -1266,7 +1632,7 @@ class ClaudePluginOperations:
 
         return all_agents
 
-    def get_plugin_skills(
+    async def get_plugin_skills(
         self, plugin_name_filter: Optional[str] = None
     ) -> List[SkillInfo]:
         """
@@ -1279,7 +1645,7 @@ class ClaudePluginOperations:
             List[SkillInfo]: Skill 信息列表
         """
         # 只扫描已安装且已启用插件的 skills，不扫描其他类型
-        plugins = self._scan_plugins_with_tools(
+        plugins = await self._scan_plugins_with_tools(
             tool_types=["skills"],
             installed_only=True,  # 只扫描已安装的
             enabled_only=True,  # 只扫描已启用的
@@ -1295,7 +1661,7 @@ class ClaudePluginOperations:
 
         return all_skills
 
-    def get_plugin_mcps(
+    async def get_plugin_mcps(
         self, plugin_name_filter: Optional[str] = None
     ) -> List[MCPServerInfo]:
         """
@@ -1308,7 +1674,7 @@ class ClaudePluginOperations:
             List[MCPServerInfo]: MCP 服务器信息列表
         """
         # 只扫描已安装且已启用插件的 mcp_servers，不扫描其他类型
-        plugins = self._scan_plugins_with_tools(
+        plugins = await self._scan_plugins_with_tools(
             tool_types=["mcp_servers"],
             installed_only=True,  # 只扫描已安装的
             enabled_only=True,  # 只扫描已启用的
@@ -1324,7 +1690,7 @@ class ClaudePluginOperations:
 
         return all_mcps
 
-    def get_plugin_hooks(
+    async def get_plugin_hooks(
         self, plugin_name_filter: Optional[str] = None
     ) -> List[HookConfigInfo]:
         """
@@ -1337,7 +1703,7 @@ class ClaudePluginOperations:
             List[HookConfigInfo]: Hook 配置信息列表
         """
         # 只扫描已安装且已启用插件的 hooks，不扫描其他类型
-        plugins = self._scan_plugins_with_tools(
+        plugins = await self._scan_plugins_with_tools(
             tool_types=["hooks"],
             installed_only=True,  # 只扫描已安装的
             enabled_only=True,  # 只扫描已启用的
@@ -1352,3 +1718,123 @@ class ClaudePluginOperations:
                 all_hooks.extend(plugin.tools.hooks)
 
         return all_hooks
+
+    async def get_plugin_lsp_servers(
+        self, plugin_name_filter: Optional[str] = None
+    ) -> List[LSPServerInfo]:
+        """
+        获取已启用插件的 LSP servers
+
+        Args:
+            plugin_name_filter: 可选的插件名称过滤器。如果指定，只返回该插件的 LSP servers。
+
+        Returns:
+            List[LSPServerInfo]: LSP 服务器信息列表
+        """
+        # 只扫描已安装且已启用插件的 lsp_servers，不扫描其他类型
+        plugins = await self._scan_plugins_with_tools(
+            tool_types=["lsp_servers"],
+            installed_only=True,  # 只扫描已安装的
+            enabled_only=True,  # 只扫描已启用的
+        )
+
+        all_lsp_servers = []
+        for plugin in plugins:
+            if plugin_name_filter and plugin.config.name != plugin_name_filter:
+                continue
+
+            if plugin.tools and plugin.tools.lsp_servers:
+                all_lsp_servers.extend(plugin.tools.lsp_servers)
+
+        return all_lsp_servers
+
+    def read_plugin_readme_content(
+        self, marketplace_name: str, plugin_name: str
+    ) -> Optional[str]:
+        """
+        读取指定插件的 README 文件内容
+
+        Args:
+            marketplace_name: marketplace 名称
+            plugin_name: 插件名称
+
+        Returns:
+            Optional[str]: README 文件内容，如果文件不存在或读取失败返回 None
+        """
+        # 获取指定的 marketplace
+        marketplaces = self.scan_marketplaces()
+        marketplaces = [m for m in marketplaces if m.name == marketplace_name]
+
+        if not marketplaces:
+            logger.warning(f"Marketplace '{marketplace_name}' not found")
+            return None
+
+        # 按优先级尝试的 README 文件名
+        readme_filenames = ["README.md", "README", "readme.md", "readme"]
+
+        # 遍历 marketplace 查找插件
+        for marketplace in marketplaces:
+            try:
+                # 构建 marketplace.json 文件路径
+                marketplace_json_path = (
+                    Path(marketplace.installLocation)
+                    / ".claude-plugin"
+                    / "marketplace.json"
+                )
+
+                # 使用 load_config 加载配置
+                marketplace_data = load_config(marketplace_json_path)
+
+                # 查找目标插件
+                plugin_data = None
+                for plugin in marketplace_data.get("plugins", []):
+                    if plugin.get("name") == plugin_name:
+                        plugin_data = plugin
+                        break
+
+                if not plugin_data:
+                    continue
+
+                # 构建 PluginConfig
+                plugin_config = PluginConfig.model_validate(plugin_data)
+
+                # 确定插件根目录
+                source = plugin_config.source
+                plugin_root = None
+
+                if isinstance(source, str):
+                    # source 是字符串，说明插件已在本地
+                    plugin_root = Path(marketplace.installLocation) / source
+                elif source is not None:
+                    # source 是对象，从缓存目录获取最大版本
+                    plugin_root = self._get_plugin_cache_dir(
+                        marketplace.name, plugin_name, source
+                    )
+
+                if plugin_root is None or not plugin_root.exists():
+                    continue
+
+                # 尝试读取 README 文件
+                for filename in readme_filenames:
+                    readme_path = plugin_root / filename
+                    if readme_path.exists():
+                        try:
+                            with open(readme_path, "r", encoding="utf-8") as f:
+                                content = f.read()
+                                logger.info(f"Read plugin README from {readme_path}")
+                                return content
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to read README file {readme_path}: {e}"
+                            )
+                            continue
+
+            except Exception as e:
+                logger.error(
+                    f"Error reading README for plugin '{plugin_name}' from marketplace '{marketplace.name}': {e}"
+                )
+                continue
+
+        # 如果没有找到任何 README 文件，返回 None
+        logger.warning(f"README file not found for plugin '{plugin_name}'")
+        return None

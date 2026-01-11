@@ -428,6 +428,15 @@ class ScanMCPServersRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class ScanLSPServersRequest(BaseModel):
+    """扫描LSP服务器请求模型"""
+
+    project_id: int = Field(..., description="项目ID")
+    scope: ConfigScope | None = Field(default=None, description="作用域过滤器（可选）")
+
+    model_config = ConfigDict(extra="allow")
+
+
 class AddMCPServerRequest(BaseModel):
     """添加MCP服务器请求模型"""
 
@@ -649,5 +658,15 @@ class InstallClaudePluginMarketplaceRequest(BaseModel):
     source: str = Field(
         ..., min_length=1, description="市场来源，可以是 URL、路径或 GitHub 仓库"
     )
+
+    model_config = ConfigDict(extra="allow")
+
+
+class ReadPluginReadmeRequest(BaseModel):
+    """读取插件 README 请求模型"""
+
+    project_id: int = Field(..., description="项目ID")
+    marketplace_name: str = Field(..., min_length=1, description="marketplace 名称")
+    plugin_name: str = Field(..., min_length=1, description="插件名称")
 
     model_config = ConfigDict(extra="allow")

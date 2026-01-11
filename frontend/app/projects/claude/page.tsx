@@ -19,6 +19,7 @@ import { SkillsDetail } from './components/SkillsDetail';
 import { SettingsDetail } from './components/SettingsDetail';
 import { PluginDetail } from './components/PluginDetail';
 import { ProjectSwitcher } from './components/ProjectSwitcher';
+import { LspServersDetail } from './components/LspServersDetail';
 import { useTranslation } from 'react-i18next';
 import { loadAllPageTranslations } from '@/lib/i18n';
 
@@ -26,6 +27,7 @@ type ConfigSection =
   | 'memory'
   | 'plugins'
   | 'mcpServers'
+  | 'lspServers'
   | 'commands'
   | 'subAgents'
   | 'hooks'
@@ -126,12 +128,17 @@ function ProjectDetailPageContent() {
   const handleSectionSelect = (section: ConfigSection) => {
     setSelectedSection(section);
 
-    // 更新URL参数
-    const currentParams = new URLSearchParams(
-      Array.from(searchParams?.entries() || [])
-    );
-    currentParams.set('section', section);
-    const newUrl = `${window.location.pathname}?${currentParams.toString()}`;
+    // 更新URL参数 - 只保留 id 和 section，删除其他参数
+    const newParams = new URLSearchParams();
+    newParams.set('section', section);
+
+    // 保留 id 参数（如果存在）
+    const id = searchParams?.get('id');
+    if (id) {
+      newParams.set('id', id);
+    }
+
+    const newUrl = `${window.location.pathname}?${newParams.toString()}`;
     router.replace(newUrl, { scroll: false });
   };
 
@@ -144,6 +151,8 @@ function ProjectDetailPageContent() {
         return <PluginDetail projectId={currentProjectId} />;
       case 'mcpServers':
         return <McpServersDetail projectId={currentProjectId} />;
+      case 'lspServers':
+        return <LspServersDetail projectId={currentProjectId} />;
       case 'commands':
         return <CommandsDetail projectId={currentProjectId} />;
       case 'subAgents':

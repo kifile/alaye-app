@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { BookOpen, Trash2 } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { BookOpen, Trash2, Store } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import {
@@ -40,13 +41,17 @@ export function SkillContentView({
   onRenamed,
 }: SkillContentViewProps) {
   const { t } = useTranslation('projects');
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   // 检查是否为只读模式（plugin 作用域）
   const isReadOnly = currentSkill?.scope === 'plugin';
 
   // 编辑器状态
-  const [skillContent, setSkillContent] = useState<string>('');
+  // originalContent: 从服务器加载的原始内容（用于 defaultValue）
+  // pendingContent: 用户编辑的内容（用于保存，不传给编辑器）
   const [originalContent, setOriginalContent] = useState<string>('');
+  const [pendingContent, setPendingContent] = useState<string>('');
   const [currentMd5, setCurrentMd5] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -70,13 +75,15 @@ export function SkillContentView({
       });
 
       if (response.success && response.data) {
-        setSkillContent(response.data.content);
-        setOriginalContent(response.data.content);
+        // 同时更新原始内容和待保存内容
+        const content = response.data.content;
+        setOriginalContent(content);
+        setPendingContent(content);
         setCurrentMd5(response.data.md5);
         setHasChanges(false);
       } else {
-        setSkillContent('');
         setOriginalContent('');
+        setPendingContent('');
         setCurrentMd5('');
         setHasChanges(false);
       }
@@ -85,8 +92,8 @@ export function SkillContentView({
       toast.error(t('skills.loadFailed'), {
         description: error instanceof Error ? error.message : t('unknownError'),
       });
-      setSkillContent('');
       setOriginalContent('');
+      setPendingContent('');
       setCurrentMd5('');
       setHasChanges(false);
     } finally {
@@ -105,12 +112,14 @@ export function SkillContentView({
         content_type: 'skill',
         name: selectedSkill.name,
         from_md5: currentMd5,
-        content: skillContent,
+        content: pendingContent, // 使用 pendingContent 而不是 skillContent
         scope: currentSkill?.scope,
       });
 
       if (response.success) {
-        setOriginalContent(skillContent);
+        // 保存成功后，更新原始内容
+        setOriginalContent(pendingContent);
+        setPendingContent(pendingContent); // 保持同步
         setHasChanges(false);
 
         setShowSaveTooltip(true);
@@ -140,7 +149,7 @@ export function SkillContentView({
     selectedSkill,
     currentSkill,
     currentMd5,
-    skillContent,
+    pendingContent,
     hasChanges,
     loadSkillContent,
     t,
@@ -154,7 +163,8 @@ export function SkillContentView({
   // 处理编辑器内容变化
   const handleEditorChange = useCallback(
     (value: string) => {
-      setSkillContent(value);
+      // 只更新 pendingContent（用于保存），不更新 originalContent（避免触发编辑器重新初始化）
+      setPendingContent(value);
       setHasChanges(value !== originalContent);
     },
     [originalContent]
@@ -219,6 +229,21 @@ export function SkillContentView({
     }
   }, [projectId, selectedSkill, currentSkill, onDeleted, t]);
 
+  // 跳转到插件页面
+  const handleGoToPlugin = useCallback(() => {
+    if (!currentSkill?.plugin_name) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('section', 'plugins');
+    params.set('search', currentSkill.plugin_name);
+
+    if (currentSkill.marketplace_name) {
+      params.set('marketplaces', currentSkill.marketplace_name);
+    }
+
+    router.push(`?${params.toString()}`);
+  }, [currentSkill, router, searchParams]);
+
   // 组件挂载时加载内容
   useEffect(() => {
     loadSkillContent();
@@ -239,7 +264,7 @@ export function SkillContentView({
     <div className='h-full flex flex-col'>
       <MarkdownEditor
         title={titleNode}
-        value={skillContent}
+        defaultValue={originalContent}
         onChange={handleEditorChange}
         onSave={saveSkillContent}
         onRefresh={refreshSkillContent}
@@ -256,17 +281,32 @@ export function SkillContentView({
           )
         }
         toolbarActions={
-          isReadOnly ? undefined : (
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => setShowDeleteDialog(true)}
-              className='text-red-600 hover:text-red-700 hover:bg-red-50'
-              title={t('skills.delete')}
-            >
-              <Trash2 className='h-4 w-4' />
-            </Button>
-          )
+          <>
+            {/* Plugin scope 时显示跳转按钮 */}
+            {isReadOnly && currentSkill?.plugin_name && (
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={handleGoToPlugin}
+                className='text-blue-600 hover:text-blue-700 hover:bg-blue-50'
+                title={t('skills.goToPlugin')}
+              >
+                <Store className='h-4 w-4' />
+              </Button>
+            )}
+            {/* 非只读模式时显示删除按钮 */}
+            {!isReadOnly && (
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={() => setShowDeleteDialog(true)}
+                className='text-red-600 hover:text-red-700 hover:bg-red-50'
+                title={t('skills.delete')}
+              >
+                <Trash2 className='h-4 w-4' />
+              </Button>
+            )}
+          </>
         }
         className='flex-1 flex flex-col'
         readonly={isReadOnly}
