@@ -7,8 +7,7 @@ import { ClaudeToolSelectBar, ToolGroup } from './ClaudeToolSelectBar';
 import { SubAgentContentView } from './SubAgentContentView';
 import { NewSubAgentContentView } from './NewSubAgentContentView';
 import { scanClaudeAgents } from '@/api/api';
-import type { ConfigScope, AgentInfo } from '@/api/types';
-import { ConfigScope as ConfigScopeEnum } from '@/api/types';
+import { ConfigScope, AgentInfo } from '@/api/types';
 import { useTranslation } from 'react-i18next';
 
 // 分组函数：按照 scope + pluginName 分组
@@ -16,12 +15,17 @@ function groupAgentsByScope(
   agents: AgentInfo[],
   t: (key: string, params?: Record<string, string | number>) => string
 ): ToolGroup[] {
-  const scopeOrder: ConfigScope[] = ['local', 'project', 'user', 'plugin'];
+  const scopeOrder: ConfigScope[] = [
+    ConfigScope.LOCAL,
+    ConfigScope.PROJECT,
+    ConfigScope.USER,
+    ConfigScope.PLUGIN,
+  ];
   const groups: ToolGroup[] = [];
 
   // 非插件 scope 的分组
   for (const scope of scopeOrder) {
-    if (scope === 'plugin') continue; // 插件单独处理
+    if (scope === ConfigScope.PLUGIN) continue; // 插件单独处理
 
     const items = agents
       .filter(agent => agent.scope === scope)
@@ -40,7 +44,7 @@ function groupAgentsByScope(
   }
 
   // 插件 scope：按 pluginName 分组
-  const pluginAgents = agents.filter(agent => agent.scope === 'plugin');
+  const pluginAgents = agents.filter(agent => agent.scope === ConfigScope.PLUGIN);
   const pluginsMap = new Map<string, AgentInfo[]>();
 
   pluginAgents.forEach(agent => {
@@ -288,7 +292,7 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
               <div className='flex-1 min-h-0'>
                 <NewSubAgentContentView
                   projectId={projectId}
-                  initialScope={ConfigScopeEnum.PROJECT}
+                  initialScope={ConfigScope.PROJECT}
                   onSaved={handleAgentSaved}
                   onCancelled={handleCancelNew}
                 />

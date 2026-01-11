@@ -7,8 +7,7 @@ import { ClaudeToolSelectBar, ToolGroup } from './ClaudeToolSelectBar';
 import { SkillContentView } from './SkillContentView';
 import { NewSkillContentView } from './NewSkillContentView';
 import { scanClaudeSkills } from '@/api/api';
-import type { ConfigScope, SkillInfo } from '@/api/types';
-import { ConfigScope as ConfigScopeEnum } from '@/api/types';
+import { ConfigScope, SkillInfo } from '@/api/types';
 import { useTranslation } from 'react-i18next';
 
 // 分组函数：按照 scope + pluginName 分组
@@ -16,12 +15,17 @@ function groupSkillsByScope(
   skills: SkillInfo[],
   t: (key: string, params?: Record<string, string | number>) => string
 ): ToolGroup[] {
-  const scopeOrder: ConfigScope[] = ['local', 'project', 'user', 'plugin'];
+  const scopeOrder: ConfigScope[] = [
+    ConfigScope.LOCAL,
+    ConfigScope.PROJECT,
+    ConfigScope.USER,
+    ConfigScope.PLUGIN,
+  ];
   const groups: ToolGroup[] = [];
 
   // 非插件 scope 的分组
   for (const scope of scopeOrder) {
-    if (scope === 'plugin') continue; // 插件单独处理
+    if (scope === ConfigScope.PLUGIN) continue; // 插件单独处理
 
     const items = skills
       .filter(skill => skill.scope === scope)
@@ -40,7 +44,7 @@ function groupSkillsByScope(
   }
 
   // 插件 scope：按 pluginName 分组
-  const pluginSkills = skills.filter(skill => skill.scope === 'plugin');
+  const pluginSkills = skills.filter(skill => skill.scope === ConfigScope.PLUGIN);
   const pluginsMap = new Map<string, SkillInfo[]>();
 
   pluginSkills.forEach(skill => {
@@ -288,7 +292,7 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
               <div className='flex-1 min-h-0'>
                 <NewSkillContentView
                   projectId={projectId}
-                  initialScope={ConfigScopeEnum.PROJECT}
+                  initialScope={ConfigScope.PROJECT}
                   onSaved={handleSkillSaved}
                   onCancelled={handleCancelNew}
                 />

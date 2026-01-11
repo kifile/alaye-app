@@ -30,6 +30,7 @@ echo ""
 
 # Build frontend resources
 cd frontend
+npm ci
 if ! npm run build; then
     echo ""
     echo -e "${RED}Frontend build failed! Please check the error messages above.${NC}"
@@ -83,6 +84,10 @@ uv run nuitka \
     --assume-yes-for-downloads \
     --enable-plugin=pywebview \
     --include-data-dir=frontend/out=frontend/out \
+    --nofollow-import-to=alembic \
+    --nofollow-import-to=pytest \
+    --nofollow-import-to=unittest \
+    --nofollow-import-to=test \
     main.py
 
 # For macOS: Setup app bundle with login shell wrapper

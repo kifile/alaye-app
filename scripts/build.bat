@@ -4,7 +4,7 @@ echo Building pywebview application with Nuitka...
 echo.
 
 REM Check if nuitka is installed
-python -c "import nuitka" 2>nul
+uv run python -c "import nuitka" 2>nul
 if errorlevel 1 (
     echo Error: Nuitka is not installed. Please install it first:
     echo pip install nuitka
@@ -28,6 +28,7 @@ echo.
 
 REM Build frontend resources
 cd frontend
+call npm ci
 call npm run build
 if errorlevel 1 (
     echo.
@@ -44,7 +45,7 @@ echo Starting Nuitka compilation...
 echo Output will be saved to: build\alaye.exe
 echo.
 
-nuitka ^
+uv run nuitka ^
     --onefile ^
     --windows-console-mode=disable ^
     --output-dir=build ^
@@ -54,6 +55,10 @@ nuitka ^
     --enable-plugin=pywebview ^
     --include-data-dir=frontend/out=frontend/out ^
     --windows-icon-from-ico=assets/icon.ico ^
+    --nofollow-import-to=alembic ^
+    --nofollow-import-to=pytest ^
+    --nofollow-import-to=unittest ^
+    --nofollow-import-to=test ^
     main.py
 
 echo.

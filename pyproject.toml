@@ -1,6 +1,6 @@
 [project]
 name = "alaye-app"
-version = "0.1.1"
+version = "0.1.2"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -17,7 +17,7 @@ dependencies = [
     "fastapi>=0.128.0",
     "uvicorn[standard]>=0.40.0",
     "sqlalchemy>=2.0.45",
-    "alembic>=1.12.0",
+    "alembic>=1.18.0",
     "aiosqlite>=0.22.1",
     "greenlet>=3.3.0",
 ]

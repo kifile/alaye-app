@@ -6,6 +6,8 @@
 import asyncio
 import os
 import platform
+import subprocess
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -46,10 +48,19 @@ async def find_tool_in_system(tool_name: str) -> Optional[str]:
         command = ["which", tool_name]
 
     try:
+        # 准备子进程参数
+        subprocess_kwargs = {
+            "stdout": asyncio.subprocess.PIPE,
+            "stderr": asyncio.subprocess.PIPE,
+        }
+
+        # 在 Windows 上防止弹出终端窗口
+        if sys.platform == "win32":
+            subprocess_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
         process = await asyncio.create_subprocess_exec(
             *command,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
+            **subprocess_kwargs,
         )
         stdout, stderr = await process.communicate()
 
