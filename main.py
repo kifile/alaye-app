@@ -335,6 +335,12 @@ def run_pywebview_mode(app_url):
 
         logger.info("Application closed")
 
+        # Force exit to prevent Qt backend from hanging
+        # os._exit is necessary because sys.exit may not work with Qt's event loop
+        # All cleanup has been done above, so this is safe
+        logger.info("Force exiting process...")
+        os._exit(0)
+
 
 def main():
     """主函数"""
