@@ -2,6 +2,12 @@
   <img width="150" src="assets/icon.ico" />
 </p>
 
+<p align="center">
+  <a href="https://www.producthunt.com/products/alaye-app?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-alaye-app" target="_blank" rel="noopener noreferrer">
+    <img alt="Alaye-App - A desktop application for ai tools. | Product Hunt" width="250" height="54" src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1061316&theme=light&t=1768142159422">
+  </a>
+</p>
+
 # Alaye App
 
 **English** | [**简体中文**](README_zh.md)
