@@ -28,9 +28,10 @@ from src.config import (
     config_service,
     tool_config_listener,
 )
-from src.database import close_db, init_db
+from src.database import close_db
 from src.project.project_service import project_service
 from src.terminal.terminal_manager_service import get_terminal_manager
+from src.utils.process_utils import run_process
 
 load_dotenv()
 
@@ -76,12 +77,25 @@ if os.getenv("ALAYE_APP_ENV", "").lower() != "browser" and sys.platform.startswi
 logger = logging.getLogger(__name__)
 
 
+def run_alembic_upgrade():
+    """执行 alembic 数据库迁移"""
+    try:
+        logger.info("Running alembic upgrade...")
+        result = run_process(["alembic", "upgrade", "head"])
+
+        if result.success:
+            logger.info("Alembic upgrade completed successfully")
+        else:
+            logger.error(f"Alembic upgrade failed: {result.error_message}")
+            raise RuntimeError(f"Database migration failed: {result.error_message}")
+    except Exception as e:
+        logger.error(f"Failed to run alembic upgrade: {e}")
+        raise
+
+
 async def initialize_app():
     """初始化应用程序"""
     logger.info("Initializing application...")
-
-    # 初始化数据库
-    await init_db()
 
     # 注册工具配置监听器
     config_change_manager.add_listener(tool_config_listener)
@@ -223,6 +237,9 @@ async def run_fastapi_mode():
     """FastAPI 模式：让 FastAPI/Uvicorn 管理应用生命周期"""
     logger.info("Starting FastAPI mode...")
 
+    # 首先执行数据库迁移
+    run_alembic_upgrade()
+
     # 设置 FastAPI 模式的终端系统（在 lifespan 之前设置）
     setup_fastapi_terminal_system()
 
@@ -234,6 +251,9 @@ async def run_fastapi_mode():
 
 
 def run_pywebview_mode(app_url):
+    # 首先执行数据库迁移
+    run_alembic_upgrade()
+
     # 启动后台事件循环
     event_loop_thread = threading.Thread(target=start_async_event_loop, daemon=True)
     event_loop_thread.start()

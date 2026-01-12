@@ -7,22 +7,14 @@ import asyncio
 import shutil
 
 import pytest
-import pytest_asyncio
 
 from src.config import config_change_manager, config_service, tool_config_listener
 from src.config.config_change_listener import ConfigKeyUpdateEvent
 from src.config.tool_config_change_listener import ToolConfigChangeListener
-from src.database import init_db
 
 
 class TestConfigService:
     """配置服务测试类 - 包含所有核心功能测试"""
-
-    @pytest_asyncio.fixture(autouse=True)
-    async def setup_database(self):
-        """设置测试数据库"""
-        await init_db()
-        yield
 
     @pytest.mark.asyncio
     async def test_basic_config_operations(self):

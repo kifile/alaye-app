@@ -81,14 +81,10 @@ async def lifespan(app: FastAPI):
         config_service,
         tool_config_listener,
     )
-    from src.database import init_db
     from src.project.project_service import project_service
     from src.terminal.terminal_manager_service import get_terminal_manager
 
     try:
-        # 初始化数据库
-        await init_db()
-
         # 注册工具配置监听器
         config_change_manager.add_listener(tool_config_listener)
 

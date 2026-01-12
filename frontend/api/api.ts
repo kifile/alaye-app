@@ -62,6 +62,10 @@ import type {
   DisableClaudePluginRequest,
   MoveClaudePluginRequest,
   ReadPluginReadmeRequest,
+  ScanSessionsRequest,
+  ReadSessionContentsRequest,
+  ClaudeSession,
+  ClaudeSessionInfo,
   LogData,
   LoadSettingsData,
   ShowFileDialogData,
@@ -128,6 +132,8 @@ import type {
   DisableClaudePluginResponse,
   MoveClaudePluginResponse,
   ReadPluginReadmeResponse,
+  ScanSessionsResponse,
+  ReadSessionContentsResponse,
 } from './types';
 
 // 重新导出所有类型定义，供其他模块使用
@@ -668,6 +674,30 @@ export const readPluginReadme = async (
   request: ReadPluginReadmeRequest
 ): Promise<ReadPluginReadmeResponse> => {
   return await callAPI<string>('read_plugin_readme', request);
+};
+
+// ===== Session 管理 API =====
+
+/**
+ * 扫描指定项目的Sessions列表API
+ * @param request 扫描Sessions列表请求参数
+ * @returns Promise<ScanSessionsResponse>
+ */
+export const scanSessions = async (
+  request: ScanSessionsRequest
+): Promise<ScanSessionsResponse> => {
+  return await callAPI<ClaudeSessionInfo[]>('scan_sessions', request);
+};
+
+/**
+ * 读取指定Session的完整内容API
+ * @param request 读取Session内容请求参数
+ * @returns Promise<ReadSessionContentsResponse>
+ */
+export const readSessionContents = async (
+  request: ReadSessionContentsRequest
+): Promise<ReadSessionContentsResponse> => {
+  return await callAPI<ClaudeSession>('read_session_contents', request);
 };
 
 // ===== 通用 API 调用方法 =====

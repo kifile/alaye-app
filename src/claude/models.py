@@ -524,3 +524,53 @@ class PluginInfo(BaseModel):
     enabled_scope: Optional[ConfigScope] = None  # 启用配置的作用域
     tools: Optional[PluginTools] = None  # 插件工具能力
     readme_content_exists: bool = False  # README 文件是否存在
+
+
+# ==================== Session 相关模型 ====================
+
+
+class ClaudeMessage(BaseModel):
+    """Pydantic model representing a single message in a Claude session."""
+
+    timestamp: str
+    message: Optional[Dict[str, Any]] = None
+    cwd: Optional[str] = None
+    gitBranch: Optional[str] = None
+    raw_data: Dict[str, Any] = Field(default_factory=dict)
+
+
+class ClaudeSession(BaseModel):
+    """Pydantic model representing a single Claude session/conversation."""
+
+    session_id: str
+    session_file: str
+    session_file_md5: Optional[str] = None
+    is_agent_session: bool = False
+    messages: List[ClaudeMessage] = Field(default_factory=list)
+    first_active_at: Optional[datetime] = Field(
+        default=None, exclude=True
+    )  # Exclude from serialization
+    last_active_at: Optional[datetime] = Field(
+        default=None, exclude=True
+    )  # Exclude from serialization
+    project_path: Optional[str] = None
+    git_branch: Optional[str] = None
+    message_count: int = 0
+
+
+class ClaudeSessionInfo(BaseModel):
+    """Session 简要信息，用于列表展示"""
+
+    session_id: str
+    session_file: str
+    last_modified: Optional[datetime] = Field(None, exclude=True)
+    is_agent_session: bool = False
+
+    @computed_field
+    @property
+    def last_modified_str(self) -> Optional[str]:
+        return (
+            self.last_modified.strftime("%Y-%m-%d %H:%M:%S")
+            if self.last_modified
+            else None
+        )
