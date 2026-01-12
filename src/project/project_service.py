@@ -157,6 +157,7 @@ class ProjectService:
             # 创建更新数据
             update_data = AIProjectUpdate(
                 project_name=claude_project.project_name,
+                claude_session_path=claude_project.project_session_path,
                 ai_tools=[ai_tool_type],
                 first_active_at=claude_project.first_active_at,
                 last_active_at=claude_project.last_active_at,
@@ -170,6 +171,7 @@ class ProjectService:
             create_data = AIProjectCreate(
                 project_name=claude_project.project_name,
                 project_path=claude_project.project_path,
+                claude_session_path=claude_project.project_session_path,
                 ai_tools=[ai_tool_type],
                 first_active_at=claude_project.first_active_at,
                 last_active_at=claude_project.last_active_at,
