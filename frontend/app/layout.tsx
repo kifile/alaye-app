@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { getSetting } from '@/api/api';
 import { changeLanguage, type SupportedLanguage } from '@/lib/i18n';
 import { preloadMonacoEditor } from '@/lib/monaco-preloader';
+import { AnalyticsProvider } from '@/components/analytics';
 import './globals.css';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -88,11 +89,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang={language} className='h-full'>
       <body className='h-full' suppressHydrationWarning>
-        <SidebarProvider className='h-full'>
-          <AppSidebar />
-          <SidebarInset className='overflow-auto h-svh flex-1'>{children}</SidebarInset>
-        </SidebarProvider>
-        <Toaster position='top-center' duration={1000} />
+        <AnalyticsProvider>
+          <SidebarProvider className='h-full'>
+            <AppSidebar />
+            <SidebarInset className='overflow-auto h-svh flex-1'>
+              {children}
+            </SidebarInset>
+          </SidebarProvider>
+          <Toaster position='top-center' duration={1000} />
+        </AnalyticsProvider>
       </body>
     </html>
   );

@@ -175,9 +175,7 @@ export function McpServerDialog({
       const args = commandParts.length > 1 ? commandParts.slice(1) : undefined;
 
       // 辅助函数：将 KeyValuePair 数组转换为对象，处理重复 key（后面的覆盖前面的）
-      const keyValuePairsToObject = (
-        pairs: KeyValuePair[]
-      ): Record<string, string> => {
+      const keyValuePairsToObject = (pairs: KeyValuePair[]): Record<string, string> => {
         const obj: Record<string, string> = {};
         for (const pair of pairs) {
           if (pair.key && pair.key.trim() !== '') {

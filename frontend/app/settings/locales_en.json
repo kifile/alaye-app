@@ -19,5 +19,8 @@
   "configSaveRetry": "Failed to save configuration, please try again",
   "toolNotConfigured": "Tool not properly configured",
   "savingConfig": "Saving...",
-  "saveFailedRetry": "Save failed, please retry"
+  "saveFailedRetry": "Save failed, please retry",
+  "analytics": "Analytics",
+  "analyticsDescription": "Help us improve by sending anonymous usage data. You can disable this at any time.",
+  "analyticsEnabled": "Enable analytics"
 }

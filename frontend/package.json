@@ -3,8 +3,8 @@
   "version": "0.1.2",
   "private": true,
   "scripts": {
-    "dev": "node scripts/copyMonacoToPublic.js && next dev",
-    "build": "node scripts/copyMonacoToPublic.js && next build",
+    "dev": "node scripts/syncEnv.js && node scripts/copyMonacoToPublic.js && next dev",
+    "build": "node scripts/syncEnv.js && node scripts/copyMonacoToPublic.js && next build",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
     "lint:check": "eslint . --ext .ts,.tsx,.js,.jsx",

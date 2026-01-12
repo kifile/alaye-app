@@ -19,5 +19,8 @@
   "configSaveRetry": "保存配置失败，请重试",
   "toolNotConfigured": "工具未正确配置",
   "savingConfig": "正在保存...",
-  "saveFailedRetry": "保存失败，请重试"
+  "saveFailedRetry": "保存失败，请重试",
+  "analytics": "数据分析",
+  "analyticsDescription": "帮助我们改进产品，发送匿名使用数据。您可以随时关闭此功能。",
+  "analyticsEnabled": "启用数据分析"
 }
