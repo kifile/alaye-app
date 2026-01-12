@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, memo } from 'react';
-import { ChevronDown, ChevronRight, Brain } from 'lucide-react';
+import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
 import type { ContentItem } from './ContentItem';
 
 interface ThinkingBlockProps {
@@ -28,29 +28,29 @@ export const ThinkingBlock = memo(({ item }: ThinkingBlockProps) => {
       : text;
 
   return (
-    <div className='my-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg'>
+    <div className='my-3 p-3 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-lg'>
       <button
         onClick={() => setExpanded(!expanded)}
         className='flex items-center gap-2 w-full text-left'
       >
         {expanded || !isLongText ? (
-          <ChevronDown className='h-4 w-4 text-amber-700 dark:text-amber-300 flex-shrink-0' />
+          <ChevronDown className='h-4 w-4 text-emerald-700 dark:text-emerald-300 flex-shrink-0' />
         ) : (
-          <ChevronRight className='h-4 w-4 text-amber-700 dark:text-amber-300 flex-shrink-0' />
+          <ChevronRight className='h-4 w-4 text-emerald-700 dark:text-emerald-300 flex-shrink-0' />
         )}
-        <Brain className='h-4 w-4 text-amber-700 dark:text-amber-300 flex-shrink-0' />
-        <span className='text-sm font-medium text-amber-900 dark:text-amber-100'>
+        <Sparkles className='h-4 w-4 text-emerald-700 dark:text-emerald-300 flex-shrink-0' />
+        <span className='text-sm font-medium text-emerald-900 dark:text-emerald-100'>
           Thinking Process
         </span>
       </button>
       {/* 始终显示预览文字 */}
       {text && (
-        <div className='mt-2 pl-6 text-sm text-amber-900 dark:text-amber-100 whitespace-pre-wrap break-words'>
+        <div className='mt-2 pl-6 text-sm text-emerald-900 dark:text-emerald-100 whitespace-pre-wrap break-words'>
           {displayText}
           {isLongText && !expanded && (
             <button
               onClick={() => setExpanded(true)}
-              className='ml-2 text-xs text-amber-700 dark:text-amber-300 underline hover:text-amber-900 dark:hover:text-amber-100'
+              className='ml-2 text-xs text-emerald-700 dark:text-emerald-300 underline hover:text-emerald-900 dark:hover:text-emerald-100'
             >
               展开更多
             </button>

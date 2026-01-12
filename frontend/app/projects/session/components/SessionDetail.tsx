@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { ArrowLeft, Loader2, MessageSquare, Calendar } from 'lucide-react';
+import { ArrowLeft, Loader2, MessageSquare, Calendar, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { readSessionContents } from '@/api/api';
 import type { ClaudeSession } from '@/api/types';
@@ -154,11 +154,21 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
             <ArrowLeft className='h-4 w-4 text-gray-600' />
           </button>
 
+          {/* 刷新按钮 */}
+          <button
+            onClick={loadSessionContent}
+            disabled={loading}
+            className='p-1.5 hover:bg-gray-100 rounded-lg transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed'
+            title='Refresh session'
+          >
+            <RefreshCw className={`h-4 w-4 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+
           {/* 标题和徽章 */}
           <div className='flex items-center gap-2 shrink-0'>
             <h2 className='text-sm font-semibold text-gray-900'>
               {session.is_agent_session && '🤖 '}
-              {session.session_id.slice(0, 8)}
+              {session.session_id.slice(0, 8)}...
             </h2>
             {session.is_agent_session && (
               <span className='px-1.5 py-0.5 text-[10px] bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded'>

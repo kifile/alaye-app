@@ -6,6 +6,12 @@ import { toast } from 'sonner';
 import { scanSessions } from '@/api/api';
 import type { ClaudeSessionInfo } from '@/api/types';
 import { useTranslation } from 'react-i18next';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface SessionListProps {
   projectId: number;
@@ -133,10 +139,19 @@ export function SessionList({
                   />
                   <div className='flex-1 min-w-0'>
                     <div className='flex items-center gap-2 mb-1'>
-                      <p className='text-sm font-medium text-gray-900 truncate'>
-                        {session.is_agent_session && '🤖 '}
-                        {session.session_id.slice(0, 8)}
-                      </p>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <p className='text-sm font-medium text-gray-900 truncate cursor-help'>
+                              {session.is_agent_session && '🤖 '}
+                              {session.session_id}
+                            </p>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p className='text-xs'>{session.session_id}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                       {session.is_agent_session && (
                         <span className='px-1.5 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded border border-purple-300 dark:border-purple-700'>
                           Agent

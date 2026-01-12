@@ -58,13 +58,36 @@ class ProjectService:
         # 执行扫描
         projects = self.scanner.scan_all_projects()
 
-        if not projects:
-            logger.info("No projects found")
-            return True
-
         # 获取数据库会话
         async for db in get_db():
             try:
+                # 获取数据库中所有现有项目
+                existing_projects = await ai_project_crud.read_all(db)
+
+                # 构建现有项目的project_path集合和新扫描到的project_path集合
+                existing_project_paths = {p.project_path for p in existing_projects if p.project_path}
+                new_project_paths = {p.project_path for p in projects}
+
+                # 找出需要删除的项目（数据库中存在但扫描结果中不存在）
+                projects_to_delete = existing_project_paths - new_project_paths
+
+                # 删除不再存在的项目
+                for project_path in projects_to_delete:
+                    project_to_delete = next(
+                        (p for p in existing_projects if p.project_path == project_path),
+                        None,
+                    )
+                    if project_to_delete:
+                        await ai_project_crud.delete(db, id=project_to_delete.id)
+                        logger.info(
+                            f"Deleting project that no longer exists: {project_to_delete.project_name} ({project_path})"
+                        )
+
+                if not projects:
+                    logger.info("No projects found")
+                    await db.commit()
+                    return True
+
                 # 处理每个项目
                 for claude_project in projects:
                     await self._save_project_to_db(
@@ -178,6 +201,29 @@ class ProjectService:
             )
             existing_project = await ai_project_crud.create(db, obj_in=create_data)
             logger.debug(f"Creating new project: {claude_project.project_name}")
+
+        # 获取数据库中该项目的所有现有会话
+        existing_sessions = await ai_project_session_crud.get_by_project_id(
+            db, project_id=existing_project.id
+        )
+
+        # 构建现有会话ID集合和新扫描到的会话ID集合
+        existing_session_ids = {s.session_id for s in existing_sessions}
+        new_session_ids = set(claude_project.sessions.keys())
+
+        # 找出需要删除的会话ID（数据库中存在但扫描结果中不存在）
+        sessions_to_delete = existing_session_ids - new_session_ids
+
+        # 删除不再存在的会话
+        for session_id in sessions_to_delete:
+            session_to_delete = next(
+                (s for s in existing_sessions if s.session_id == session_id), None
+            )
+            if session_to_delete:
+                await ai_project_session_crud.delete(db, id=session_to_delete.id)
+                logger.debug(
+                    f"Deleting session that no longer exists: {session_id} from project {existing_project.project_name}"
+                )
 
         # 处理项目会话
         for session_key, claude_session in claude_project.sessions.items():

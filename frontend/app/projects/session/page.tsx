@@ -181,7 +181,7 @@ function SessionPageContent() {
         <div className='bg-white rounded-xl border border-gray-200 shadow-sm h-[calc(100vh-90px)] overflow-hidden'>
           <div className='flex h-full'>
             {/* 左侧 Session 列表 */}
-            <div className='w-80 flex-shrink-0 border-r border-gray-200'>
+            <div className='w-60 flex-shrink-0 border-r border-gray-200'>
               <SessionList
                 projectId={currentProjectId}
                 selectedSessionId={selectedSessionId}

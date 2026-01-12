@@ -48,7 +48,7 @@ export function ProjectCard({ project, onItemClick }: ProjectCardProps) {
     <Card className='hover:shadow-md transition-shadow'>
       <CardHeader>
         <div className='flex items-start justify-between'>
-          <div className='flex-1'>
+          <div className='flex-1 pr-8'>
             <CardTitle className='text-lg line-clamp-2'>
               {project.project_name}
             </CardTitle>
@@ -56,6 +56,14 @@ export function ProjectCard({ project, onItemClick }: ProjectCardProps) {
               {project.project_path || t('card.noPathInfo')}
             </CardDescription>
           </div>
+          <Button
+            variant='ghost'
+            size='icon'
+            className='h-8 w-8 -mt-1 -mr-1'
+            onClick={handleConfig}
+          >
+            <Settings className='h-4 w-4' />
+          </Button>
         </div>
       </CardHeader>
       <CardContent className='space-y-4'>
@@ -82,26 +90,15 @@ export function ProjectCard({ project, onItemClick }: ProjectCardProps) {
 
         {/* 操作按钮 */}
         <div className='pt-2 border-t'>
-          <div className='flex gap-2'>
-            <Button
-              variant='outline'
-              size='sm'
-              className='flex-1'
-              onClick={handleConfig}
-            >
-              <Settings className='h-4 w-4 mr-2' />
-              {t('card.config') || 'Config'}
-            </Button>
-            <Button
-              variant='outline'
-              size='sm'
-              className='flex-1'
-              onClick={handleViewSessions}
-            >
-              <MessageSquare className='h-4 w-4 mr-2' />
-              {t('card.viewSessions') || 'View Sessions'}
-            </Button>
-          </div>
+          <Button
+            variant='outline'
+            size='sm'
+            className='w-full'
+            onClick={handleViewSessions}
+          >
+            <MessageSquare className='h-4 w-4 mr-2' />
+            {t('card.viewSessions') || 'View Sessions'}
+          </Button>
         </div>
       </CardContent>
     </Card>
