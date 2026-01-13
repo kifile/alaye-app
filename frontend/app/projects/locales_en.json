@@ -673,7 +673,7 @@
     "commandLabel": "Command:",
     "promptLabel": "Prompt:",
     "timeoutLabel": "Timeout:",
-    "dependencyNotInstalled": "Dependency Not Installed"
+    "dependencyNotInstalled": "Deps Missing"
   },
   "mcpServerItem": {
     "overridden": "Overridden",

@@ -12,6 +12,7 @@ logging.basicConfig(
 )
 
 import asyncio
+import concurrent.futures
 import threading
 import time
 
@@ -247,8 +248,16 @@ def run_pywebview_mode(app_url):
     # 初始化应用（在事件循环中）
     loop = background_thread_async_executor.get_loop()
     if loop:
-        asyncio.run_coroutine_threadsafe(initialize_app(), loop)
-        time.sleep(1)  # 等待初始化完成
+        # 使用 Future 等待初始化真正完成
+        future = asyncio.run_coroutine_threadsafe(initialize_app(), loop)
+        try:
+            # 等待初始化完成，最多等待 30 秒
+            future.result(timeout=30)
+            logger.info("Application initialized successfully")
+        except concurrent.futures.TimeoutError:
+            logger.warning("Application initialization timed out after 30 seconds")
+        except Exception as e:
+            logger.error(f"Application initialization failed: {e}")
 
     # 创建自定义 Bottle 服务器以正确处理 SPA 路由
     import bottle

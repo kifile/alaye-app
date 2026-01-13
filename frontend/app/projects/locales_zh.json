@@ -673,7 +673,7 @@
     "commandLabel": "命令:",
     "promptLabel": "提示:",
     "timeoutLabel": "超时:",
-    "dependencyNotInstalled": "依赖未安装"
+    "dependencyNotInstalled": "依赖缺失"
   },
   "mcpServerItem": {
     "overridden": "被覆盖",
