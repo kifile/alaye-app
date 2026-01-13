@@ -4,7 +4,7 @@
 """
 
 from .base.common import PagedData
-from .connection import close_db, get_db
+from .connection import close_db, get_db, init_db
 from .cruds.app_setting_crud import app_setting_crud
 from .orms.app_setting import AppSetting
 from .schemas.app_setting import (
@@ -16,6 +16,7 @@ from .schemas.app_setting import (
 __all__ = [
     "get_db",
     "close_db",
+    "init_db",
     "AppSetting",
     "AppSettingCreate",
     "AppSettingUpdate",

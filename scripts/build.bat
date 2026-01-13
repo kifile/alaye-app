@@ -55,6 +55,7 @@ uv run nuitka ^
     --enable-plugin=pywebview ^
     --include-data-dir=frontend/out=frontend/out ^
     --windows-icon-from-ico=assets/icon.ico ^
+    --nofollow-import-to=alembic ^
     --nofollow-import-to=pytest ^
     --nofollow-import-to=unittest ^
     --nofollow-import-to=test ^

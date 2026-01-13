@@ -3,6 +3,7 @@ Database connection management
 """
 
 import logging
+import os
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -69,3 +70,23 @@ async def close_db():
     logger.info("Closing database connection...")
     await engine.dispose()
     logger.info("Database connection closed")
+
+
+async def init_db():
+    """
+    初始化数据库 - 创建所有表
+    """
+    from .orms.base import Base
+
+    # 输出数据库地址
+    db_path = DATABASE_URL.replace("sqlite+aiosqlite:///", "")
+    logger.info(f"Initializing database at: {db_path}")
+
+    # Ensure data directory exists (support custom path via environment variable)
+    db_dir = os.path.dirname(db_path)
+    if db_dir:  # Only create if path contains directory
+        os.makedirs(db_dir, exist_ok=True)
+
+    # Create all tables
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
