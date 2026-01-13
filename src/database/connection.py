@@ -74,19 +74,31 @@ async def close_db():
 
 async def init_db():
     """
-    初始化数据库 - 创建所有表
+    初始化数据库 - 使用 Alembic 迁移
     """
-    from .orms.base import Base
+    from alembic import command
+    from alembic.config import Config
 
     # 输出数据库地址
     db_path = DATABASE_URL.replace("sqlite+aiosqlite:///", "")
     logger.info(f"Initializing database at: {db_path}")
 
-    # Ensure data directory exists (support custom path via environment variable)
-    db_dir = os.path.dirname(db_path)
-    if db_dir:  # Only create if path contains directory
-        os.makedirs(db_dir, exist_ok=True)
+    try:
+        # Ensure data directory exists (support custom path via environment variable)
+        db_dir = os.path.dirname(db_path)
+        if db_dir:  # Only create if path contains directory
+            os.makedirs(db_dir, exist_ok=True)
 
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+        # 获取项目根目录和 Alembic 配置文件
+        project_root = Path(__file__).parent.parent.parent
+        alembic_ini_path = project_root / "alembic.ini"
+
+        # 创建 Alembic 配置
+        alembic_cfg = Config(str(alembic_ini_path))
+        alembic_cfg.set_main_option("sqlalchemy.url", DATABASE_URL)
+
+        # 执行迁移到 head
+        command.upgrade(alembic_cfg, "head")
+        logger.info("Database migrations completed successfully")
+    except Exception as e:
+        raise e

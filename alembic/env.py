@@ -30,7 +30,7 @@ config.set_main_option("sqlalchemy.url", database_url)
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 from src.database.orms.ai_project import AIProject
 from src.database.orms.ai_project_session import AIProjectSession
@@ -102,7 +102,31 @@ async def run_async_migrations() -> None:
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
 
-    asyncio.run(run_async_migrations())
+    try:
+        # 检查是否已有运行中的事件循环
+        loop = asyncio.get_running_loop()
+        # 如果有事件循环在运行，说明我们在异步上下文中
+        # 需要在新线程中运行，因为 asyncio.run() 不能在已有循环中创建新循环
+        import threading
+
+        result = [None]
+        exception = [None]
+
+        def run_in_thread():
+            try:
+                asyncio.run(run_async_migrations())
+            except Exception as e:
+                exception[0] = e
+
+        thread = threading.Thread(target=run_in_thread)
+        thread.start()
+        thread.join()
+
+        if exception[0]:
+            raise exception[0]
+    except RuntimeError:
+        # 没有运行中的事件循环，可以安全使用 asyncio.run
+        asyncio.run(run_async_migrations())
 
 
 if context.is_offline_mode():
