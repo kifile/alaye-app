@@ -16,6 +16,8 @@ Alaye App 是一款 AI 工具的桌面端管理助手，旨在为开发者提供
 
 ## 项目简介
 
+![App Preview Image](assets/screenshots/screenshot_claude_config.png)
+
 Alaye App 集成了现代化的用户界面和强大的后端服务，帮助开发者在一个应用中管理多个 AI 工具。
 
 **一期功能（当前版本）**：
@@ -122,8 +124,6 @@ scripts\build.ps1            # Windows (PowerShell)
 ## Roadmap
 
 ### ✅ v0.1 - Claude 配置管理（当前版本）
-
-![App Preview Image](assets/screenshots/app_preview_v0.1.1.png)
 
 - [x] Claude 项目扫描与管理
 - [x] Claude 设置配置（Settings）
