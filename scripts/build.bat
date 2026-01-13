@@ -54,6 +54,8 @@ uv run nuitka ^
     --assume-yes-for-downloads ^
     --enable-plugin=pywebview ^
     --include-data-dir=frontend/out=frontend/out ^
+    --include-data-dir=alembic=alembic ^
+    --include-data-files=alembic.ini=alembic.ini ^
     --windows-icon-from-ico=assets/icon.ico ^
     --nofollow-import-to=pytest ^
     --nofollow-import-to=unittest ^
