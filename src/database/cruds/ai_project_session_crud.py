@@ -77,7 +77,7 @@ class AIProjectSessionCRUD(
 
         return await self.read_all(
             db,
-            where=tuple(where_conditions),
+            where=and_(*where_conditions),
             order_by=self.model.updated_at.desc(),
             skip=skip,
             limit=limit,
