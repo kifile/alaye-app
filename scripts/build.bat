@@ -41,6 +41,24 @@ cd ..
 
 echo Frontend build completed successfully!
 echo.
+echo Creating alembic_migrations.zip...
+echo.
+
+REM Create zip file using Python script (cross-platform)
+cd /d "%~dp0.."
+uv run python scripts/create_alembic_zip.py build\alembic_migrations.zip
+
+if errorlevel 1 (
+    echo.
+    echo Failed to create alembic_migrations.zip
+    cd /d "%~dp0.."
+    pause
+    exit /b 1
+)
+
+cd /d "%~dp0.."
+
+echo.
 echo Starting Nuitka compilation...
 echo Output will be saved to: build\alaye.exe
 echo.
@@ -54,7 +72,7 @@ uv run nuitka ^
     --assume-yes-for-downloads ^
     --enable-plugin=pywebview ^
     --include-data-dir=frontend/out=frontend/out ^
-    --include-data-dir=alembic=alembic ^
+    --include-data-files=build\alembic_migrations.zip=alembic_migrations.zip ^
     --include-data-files=alembic.ini=alembic.ini ^
     --windows-icon-from-ico=assets/icon.ico ^
     --nofollow-import-to=pytest ^

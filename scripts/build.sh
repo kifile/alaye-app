@@ -41,6 +41,22 @@ cd ..
 
 echo -e "${GREEN}Frontend build completed successfully!${NC}"
 echo ""
+echo -e "${CYAN}Creating alembic_migrations.zip...${NC}"
+
+# Create zip file using Python script (cross-platform)
+cd "$(dirname "$0")/.."
+uv run python scripts/create_alembic_zip.py build/alembic_migrations.zip
+
+if [ $? -eq 0 ]; then
+    echo -e "${GREEN}alembic_migrations.zip created successfully!${NC}"
+else
+    echo -e "${RED}Failed to create alembic_migrations.zip${NC}"
+    exit 1
+fi
+
+cd "$(dirname "$0")/.."
+
+echo ""
 echo -e "${CYAN}Starting Nuitka compilation...${NC}"
 echo ""
 
@@ -84,7 +100,7 @@ uv run nuitka \
     --assume-yes-for-downloads \
     --enable-plugin=pywebview \
     --include-data-dir=frontend/out=frontend/out \
-    --include-data-dir=alembic=alembic \
+    --include-data-files=build/alembic_migrations.zip=alembic_migrations.zip \
     --include-data-files=alembic.ini=alembic.ini \
     --nofollow-import-to=pytest \
     --nofollow-import-to=unittest \
