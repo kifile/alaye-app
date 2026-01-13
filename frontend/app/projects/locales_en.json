@@ -287,7 +287,9 @@
   },
   "card": {
     "noPathInfo": "No path information",
-    "lastActive": "Last active:"
+    "lastActive": "Last active:",
+    "config": "Config",
+    "viewSessions": "View Sessions"
   },
   "sidebar": {
     "title": "Claude Config",

@@ -14,6 +14,8 @@ from ..claude.claude_config_manager import ClaudeConfigManager
 from ..claude.models import (
     AgentInfo,
     ClaudeMemoryInfo,
+    ClaudeSession,
+    ClaudeSessionInfo,
     ClaudeSettingsInfoDTO,
     CommandInfo,
     HooksInfo,
@@ -58,6 +60,7 @@ from .api_models import (
     MoveClaudePluginRequest,
     NewTerminalRequest,
     ReadPluginReadmeRequest,
+    ReadSessionContentsRequest,
     RemoveClaudeHookRequest,
     RenameMarkdownContentRequest,
     RenameMCPServerRequest,
@@ -73,6 +76,7 @@ from .api_models import (
     ScanClaudeSkillsRequest,
     ScanLSPServersRequest,
     ScanMCPServersRequest,
+    ScanSessionsRequest,
     ScanSingleProjectRequest,
     SetTerminalSizeRequest,
     UninstallClaudePluginRequest,
@@ -235,7 +239,9 @@ class APICore:
         if not project_path:
             raise ValueError(f"项目 '{project_id}' 缺少路径信息")
 
-        return ClaudeConfigManager(project_path)
+        return ClaudeConfigManager(
+            project_path, claude_session_path=project.claude_session_path
+        )
 
     @expose_api(LogRequest, LogData, "前端日志输出API")
     @api_exception_handler
@@ -1465,6 +1471,63 @@ class APICore:
             )
 
         return ApiResponse.success_response(readme_content)
+
+    # ==================== Session 管理方法 ====================
+
+    @expose_api(
+        ScanSessionsRequest,
+        List[ClaudeSessionInfo],
+        "扫描指定项目的Sessions列表API",
+    )
+    @api_logging
+    @api_exception_handler
+    async def scan_sessions(
+        self, input_data: ScanSessionsRequest
+    ) -> ApiResponse[List[ClaudeSessionInfo]]:
+        """
+        扫描指定项目的Sessions列表的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - project_id: 项目ID
+
+        Returns:
+            包含Sessions简要信息列表的响应（不包含 messages）
+        """
+        config_manager = await self._get_config_manager(input_data.project_id)
+        sessions = await config_manager.scan_sessions()
+        return ApiResponse.success_response(sessions)
+
+    @expose_api(
+        ReadSessionContentsRequest,
+        ClaudeSession,
+        "读取指定Session的完整内容API",
+    )
+    @api_logging
+    @api_exception_handler
+    async def read_session_contents(
+        self, input_data: ReadSessionContentsRequest
+    ) -> ApiResponse[ClaudeSession]:
+        """
+        读取指定Session的完整内容的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - project_id: 项目ID
+                - session_id: Session ID
+
+        Returns:
+            包含Session完整内容的响应（包含 messages）
+        """
+        config_manager = await self._get_config_manager(input_data.project_id)
+        session = await config_manager.read_session_contents(input_data.session_id)
+
+        if session is None:
+            return ApiResponse.error_response(
+                404, f"Session '{input_data.session_id}' 不存在"
+            )
+
+        return ApiResponse.success_response(session)
 
 
 # 创建全局 API 核心实例

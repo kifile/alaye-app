@@ -16,6 +16,8 @@ Alaye App is a desktop management assistant for AI tools, designed to provide de
 
 ## Project Overview
 
+![App Preview Image](assets/screenshots/screenshot_claude_config.png)
+
 Alaye App integrates a modern user interface with powerful backend services, helping developers manage multiple AI tools in one application.
 
 **Phase 1 Features (Current Version)**:
@@ -120,8 +122,6 @@ scripts\build.ps1            # Windows (PowerShell)
 After building, the executable file is located in the `dist/` directory.
 
 ## Roadmap
-
-![App Preview Image](assets/screenshots/app_preview_v0.1.1.png)
 
 ### ✅ v0.1 - Claude Configuration Management (Current Version)
 - [x] Claude project scanning and management

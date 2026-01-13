@@ -699,6 +699,46 @@ export interface ReadPluginReadmeRequest {
   plugin_name: string;
 }
 
+// ===== Session 管理相关类型 =====
+
+export interface ClaudeMessage {
+  timestamp: string;
+  message?: Record<string, any>;
+  cwd?: string;
+  gitBranch?: string;
+  raw_data: Record<string, any>;
+}
+
+export interface ClaudeSession {
+  session_id: string;
+  session_file: string;
+  session_file_md5?: string;
+  is_agent_session: boolean;
+  messages: ClaudeMessage[];
+  project_path?: string;
+  git_branch?: string;
+  message_count: number;
+  last_modified_str?: string; // Formatted datetime string
+  first_active_at_str?: string; // Formatted datetime string
+}
+
+export interface ClaudeSessionInfo {
+  session_id: string;
+  session_file: string;
+  last_modified: string; // ISO datetime string
+  last_modified_str?: string; // Formatted datetime string
+  is_agent_session: boolean;
+}
+
+export interface ScanSessionsRequest {
+  project_id: number;
+}
+
+export interface ReadSessionContentsRequest {
+  project_id: number;
+  session_id: string;
+}
+
 // ProcessResult 进程执行结果
 export interface ProcessResult {
   success: boolean;
@@ -720,3 +760,7 @@ export type EnableClaudePluginResponse = ApiResponse<boolean>;
 export type DisableClaudePluginResponse = ApiResponse<boolean>;
 export type MoveClaudePluginResponse = ApiResponse<boolean>;
 export type ReadPluginReadmeResponse = ApiResponse<string>;
+
+// Session 管理响应类型
+export type ScanSessionsResponse = ApiResponse<ClaudeSessionInfo[]>;
+export type ReadSessionContentsResponse = ApiResponse<ClaudeSession>;

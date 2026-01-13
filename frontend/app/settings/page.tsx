@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { FileSelectPreference } from '@/components/preference/FileSelectPreference';
 import { SelectPreference } from '@/components/preference/SelectPreference';
+import { SwitchPreference } from '@/components/preference/SwitchPreference';
 import { loadSettings, updateSetting, type LoadSettingsData } from '@/api/api';
+import { useAnalytics } from '@/components/analytics';
 import { Loader2, Settings as SettingsIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import log from '@/lib/log';
@@ -16,6 +18,7 @@ import {
 
 export default function SettingsPage() {
   const { t } = useTranslation('settings'); // 使用 settings 命名空间
+  const { enableAnalytics, disableAnalytics } = useAnalytics();
   const [settings, setSettings] = useState({
     'app.language': 'en',
     'npm.path': '',
@@ -24,6 +27,7 @@ export default function SettingsPage() {
     'claude.path': '',
     'claude.enable': '',
     'claude.version': '',
+    'analytics.enabled': 'false',
   });
   const [loading, setLoading] = useState(true);
   const [translationsLoaded, setTranslationsLoaded] = useState(false);
@@ -51,6 +55,7 @@ export default function SettingsPage() {
           'claude.path': data.settings['claude.path'] || '',
           'claude.enable': data.settings['claude.enable'] || '',
           'claude.version': data.settings['claude.version'] || '',
+          'analytics.enabled': data.settings['analytics.enabled'] || 'false',
         });
       }
     } catch (error) {
@@ -77,6 +82,16 @@ export default function SettingsPage() {
         // 如果是语言切换，立即更新 i18n
         if (key === 'app.language') {
           await changeLanguage(value as SupportedLanguage);
+        }
+
+        // 如果是分析开关切换，使用 context 的方法
+        if (key === 'analytics.enabled') {
+          const isEnabled = value.toLowerCase() === 'true';
+          if (isEnabled) {
+            await enableAnalytics();
+          } else {
+            await disableAnalytics();
+          }
         }
 
         // 保存成功，重新加载配置
@@ -198,6 +213,15 @@ export default function SettingsPage() {
               { value: 'en', label: 'English' },
               { value: 'zh', label: '中文' },
             ]}
+          />
+
+          <SwitchPreference
+            title={t('analytics')}
+            description={t('analyticsDescription')}
+            checked={settings['analytics.enabled']?.toLowerCase() === 'true'}
+            settingKey='analytics.enabled'
+            onSettingChange={updateSettingValue}
+            disabled={loading}
           />
         </div>
       </div>

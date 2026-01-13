@@ -287,7 +287,9 @@
   },
   "card": {
     "noPathInfo": "无路径信息",
-    "lastActive": "最后活跃:"
+    "lastActive": "最后活跃:",
+    "config": "配置",
+    "viewSessions": "查看会话"
   },
   "sidebar": {
     "title": "Claude 配置",

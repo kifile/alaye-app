@@ -670,3 +670,23 @@ class ReadPluginReadmeRequest(BaseModel):
     plugin_name: str = Field(..., min_length=1, description="插件名称")
 
     model_config = ConfigDict(extra="allow")
+
+
+# ==================== Session 管理相关模型 ====================
+
+
+class ScanSessionsRequest(BaseModel):
+    """扫描项目 Sessions 请求模型"""
+
+    project_id: int = Field(..., description="项目ID")
+
+    model_config = ConfigDict(extra="allow")
+
+
+class ReadSessionContentsRequest(BaseModel):
+    """读取 Session 内容请求模型"""
+
+    project_id: int = Field(..., description="项目ID")
+    session_id: str = Field(..., min_length=1, description="Session ID")
+
+    model_config = ConfigDict(extra="allow")

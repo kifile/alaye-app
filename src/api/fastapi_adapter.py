@@ -88,7 +88,7 @@ async def lifespan(app: FastAPI):
     try:
         # 初始化数据库
         await init_db()
-
+        
         # 注册工具配置监听器
         config_change_manager.add_listener(tool_config_listener)
 

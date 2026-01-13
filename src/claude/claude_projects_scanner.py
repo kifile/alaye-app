@@ -14,6 +14,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from .settings_helper import load_config
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("claude")
@@ -43,6 +45,7 @@ class ClaudeProject(BaseModel):
 
     project_name: str
     project_path: str = Field(exclude=True)  # Exclude from serialization
+    project_session_path: Optional[str] = None  # Session storage path
     sessions: Dict[str, ClaudeSession] = Field(default_factory=dict)
     first_active_at: Optional[datetime] = Field(
         default=None, exclude=True
@@ -55,13 +58,50 @@ class ClaudeProject(BaseModel):
 class ClaudeProjectsScanner:
     """Main scanner class for Claude projects with all business logic."""
 
-    def __init__(self, claude_projects_path: Optional[Path] = None):
+    def __init__(
+        self,
+        claude_projects_path: Optional[Path] = None,
+        user_home: Optional[Path] = None,
+    ):
+        """
+        Initialize the Claude projects scanner.
+
+        Args:
+            claude_projects_path: Path to the Claude projects directory.
+                If None, defaults to $USER_HOME/.claude/projects
+            user_home: Custom user home directory for testing purposes.
+                If None, defaults to Path.home()
+        """
+        # Use custom user_home if provided, otherwise use system home
+        home_dir = user_home if user_home is not None else Path.home()
+
         if claude_projects_path is None:
-            # Default to $USER/.claude/projects
-            home_dir = Path.home()
+            # Default to $USER_HOME/.claude/projects
             claude_projects_path = home_dir / ".claude" / "projects"
 
         self.projects_path = claude_projects_path
+        self.user_home = home_dir
+
+    def load_valid_projects(self) -> set:
+        """从 ~/.claude.json 加载合法项目路径集合"""
+        config_path = self.user_home / ".claude.json"
+        try:
+            config = load_config(config_path)
+            projects_dict = config.get("projects", {})
+            # 返回项目路径的集合，并进行标准化处理以便匹配
+            valid_projects = set()
+            for proj_path in projects_dict.keys():
+                try:
+                    # 使用 Path.resolve() 标准化路径
+                    normalized_path = str(Path(proj_path).resolve())
+                    valid_projects.add(normalized_path)
+                except Exception:
+                    # 如果路径解析失败，保留原始路径
+                    valid_projects.add(proj_path)
+            return valid_projects
+        except Exception as e:
+            logger.error(f"Failed to load valid projects: {e}")
+            return set()
 
     # Data loading and processing methods
     def load_session_data(self, session_file: Path) -> Optional[ClaudeSession]:
@@ -139,20 +179,20 @@ class ClaudeProjectsScanner:
             return None
 
     def scan_project_sessions(
-        self, project_dir_name: str, project_path: Path
+        self, project_dir_name: str, project_session_path: Path
     ) -> Optional[ClaudeProject]:
         """Scan project directory for session files and return a populated ClaudeProject."""
-        if not project_path.exists():
+        if not project_session_path.exists():
             return None
 
         sessions: Dict[str, ClaudeSession] = {}
-        for session_file in project_path.glob("*.jsonl"):
+        for session_file in project_session_path.glob("*.jsonl"):
             session = self.load_session_data(session_file)
             if session:  # Only add session if loading was successful
                 sessions[session.session_id] = session
 
         # Extract real project name from session data
-        project_name = project_dir_name  # fallback to directory name
+        project_name = None
         project_display_path = None
 
         if sessions:
@@ -167,6 +207,10 @@ class ClaudeProjectsScanner:
                         ]  # Use the last part (folder name) as project name
                         project_display_path = session.project_path
                         break
+
+        # If no project_display_path was found, return None
+        if not project_display_path:
+            return None
 
         # Calculate project's first_active_at and last_active_at from sessions
         project_first_active_at = None
@@ -189,14 +233,18 @@ class ClaudeProjectsScanner:
 
         return ClaudeProject(
             project_name=project_name,
-            project_path=project_display_path or str(project_path),
+            project_path=project_display_path,
+            project_session_path=str(project_session_path),
             sessions=sessions,
             first_active_at=project_first_active_at,
             last_active_at=project_last_active_at,
         )
 
     def scan_all_projects(self) -> List[ClaudeProject]:
-        """Scan all projects in the Claude projects directory and return a list of ClaudeProject objects."""
+        """Scan all projects and verify validity against ~/.claude.json"""
+        # 1. 加载合法项目列表
+        valid_projects = self.load_valid_projects()
+
         if not self.projects_path.exists():
             logger.warning(
                 f"Claude projects directory does not exist: {self.projects_path}"
@@ -204,11 +252,29 @@ class ClaudeProjectsScanner:
             return []
 
         projects = []
-        # Look for project directories (they follow the pattern of encoded file paths)
+        # 2. 遍历 projects 目录下的所有子目录
         for project_dir in self.projects_path.iterdir():
             if project_dir.is_dir():
+                # 3. 扫描 session 数据
                 project = self.scan_project_sessions(project_dir.name, project_dir)
                 if project:
-                    projects.append(project)
+                    # 4. 验证项目是否合法
+                    # 标准化项目路径以便比较
+                    try:
+                        normalized_project_path = str(
+                            Path(project.project_path).resolve()
+                        )
+                        if normalized_project_path in valid_projects:
+                            # 合法项目，添加到结果列表
+                            projects.append(project)
+                        else:
+                            # 非法项目，记录日志并忽略
+                            logger.debug(
+                                f"Ignoring invalid project: {project.project_path}"
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to validate project {project.project_path}: {e}"
+                        )
 
         return projects

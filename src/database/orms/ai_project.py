@@ -40,6 +40,13 @@ class AIProject(Base):
         comment="项目完整路径",
     )
 
+    # Claude session 存储路径（仅 claude 类型项目有此字段）
+    claude_session_path = Column(
+        Text,
+        nullable=True,
+        comment="Claude session 存储路径",
+    )
+
     # AI工具列表，以JSON格式存储
     ai_tools = Column(
         JSON,

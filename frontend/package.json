@@ -1,10 +1,10 @@
 {
   "name": "frontend",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "scripts": {
-    "dev": "node scripts/copyMonacoToPublic.js && next dev",
-    "build": "node scripts/copyMonacoToPublic.js && next build",
+    "dev": "node scripts/syncEnv.js && node scripts/copyMonacoToPublic.js && next dev",
+    "build": "node scripts/syncEnv.js && node scripts/copyMonacoToPublic.js && next build",
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx,.js,.jsx --fix",
     "lint:check": "eslint . --ext .ts,.tsx,.js,.jsx",
@@ -30,6 +30,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
     "@types/is-absolute": "^1.0.2",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-web-links": "^0.12.0",
     "@xterm/xterm": "^5.5.0",
@@ -44,6 +45,10 @@
     "react-dom": "19.2.3",
     "react-hook-form": "^7.70.0",
     "react-i18next": "^16.5.2",
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.0",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "zod": "^4.3.5"

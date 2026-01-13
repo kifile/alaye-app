@@ -12,9 +12,12 @@ from .claude_lsp_operations import ClaudeLSPOperations
 from .claude_markdown_operations import ClaudeMarkdownOperations
 from .claude_mcp_operations import ClaudeMCPOperations
 from .claude_plugin_operations import ClaudePluginOperations
+from .claude_session_operations import ClaudeSessionOperations
 from .claude_settings_operations import ClaudeSettingsOperations
 from .models import (
     ClaudeMemoryInfo,
+    ClaudeSession,
+    ClaudeSessionInfo,
     ClaudeSettingsInfoDTO,
     ConfigScope,
     HookConfig,
@@ -32,13 +35,19 @@ from .models import (
 class ClaudeConfigManager:
     """Claude 配置管理器"""
 
-    def __init__(self, project_path: str, user_home: str | None = None):
+    def __init__(
+        self,
+        project_path: str,
+        user_home: str | None = None,
+        claude_session_path: str | None = None,
+    ):
         """
         初始化配置管理器
 
         Args:
             project_path: 项目路径
             user_home: 用户主目录路径，可空，默认为系统 User 路径（用于单元测试）
+            claude_session_path: Claude session 存储目录路径，可空（用于 session 操作）
         """
         self.project_path = Path(project_path).resolve()
         if not self.project_path.exists():
@@ -46,6 +55,11 @@ class ClaudeConfigManager:
 
         # 设置用户主目录路径
         self.user_home = Path(user_home).resolve() if user_home else Path.home()
+
+        # 设置 session 存储路径（如果提供）
+        self.claude_session_path = (
+            Path(claude_session_path).resolve() if claude_session_path else None
+        )
 
         # 初始化插件操作模块（其他操作模块依赖它）
         self.plugin_ops = ClaudePluginOperations(self.project_path, self.user_home)
@@ -64,6 +78,13 @@ class ClaudeConfigManager:
             self.project_path, self.user_home, self.plugin_ops
         )
         self.settings_ops = ClaudeSettingsOperations(self.project_path, self.user_home)
+
+        # 初始化 session 操作模块（如果提供了 session 路径）
+        self.session_ops = (
+            ClaudeSessionOperations(self.claude_session_path)
+            if self.claude_session_path
+            else None
+        )
 
     # MCP 相关操作
     async def scan_mcp_servers(self, scope: ConfigScope | None = None) -> MCPInfo:
@@ -430,3 +451,36 @@ class ClaudeConfigManager:
             Optional[str]: README 文件内容，如果文件不存在或读取失败返回 None
         """
         return self.plugin_ops.read_plugin_readme_content(marketplace_name, plugin_name)
+
+    # Session 相关操作
+    async def scan_sessions(self) -> List[ClaudeSessionInfo]:
+        """
+        扫描项目的 session 列表（只返回基本信息）
+
+        Returns:
+            List[ClaudeSessionInfo]: session 简要信息列表
+
+        Raises:
+            ValueError: 如果未提供 claude_session_path
+        """
+        if not self.session_ops:
+            raise ValueError("未提供 claude_session_path，无法扫描 sessions")
+        return await self.session_ops.scan_sessions()
+
+    async def read_session_contents(self, session_id: str) -> Optional[ClaudeSession]:
+        """
+        读取指定 session 的完整内容（包含 messages）
+
+        Args:
+            session_id: session ID
+
+        Returns:
+            Optional[ClaudeSession]: session 完整数据，包含 messages
+                                     如果找不到则返回 None
+
+        Raises:
+            ValueError: 如果未提供 claude_session_path
+        """
+        if not self.session_ops:
+            raise ValueError("未提供 claude_session_path，无法读取 session 内容")
+        return await self.session_ops.read_session_contents(session_id)

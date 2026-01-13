@@ -18,6 +18,9 @@ class AIProjectCreate(BaseModel):
 
     project_name: str = Field(..., min_length=1, max_length=255, description="项目名称")
     project_path: Optional[str] = Field(None, description="项目完整路径")
+    claude_session_path: Optional[str] = Field(
+        None, description="Claude session 存储路径"
+    )
     ai_tools: List[AiToolType] = Field(default=[], description="AI工具列表")
     first_active_at: Optional[datetime] = Field(None, description="首次执行时间")
     last_active_at: Optional[datetime] = Field(None, description="最后执行时间")
@@ -28,6 +31,9 @@ class AIProjectUpdate(BaseModel):
 
     project_name: Optional[str] = Field(
         None, min_length=1, max_length=255, description="项目名称"
+    )
+    claude_session_path: Optional[str] = Field(
+        None, description="Claude session 存储路径"
     )
     ai_tools: Optional[List[AiToolType]] = Field(None, description="AI工具列表")
     first_active_at: Optional[datetime] = Field(None, description="首次执行时间")
@@ -40,6 +46,9 @@ class AIProjectInDB(BaseModel):
     id: int = Field(..., description="项目键名")
     project_name: str = Field(..., description="项目名称")
     project_path: Optional[str] = Field(None, description="项目完整路径")
+    claude_session_path: Optional[str] = Field(
+        None, description="Claude session 存储路径"
+    )
     ai_tools: List[AiToolType] = Field(..., description="AI工具列表")
     first_active_at: Optional[datetime] = Field(
         None, description="首次执行时间", exclude=True

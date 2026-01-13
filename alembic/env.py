@@ -2,6 +2,7 @@ import asyncio
 import os
 import sys
 from logging.config import fileConfig
+from pathlib import Path
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -16,10 +17,23 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # access to the values within the .ini file in use.
 config = context.config
 
+# 动态设置数据库 URL，与 connection.py 保持一致
+db_dir = Path.home() / ".alayeapp"
+db_file = db_dir / "settings.db"
+
+# 确保数据库目录存在
+db_dir.mkdir(parents=True, exist_ok=True)
+
+database_url = f"sqlite+aiosqlite:///{db_file}"
+config.set_main_option("sqlalchemy.url", database_url)
+
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+from src.database.orms.ai_project import AIProject
+from src.database.orms.ai_project_session import AIProjectSession
 
 # 导入所有模型以确保它们被注册到Base.metadata
 from src.database.orms.app_setting import AppSetting

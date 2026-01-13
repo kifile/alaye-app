@@ -63,6 +63,15 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+async def close_db():
+    """
+    关闭数据库连接
+    """
+    logger.info("Closing database connection...")
+    await engine.dispose()
+    logger.info("Database connection closed")
+
+
 async def init_db():
     """
     初始化数据库 - 创建所有表
@@ -81,12 +90,3 @@ async def init_db():
     # Create all tables
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-
-
-async def close_db():
-    """
-    关闭数据库连接
-    """
-    logger.info("Closing database connection...")
-    await engine.dispose()
-    logger.info("Database connection closed")

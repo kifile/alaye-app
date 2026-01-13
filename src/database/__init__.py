@@ -15,8 +15,8 @@ from .schemas.app_setting import (
 
 __all__ = [
     "get_db",
-    "init_db",
     "close_db",
+    "init_db",
     "AppSetting",
     "AppSettingCreate",
     "AppSettingUpdate",

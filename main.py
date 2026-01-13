@@ -223,6 +223,9 @@ async def run_fastapi_mode():
     """FastAPI 模式：让 FastAPI/Uvicorn 管理应用生命周期"""
     logger.info("Starting FastAPI mode...")
 
+    # 首先初始化数据库
+    await init_db()
+
     # 设置 FastAPI 模式的终端系统（在 lifespan 之前设置）
     setup_fastapi_terminal_system()
 

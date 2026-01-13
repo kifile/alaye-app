@@ -42,15 +42,21 @@ import { ConfigScope as ConfigScopeEnum } from '@/api/types';
 import { useTranslation } from 'react-i18next';
 import { Separator } from '@/components/ui/separator';
 
+type KeyValuePair = {
+  id: string;
+  key: string;
+  value: string;
+};
+
 type McpServerFormData = {
   name: string;
   scope: ConfigScope;
   type: 'stdio' | 'sse' | 'http';
   fullCommand: string; // 合并后的完整命令，包含参数
-  env: Record<string, string>;
+  env: KeyValuePair[];
   cwd?: string;
   url?: string;
-  headers: Record<string, string>;
+  headers: KeyValuePair[];
 };
 
 interface McpServerDialogProps {
@@ -102,16 +108,28 @@ export function McpServerDialog({
       scope: getDefaultScope(),
       type: 'stdio',
       fullCommand: '',
-      env: {},
+      env: [],
       cwd: '',
       url: '',
-      headers: {},
+      headers: [],
     },
     mode: 'onChange',
   });
 
   // 监听类型变化
   const serverType = form.watch('type');
+
+  // 辅助函数：将对象转换为 KeyValuePair 数组
+  const objectToKeyValuePairs = (
+    obj: Record<string, string> | undefined
+  ): KeyValuePair[] => {
+    if (!obj) return [];
+    return Object.entries(obj).map(([key, value]) => ({
+      id: `${key}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      key,
+      value,
+    }));
+  };
 
   React.useEffect(() => {
     if (open && serverInfo) {
@@ -129,10 +147,10 @@ export function McpServerDialog({
         scope,
         type: server.type as 'stdio' | 'sse' | 'http',
         fullCommand,
-        env: server.env || {},
+        env: objectToKeyValuePairs(server.env),
         cwd: server.cwd || '',
         url: server.url || '',
-        headers: server.headers || {},
+        headers: objectToKeyValuePairs(server.headers),
       });
     } else if (open && !serverInfo) {
       // 新增模式：重置为默认值，使用 currentScope 作为默认 scope
@@ -141,10 +159,10 @@ export function McpServerDialog({
         scope: getDefaultScope(),
         type: 'stdio',
         fullCommand: '',
-        env: {},
+        env: [],
         cwd: '',
         url: '',
-        headers: {},
+        headers: [],
       });
     }
   }, [serverInfo, open, form, currentScope]);
@@ -156,17 +174,28 @@ export function McpServerDialog({
       const command = commandParts.length > 0 ? commandParts[0] : undefined;
       const args = commandParts.length > 1 ? commandParts.slice(1) : undefined;
 
+      // 辅助函数：将 KeyValuePair 数组转换为对象，处理重复 key（后面的覆盖前面的）
+      const keyValuePairsToObject = (pairs: KeyValuePair[]): Record<string, string> => {
+        const obj: Record<string, string> = {};
+        for (const pair of pairs) {
+          if (pair.key && pair.key.trim() !== '') {
+            obj[pair.key] = pair.value;
+          }
+        }
+        return obj;
+      };
+
+      const envObj = keyValuePairsToObject(data.env);
+      const headersObj = keyValuePairsToObject(data.headers);
+
       const serverData: MCPServer = {
         type: data.type,
         command: command,
         args: args,
-        env: data.env && Object.keys(data.env).length > 0 ? data.env : undefined,
+        env: Object.keys(envObj).length > 0 ? envObj : undefined,
         cwd: data.cwd || undefined,
         url: data.url || undefined,
-        headers:
-          data.headers && Object.keys(data.headers).length > 0
-            ? data.headers
-            : undefined,
+        headers: Object.keys(headersObj).length > 0 ? headersObj : undefined,
       };
 
       await onSave({
@@ -189,46 +218,46 @@ export function McpServerDialog({
 
   // Headers 操作函数
   const addHeader = useCallback(() => {
-    const currentHeaders = form.getValues('headers') || {};
-    form.setValue('headers', {
+    const currentHeaders = form.getValues('headers') || [];
+    form.setValue('headers', [
       ...currentHeaders,
-      '': '',
-    });
+      {
+        id: `header-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        key: '',
+        value: '',
+      },
+    ]);
   }, [form]);
 
   const removeHeader = useCallback(
-    (key: string) => {
-      const currentHeaders = form.getValues('headers') || {};
-      const newHeaders = { ...currentHeaders };
-      delete newHeaders[key];
-      form.setValue('headers', Object.keys(newHeaders).length > 0 ? newHeaders : {});
+    (id: string) => {
+      const currentHeaders = form.getValues('headers') || [];
+      form.setValue(
+        'headers',
+        currentHeaders.filter(h => h.id !== id)
+      );
     },
     [form]
   );
 
   const updateHeaderKey = useCallback(
-    (oldKey: string, newKey: string) => {
-      const currentHeaders = form.getValues('headers') || {};
-      const newHeaders = { ...currentHeaders };
-      if (newKey !== oldKey) {
-        const value = newHeaders[oldKey];
-        delete newHeaders[oldKey];
-        newHeaders[newKey] = value;
-      }
-      form.setValue('headers', newHeaders, { shouldDirty: false });
+    (id: string, newKey: string) => {
+      const currentHeaders = form.getValues('headers') || [];
+      form.setValue(
+        'headers',
+        currentHeaders.map(h => (h.id === id ? { ...h, key: newKey } : h)),
+        { shouldDirty: false }
+      );
     },
     [form]
   );
 
   const updateHeaderValue = useCallback(
-    (key: string, value: string) => {
-      const currentHeaders = form.getValues('headers') || {};
+    (id: string, value: string) => {
+      const currentHeaders = form.getValues('headers') || [];
       form.setValue(
         'headers',
-        {
-          ...currentHeaders,
-          [key]: value,
-        },
+        currentHeaders.map(h => (h.id === id ? { ...h, value } : h)),
         { shouldDirty: false }
       );
     },
@@ -237,46 +266,46 @@ export function McpServerDialog({
 
   // 环境变量操作函数
   const addEnv = useCallback(() => {
-    const currentEnv = form.getValues('env') || {};
-    form.setValue('env', {
+    const currentEnv = form.getValues('env') || [];
+    form.setValue('env', [
       ...currentEnv,
-      '': '',
-    });
+      {
+        id: `env-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        key: '',
+        value: '',
+      },
+    ]);
   }, [form]);
 
   const removeEnv = useCallback(
-    (key: string) => {
-      const currentEnv = form.getValues('env') || {};
-      const newEnv = { ...currentEnv };
-      delete newEnv[key];
-      form.setValue('env', Object.keys(newEnv).length > 0 ? newEnv : {});
+    (id: string) => {
+      const currentEnv = form.getValues('env') || [];
+      form.setValue(
+        'env',
+        currentEnv.filter(e => e.id !== id)
+      );
     },
     [form]
   );
 
   const updateEnvKey = useCallback(
-    (oldKey: string, newKey: string) => {
-      const currentEnv = form.getValues('env') || {};
-      const newEnv = { ...currentEnv };
-      if (newKey !== oldKey) {
-        const value = newEnv[oldKey];
-        delete newEnv[oldKey];
-        newEnv[newKey] = value;
-      }
-      form.setValue('env', newEnv, { shouldDirty: false });
+    (id: string, newKey: string) => {
+      const currentEnv = form.getValues('env') || [];
+      form.setValue(
+        'env',
+        currentEnv.map(e => (e.id === id ? { ...e, key: newKey } : e)),
+        { shouldDirty: false }
+      );
     },
     [form]
   );
 
   const updateEnvValue = useCallback(
-    (key: string, value: string) => {
-      const currentEnv = form.getValues('env') || {};
+    (id: string, value: string) => {
+      const currentEnv = form.getValues('env') || [];
       form.setValue(
         'env',
-        {
-          ...currentEnv,
-          [key]: value,
-        },
+        currentEnv.map(e => (e.id === id ? { ...e, value } : e)),
         { shouldDirty: false }
       );
     },
@@ -444,9 +473,8 @@ export function McpServerDialog({
                       control={form.control}
                       name='headers'
                       render={({ field }) => {
-                        const headers = field.value || {};
-                        const headersArray = Object.entries(headers);
-                        const hasHeaders = headersArray.length > 0;
+                        const headers = field.value || [];
+                        const hasHeaders = headers.length > 0;
 
                         return (
                           <FormItem>
@@ -464,7 +492,7 @@ export function McpServerDialog({
                                 {t('mcpServerDialog.httpHeaders')}
                                 {hasHeaders && (
                                   <span className='ml-1 px-1.5 py-0.5 bg-muted text-[10px] rounded'>
-                                    {headersArray.length}
+                                    {headers.length}
                                   </span>
                                 )}
                               </button>
@@ -486,16 +514,16 @@ export function McpServerDialog({
                             <FormControl>
                               {(headersExpanded || hasHeaders) && (
                                 <div className='space-y-1.5'>
-                                  {headersArray.map(([key, value], index) => (
+                                  {headers.map(header => (
                                     <div
-                                      key={`header-${index}`}
+                                      key={header.id}
                                       className='flex gap-1.5 items-center group'
                                     >
                                       <div className='flex-1 grid grid-cols-2 gap-1.5'>
                                         <Input
-                                          value={key}
+                                          value={header.key}
                                           onChange={e =>
-                                            updateHeaderKey(key, e.target.value)
+                                            updateHeaderKey(header.id, e.target.value)
                                           }
                                           placeholder={t(
                                             'mcpServerDialog.headerNamePlaceholder'
@@ -504,9 +532,9 @@ export function McpServerDialog({
                                           className='h-8 text-xs'
                                         />
                                         <Input
-                                          value={value}
+                                          value={header.value}
                                           onChange={e =>
-                                            updateHeaderValue(key, e.target.value)
+                                            updateHeaderValue(header.id, e.target.value)
                                           }
                                           placeholder={t(
                                             'mcpServerDialog.headerValuePlaceholder'
@@ -519,7 +547,7 @@ export function McpServerDialog({
                                         type='button'
                                         variant='ghost'
                                         size='sm'
-                                        onClick={() => removeHeader(key)}
+                                        onClick={() => removeHeader(header.id)}
                                         disabled={isProcessing}
                                         className='h-8 w-8 p-0 opacity-60 group-hover:opacity-100 transition-opacity'
                                       >
@@ -527,7 +555,7 @@ export function McpServerDialog({
                                       </Button>
                                     </div>
                                   ))}
-                                  {headersArray.length === 0 && (
+                                  {headers.length === 0 && (
                                     <div className='py-6 px-3 border border-dashed rounded-md flex flex-col items-center justify-center text-center'>
                                       <Globe className='w-8 h-8 text-muted-foreground/40 mb-1.5' />
                                       <p className='text-xs text-muted-foreground'>
@@ -603,9 +631,8 @@ export function McpServerDialog({
                       control={form.control}
                       name='env'
                       render={({ field }) => {
-                        const env = field.value || {};
-                        const envArray = Object.entries(env);
-                        const hasEnv = envArray.length > 0;
+                        const env = field.value || [];
+                        const hasEnv = env.length > 0;
 
                         return (
                           <FormItem>
@@ -624,7 +651,7 @@ export function McpServerDialog({
                                 {t('mcpServerDialog.envVars')}
                                 {hasEnv && (
                                   <span className='ml-1 px-1.5 py-0.5 bg-muted text-[10px] rounded'>
-                                    {envArray.length}
+                                    {env.length}
                                   </span>
                                 )}
                               </button>
@@ -646,16 +673,16 @@ export function McpServerDialog({
                             <FormControl>
                               {(envExpanded || hasEnv) && (
                                 <div className='space-y-1.5'>
-                                  {envArray.map(([key, value], index) => (
+                                  {env.map(envVar => (
                                     <div
-                                      key={`env-${index}`}
+                                      key={envVar.id}
                                       className='flex gap-1.5 items-center group'
                                     >
                                       <div className='flex-1 grid grid-cols-2 gap-1.5'>
                                         <Input
-                                          value={key}
+                                          value={envVar.key}
                                           onChange={e =>
-                                            updateEnvKey(key, e.target.value)
+                                            updateEnvKey(envVar.id, e.target.value)
                                           }
                                           placeholder={t(
                                             'mcpServerDialog.envNamePlaceholder'
@@ -664,9 +691,9 @@ export function McpServerDialog({
                                           className='h-8 text-xs'
                                         />
                                         <Input
-                                          value={value}
+                                          value={envVar.value}
                                           onChange={e =>
-                                            updateEnvValue(key, e.target.value)
+                                            updateEnvValue(envVar.id, e.target.value)
                                           }
                                           placeholder={t(
                                             'mcpServerDialog.envValuePlaceholder'
@@ -679,7 +706,7 @@ export function McpServerDialog({
                                         type='button'
                                         variant='ghost'
                                         size='sm'
-                                        onClick={() => removeEnv(key)}
+                                        onClick={() => removeEnv(envVar.id)}
                                         disabled={isProcessing}
                                         className='h-8 w-8 p-0 opacity-60 group-hover:opacity-100 transition-opacity'
                                       >
@@ -687,7 +714,7 @@ export function McpServerDialog({
                                       </Button>
                                     </div>
                                   ))}
-                                  {envArray.length === 0 && (
+                                  {env.length === 0 && (
                                     <div className='py-6 px-3 border border-dashed rounded-md flex flex-col items-center justify-center text-center'>
                                       <Variable className='w-8 h-8 text-muted-foreground/40 mb-1.5' />
                                       <p className='text-xs text-muted-foreground'>
