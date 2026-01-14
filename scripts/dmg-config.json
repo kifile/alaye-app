@@ -1,0 +1,19 @@
+{
+  "title": "Alaye",
+  "background": "dmg-background.png",
+  "icon-size": 100,
+  "contents": [
+    {
+      "x": 190,
+      "y": 220,
+      "type": "file",
+      "path": "../build/alaye.app"
+    },
+    {
+      "x": 530,
+      "y": 220,
+      "type": "link",
+      "path": "/Applications"
+    }
+  ]
+}

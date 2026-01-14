@@ -124,6 +124,34 @@ if [ "$OS" = "Darwin" ]; then
         # Rename the binary executable to main.bin
         mv "$BINARY_PATH" "$APP_MACOS_PATH/main.bin"
 
+        # Fix hardcoded library paths from build environment
+        # This is needed when using Python from conda/miniconda, which hardcodes
+        # absolute paths to libpython3.X.dylib in the binary
+        echo -e "${CYAN}Fixing hardcoded library paths...${NC}"
+        MAIN_BIN="$APP_MACOS_PATH/main.bin"
+
+        # Check if there are any hardcoded user paths
+        # Note: otool -L output has leading tabs, so don't use ^ anchor
+        HARDCODED_PATHS=$(otool -L "$MAIN_BIN" 2>/dev/null | grep "/Users/" || true)
+
+        if [ -n "$HARDCODED_PATHS" ]; then
+            echo "$HARDCODED_PATHS"
+            # Replace absolute paths with @executable_path
+            # This makes dyld search for libraries relative to the executable
+            for lib in $(otool -L "$MAIN_BIN" 2>/dev/null | grep "/Users/" | awk '{print $1}'); do
+                lib_name=$(basename "$lib")
+                echo -e "  ${YELLOW}Fixing: $lib -> @executable_path/$lib_name${NC}"
+                install_name_tool -change "$lib" "@executable_path/$lib_name" "$MAIN_BIN"
+            done
+            echo -e "${GREEN}Library paths fixed successfully!${NC}"
+            # Re-sign the binary after install_name_tool modifications
+            echo -e "${CYAN}Re-signing binary after path fix...${NC}"
+            codesign --force --sign - "$MAIN_BIN" 2>&1 | grep -v "replacing existing" || true
+            echo -e "${GREEN}Binary re-signed successfully!${NC}"
+        else
+            echo -e "${GREEN}No hardcoded library paths found, skipping...${NC}"
+        fi
+
         # Copy the wrapper script to main
         cp "scripts/macos_app_launcher.sh" "$BINARY_PATH"
 
@@ -132,6 +160,11 @@ if [ "$OS" = "Darwin" ]; then
 
         echo -e "${GREEN}Login shell wrapper installed successfully!${NC}"
         echo -e "${CYAN}The app will now launch with your shell environment (.zshrc, .bash_profile, etc.)${NC}"
+
+        # Re-sign the entire app bundle to ensure all code signatures are valid
+        echo -e "${CYAN}Re-signing app bundle...${NC}"
+        codesign --force --deep --sign - "build/$EXECUTABLE_NAME" 2>&1 | grep -v "replacing existing" || true
+        echo -e "${GREEN}App bundle re-signed successfully!${NC}"
     fi
 fi
 
@@ -143,34 +176,53 @@ if [ $? -eq 0 ]; then
 
     # Create package for different platforms
     if [ "$OS" = "Darwin" ]; then
-        # macOS: Create DMG installer
+        # macOS: Create DMG installer with node-appdmg
         echo -e "${CYAN}Creating DMG installer...${NC}"
 
-        DMG_NAME="alaye-darwin-$(date +%Y%m%d).dmg"
-        DMG_PATH="build/$DMG_NAME"
-
-        # Create a temporary directory for DMG contents
-        TEMP_DIR=$(mktemp -d)
-        cp -R "build/$EXECUTABLE_NAME" "$TEMP_DIR/"
-
-        # Create DMG
-        hdiutil create -volname "Alaye" -srcfolder "$TEMP_DIR" -ov -format UDZO "$DMG_PATH"
-
-        # Clean up temporary directory
-        rm -rf "$TEMP_DIR"
-
-        if [ $? -eq 0 ]; then
-            echo ""
-            echo -e "${GREEN}DMG created successfully!${NC}"
-            echo -e "${GREEN}DMG location: $DMG_PATH${NC}"
-            echo ""
-            echo -e "${CYAN}To install:${NC}"
-            echo -e "${YELLOW}  1. Open $DMG_PATH${NC}"
-            echo -e "${YELLOW}  2. Drag Alaye.app to Applications folder${NC}"
+        # Check if node-appdmg is available
+        if ! command -v appdmg &> /dev/null && [ ! -f "node_modules/.bin/appdmg" ]; then
+            echo -e "${YELLOW}⚠ node-appdmg not found${NC}"
+            echo -e "${CYAN}Install it: npm install -g appdmg${NC}"
+            echo -e "${YELLOW}Skipping DMG creation${NC}"
         else
-            echo ""
-            echo -e "${YELLOW}Warning: DMG creation failed, but app bundle was created successfully.${NC}"
-            echo -e "${YELLOW}You can still run the app directly from: build/$EXECUTABLE_NAME${NC}"
+            # Generate background image
+            if [ -f "scripts/create-dmg-background.sh" ]; then
+                echo -e "${CYAN}Generating background...${NC}"
+                bash scripts/create-dmg-background.sh
+            fi
+
+            DMG_NAME="alaye-darwin-$(date +%Y%m%d).dmg"
+            DMG_PATH="build/$DMG_NAME"
+
+            echo -e "${CYAN}Building DMG...${NC}"
+            echo -e "${CYAN}  Volume: Alaye${NC}"
+            echo -e "${CYAN}  Size: 720x400${NC}"
+            echo -e "${CYAN}  Icons: 100px${NC}"
+
+            # Use appdmg or npx
+            if command -v appdmg &> /dev/null; then
+                appdmg scripts/dmg-config.json "$DMG_PATH"
+            else
+                npx appdmg scripts/dmg-config.json "$DMG_PATH"
+            fi
+
+            if [ $? -eq 0 ]; then
+                echo ""
+                echo -e "${GREEN}========================================${NC}"
+                echo -e "${GREEN}DMG created successfully!${NC}"
+                echo -e "${GREEN}========================================${NC}"
+                echo -e "${GREEN}DMG location: $DMG_PATH${NC}"
+                echo ""
+                echo -e "${CYAN}Size: $(ls -lh "$DMG_PATH" | awk '{print $5}')${NC}"
+                echo ""
+                echo -e "${CYAN}To install:${NC}"
+                echo -e "${YELLOW}  1. Open $DMG_PATH${NC}"
+                echo -e "${YELLOW}  2. Drag Alaye.app to Applications folder${NC}"
+            else
+                echo ""
+                echo -e "${YELLOW}⚠ DMG creation failed, but app bundle was created successfully.${NC}"
+                echo -e "${YELLOW}You can still run the app from: build/$EXECUTABLE_NAME${NC}"
+            fi
         fi
     elif [ "$OS" = "Linux" ]; then
         # Linux: Create tar.gz package
