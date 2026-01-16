@@ -8,9 +8,8 @@ import logging
 import multiprocessing
 import subprocess
 import sys
-import threading
 from pathlib import Path
-from typing import List, Optional
+from typing import Awaitable, Callable, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -146,44 +145,45 @@ def run_process(
         )
 
 
-# 全局变量用于存储要执行的异步函数、函数名和异常队列
-_subprocess_async_func = None
-_subprocess_func_name = None
-_subprocess_lock = threading.Lock()  # 保护全局变量的线程锁
-
-
-def _subprocess_entry(exception_queue: multiprocessing.Queue):
+def _subprocess_entry(
+    func_queue: multiprocessing.Queue, exception_queue: multiprocessing.Queue
+) -> None:
     """
     子进程入口函数（模块级别，可被 multiprocessing 序列化）。
 
-    此函数在子进程中执行，调用 _subprocess_async_func 并处理异常。
+    此函数在子进程中执行，从队列中获取异步函数并运行，处理异常。
 
     Args:
+        func_queue: 用于接收异步函数和函数名的队列
         exception_queue: 用于传递异常信息的队列
     """
-    global _subprocess_async_func, _subprocess_func_name
+    # 从队列中获取函数和函数名
+    func_data: tuple[Callable[[], Awaitable[None]], str] = func_queue.get()
+    async_func, func_name = func_data
 
-    if _subprocess_async_func is None:
+    if async_func is None:
         error_msg = "No async function set for subprocess"
         logger.error(error_msg)
         exception_queue.put((None, error_msg, None))
         sys.exit(1)
 
     try:
-        asyncio.run(_subprocess_async_func())
+        asyncio.run(async_func())
         sys.exit(0)
     except Exception as e:
         import traceback
 
-        func_name = _subprocess_func_name or "unknown"
-        error_msg = f"{func_name} failed in subprocess: {e}"
+        name = func_name or "unknown"
+        error_msg = f"{name} failed in subprocess: {e}"
         logger.error(error_msg, exc_info=True)
         # 将异常信息放入队列，传递给父进程
         exception_queue.put((type(e).__name__, str(e), traceback.format_exc()))
         sys.exit(1)
 
 
-async def run_in_subprocess(async_func, func_name: str = "async_function") -> bool:
+async def run_in_subprocess(
+    async_func: Callable[[], Awaitable[None]], func_name: str = "async_function"
+) -> bool:
     """
     在独立子进程中执行异步函数，避免子进程的日志/配置影响主进程。
 
@@ -191,10 +191,10 @@ async def run_in_subprocess(async_func, func_name: str = "async_function") -> bo
     - Unix/Linux/macOS: 使用 fork()（高效，复制父进程内存）
     - Windows: 使用 spawn()（启动新的 Python 解释器）
 
-    线程安全：使用内部锁保护全局变量，支持并发调用。
+    线程安全：使用队列传递函数，支持并发调用。
 
     Args:
-        async_func: 要执行的异步函数（无参数）
+        async_func: 要执行的异步函数（必须是模块级函数以便 pickle，不支持闭包/局部函数）
         func_name: 函数名称，用于日志输出
 
     Returns:
@@ -215,61 +215,61 @@ async def run_in_subprocess(async_func, func_name: str = "async_function") -> bo
         except RuntimeError as e:
             logger.error(f"Task failed: {e}")
     """
-    global _subprocess_async_func, _subprocess_func_name
-
     logger.info(f"Running {func_name} in subprocess...")
 
-    # 创建异常队列，用于从子进程传递异常信息到父进程
+    # 创建队列，用于父进程和子进程之间传递数据
+    func_queue = multiprocessing.Queue()
     exception_queue = multiprocessing.Queue()
 
-    # 使用锁保护全局变量，防止并发调用时的竞态条件
-    with _subprocess_lock:
-        # 设置全局变量，fork 模式下子进程会继承这些值
-        _subprocess_async_func = async_func
-        _subprocess_func_name = func_name
+    try:
+        # 将函数和函数名放入队列，子进程会从这里读取
+        func_queue.put((async_func, func_name))
 
-        try:
-            # Unix 系统使用 fork（子进程继承父进程内存，不需要 pickle）
-            # Windows 使用 spawn（需要 pickle 函数，所以 async_func 必须是可序列化的）
-            if sys.platform != "win32":
-                ctx = multiprocessing.get_context("fork")
-            else:
-                ctx = multiprocessing.get_context("spawn")
+        # Unix 系统使用 fork（子进程继承父进程内存，不需要 pickle）
+        # Windows 使用 spawn（需要 pickle 函数，所以 async_func 必须是可序列化的）
+        if sys.platform != "win32":
+            ctx = multiprocessing.get_context("fork")
+        else:
+            ctx = multiprocessing.get_context("spawn")
 
-            # 创建进程，传递异常队列
-            process = ctx.Process(target=_subprocess_entry, args=(exception_queue,))
-
-            # 启动子进程
-            process.start()
-            logger.info(f"Subprocess started for {func_name} (PID: {process.pid})")
-
-        finally:
-            # 清理全局变量（在进程启动后立即清理，减少锁持有时间）
-            _subprocess_async_func = None
-            _subprocess_func_name = None
-
-    # 等待子进程完成
-    process.join()
-
-    # 检查退出码
-    if process.exitcode == 0:
-        logger.info(f"Subprocess for {func_name} completed successfully")
-        return True
-    else:
-        # 从队列中获取异常信息
-        error_details = []
-        while not exception_queue.empty():
-            exc_type, exc_msg, exc_tb = exception_queue.get()
-            if exc_type:
-                error_details.append(f"{exc_type}: {exc_msg}")
-            else:
-                error_details.append(exc_msg)
-
-        error_msg = (
-            f"Subprocess for {func_name} failed with exit code: {process.exitcode}"
+        # 创建进程，传递函数队列和异常队列
+        process = ctx.Process(
+            target=_subprocess_entry, args=(func_queue, exception_queue)
         )
-        if error_details:
-            error_msg += f" | Details: {'; '.join(error_details)}"
 
-        logger.error(error_msg)
-        raise RuntimeError(error_msg)
+        # 启动子进程
+        process.start()
+        logger.info(f"Subprocess started for {func_name} (PID: {process.pid})")
+
+        # 等待子进程完成
+        process.join()
+
+        # 检查退出码
+        if process.exitcode == 0:
+            logger.info(f"Subprocess for {func_name} completed successfully")
+            return True
+        else:
+            # 从队列中获取异常信息
+            error_details = []
+            while not exception_queue.empty():
+                exc_type, exc_msg, exc_tb = exception_queue.get()
+                if exc_type:
+                    error_details.append(f"{exc_type}: {exc_msg}")
+                else:
+                    error_details.append(exc_msg)
+
+            error_msg = (
+                f"Subprocess for {func_name} failed with exit code: {process.exitcode}"
+            )
+            if error_details:
+                error_msg += f" | Details: {'; '.join(error_details)}"
+
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
+
+    finally:
+        # 清理队列资源，防止资源泄漏
+        func_queue.close()
+        exception_queue.close()
+        func_queue.join_thread()
+        exception_queue.join_thread()

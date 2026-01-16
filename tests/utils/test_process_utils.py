@@ -8,34 +8,60 @@ import pytest
 
 from src.utils.process_utils import run_in_subprocess
 
+# Test constants
+TEST_SLEEP_DELAY = 0.01
+
+# 模块级别的共享状态，用于测试子进程隔离
+_module_level_shared_value = {"value": 0}
+_module_level_execution_count = {"count": 0}
+
 
 # 模块级别的异步函数，用于测试（避免 fork 模式下的序列化问题）
 async def _module_level_success_task():
-    await asyncio.sleep(0.01)
+    await asyncio.sleep(TEST_SLEEP_DELAY)
     return "success"
 
 
 async def _module_level_failing_task():
-    await asyncio.sleep(0.01)
+    await asyncio.sleep(TEST_SLEEP_DELAY)
     raise ValueError("Test error")
 
 
 async def _module_level_custom_exception_task():
-    await asyncio.sleep(0.01)
+    await asyncio.sleep(TEST_SLEEP_DELAY)
     raise RuntimeError("Custom runtime error for testing")
 
 
 async def _module_level_complex_task():
-    await asyncio.sleep(0.01)
-    await asyncio.sleep(0.01)
+    await asyncio.sleep(TEST_SLEEP_DELAY)
+    await asyncio.sleep(TEST_SLEEP_DELAY)
     result = []
     for i in range(5):
         result.append(i)
-    await asyncio.sleep(0.01)
+    await asyncio.sleep(TEST_SLEEP_DELAY)
+
+
+async def _module_level_modify_shared_value():
+    # 子进程中修改此变量，不应该影响父进程
+    _module_level_shared_value["value"] = 999
+    await asyncio.sleep(TEST_SLEEP_DELAY)
+
+
+async def _module_level_counting_task():
+    _module_level_execution_count["count"] += 1
+    await asyncio.sleep(TEST_SLEEP_DELAY)
 
 
 class TestRunInSubprocess:
     """测试 run_in_subprocess 函数"""
+
+    @pytest.fixture(autouse=True)
+    def reset_shared_state(self):
+        """在每个测试前重置共享状态，确保测试隔离"""
+        _module_level_shared_value["value"] = 0
+        _module_level_execution_count["count"] = 0
+        yield
+        # 测试完成后清理（如果需要）
 
     @pytest.mark.asyncio
     async def test_successful_async_function(self):
@@ -73,18 +99,13 @@ class TestRunInSubprocess:
     @pytest.mark.asyncio
     async def test_async_function_with_side_effects(self):
         """测试有副作用的异步函数（验证子进程隔离）"""
-        # 使用共享变量来验证子进程隔离
-        shared_value = {"value": 0}
-
-        async def modify_shared_value():
-            # 子进程中修改此变量，不应该影响父进程
-            shared_value["value"] = 999
-            await asyncio.sleep(0.01)
-
-        await run_in_subprocess(modify_shared_value, "modify_shared_value")
+        # 在子进程中运行修改操作
+        await run_in_subprocess(
+            _module_level_modify_shared_value, "_module_level_modify_shared_value"
+        )
 
         # 父进程中的值应该保持不变（子进程隔离）
-        assert shared_value["value"] == 0
+        assert _module_level_shared_value["value"] == 0
 
     @pytest.mark.asyncio
     async def test_async_function_with_custom_name(self):
@@ -116,19 +137,12 @@ class TestRunInSubprocess:
     @pytest.mark.asyncio
     async def test_concurrent_calls_with_mixed_results(self):
         """测试并发调用包含成功和失败的情况"""
-        # 创建一个计数器来验证所有任务都被执行
-        execution_count = {"count": 0}
-
-        async def counting_task():
-            execution_count["count"] += 1
-            await asyncio.sleep(0.01)
-
         # 同时运行多个任务，其中一些会失败
         # 不使用 return_exceptions=True，让异常正常传播
         results = await asyncio.gather(
-            run_in_subprocess(counting_task, "counting_task_1"),
+            run_in_subprocess(_module_level_counting_task, "counting_task_1"),
             run_in_subprocess(_module_level_failing_task, "failing_task"),
-            run_in_subprocess(counting_task, "counting_task_2"),
+            run_in_subprocess(_module_level_counting_task, "counting_task_2"),
             return_exceptions=True,
         )
 
