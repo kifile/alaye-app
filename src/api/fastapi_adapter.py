@@ -70,71 +70,41 @@ manager = ConnectionManager()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI, on_startup=None, on_cleanup=None):
     """FastAPI 应用生命周期管理"""
     logger.info("FastAPI server starting up...")
 
-    # 启动时初始化应用
-    from src.config import (
-        app_config_listener,
-        config_change_manager,
-        config_service,
-        tool_config_listener,
-    )
-    from src.database import init_db
-    from src.project.project_service import project_service
-    from src.terminal.terminal_manager_service import get_terminal_manager
-
-    try:
-        # 初始化数据库
-        await init_db()
-        
-        # 注册工具配置监听器
-        config_change_manager.add_listener(tool_config_listener)
-
-        # 注册应用配置监听器
-        config_change_manager.add_listener(app_config_listener)
-
-        # 初始化配置服务
-        await config_service.initialize()
-
-        # 扫描所有 Claude 项目
+    # 启动时执行初始化回调
+    if on_startup:
         try:
-            await project_service.scan_and_save_all_projects()
+            await on_startup()
         except Exception as e:
-            logger.warning(f"Claude projects scan failed: {e}")
-
-        logger.info("Application initialization completed")
-    except Exception as e:
-        logger.error(f"Failed to initialize application: {e}")
-        raise
+            logger.error(f"Failed to initialize application: {e}")
+            raise
 
     yield
 
-    # 关闭时清理资源
+    # 关闭时执行清理回调
     logger.info("FastAPI server shutting down...")
-    try:
-        # 清理终端管理服务
-        terminal_manager = get_terminal_manager()
-        terminal_manager.cleanup()
-
-        # 关闭数据库连接
-        from src.database import close_db
-
-        await close_db()
-
-        logger.info("Application cleanup completed")
-    except Exception as e:
-        logger.error(f"Error during cleanup: {e}")
+    if on_cleanup:
+        try:
+            await on_cleanup()
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}")
 
 
-def create_fastapi_app() -> FastAPI:
+def create_fastapi_app(on_startup=None, on_cleanup=None) -> FastAPI:
     """创建并配置 FastAPI 应用实例"""
+    # 创建部分应用的 lifespan 函数
+    from functools import partial
+
+    lifespan_with_callbacks = partial(lifespan, on_startup=on_startup, on_cleanup=on_cleanup)
+
     app = FastAPI(
         title="PyWebview Demo API",
         description="HTTP API for PyWebview Demo Application",
         version="1.0.0",
-        lifespan=lifespan,
+        lifespan=lifespan_with_callbacks,
     )
 
     # 配置 CORS
@@ -202,19 +172,21 @@ def register_websocket_endpoint(app: FastAPI):
             manager.disconnect(websocket)
 
 
-def get_fastapi_app() -> FastAPI:
+def get_fastapi_app(on_startup=None, on_cleanup=None) -> FastAPI:
     """获取 FastAPI 应用实例（单例模式）"""
     global fastapi_app
     if fastapi_app is None:
-        fastapi_app = create_fastapi_app()
+        fastapi_app = create_fastapi_app(on_startup=on_startup, on_cleanup=on_cleanup)
     return fastapi_app
 
 
-async def run_fastapi_server(host: str = "127.0.0.1", port: int = 8000):
+async def run_fastapi_server(
+    host: str = "127.0.0.1", port: int = 8000, on_startup=None, on_cleanup=None
+):
     """运行 FastAPI 服务器"""
     import uvicorn
 
-    app = get_fastapi_app()
+    app = get_fastapi_app(on_startup=on_startup, on_cleanup=on_cleanup)
     config = uvicorn.Config(
         app=app,
         host=host,

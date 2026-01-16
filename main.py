@@ -102,6 +102,30 @@ async def initialize_app():
     logger.info("Application initialization completed")
 
 
+async def cleanup_app():
+    """清理应用程序资源"""
+    logger.info("Starting application cleanup...")
+
+    # 清理终端管理服务
+    logger.info("Cleaning up terminal manager service...")
+    terminal_manager = get_terminal_manager()
+    try:
+        terminal_manager.cleanup()
+        logger.info("Terminal manager cleaned up successfully")
+    except Exception as e:
+        logger.error(f"Error cleaning up terminal manager: {e}")
+
+    # 关闭数据库连接
+    logger.info("Closing database...")
+    try:
+        await close_db()
+        logger.info("Database closed successfully")
+    except Exception as e:
+        logger.error(f"Error closing database: {e}")
+
+    logger.info("Application cleanup completed")
+
+
 def get_resource_path(relative_path: str) -> str:
     """获取资源文件的绝对路径，支持开发环境和 Nuitka 打包后的环境"""
     return os.path.join(os.path.dirname(__file__), relative_path)
@@ -224,9 +248,6 @@ async def run_fastapi_mode():
     """FastAPI 模式：让 FastAPI/Uvicorn 管理应用生命周期"""
     logger.info("Starting FastAPI mode...")
 
-    # 首先初始化数据库
-    await init_db()
-
     # 设置 FastAPI 模式的终端系统（在 lifespan 之前设置）
     setup_fastapi_terminal_system()
 
@@ -234,7 +255,7 @@ async def run_fastapi_mode():
     logger.info("Hint: Press Ctrl+C to exit the server")
 
     # 启动 FastAPI 服务器（lifespan 会处理初始化和清理）
-    await run_fastapi_server()
+    await run_fastapi_server(on_startup=initialize_app, on_cleanup=cleanup_app)
 
 
 def run_pywebview_mode(app_url):
@@ -313,30 +334,24 @@ def run_pywebview_mode(app_url):
     finally:
         logger.info("Starting resource cleanup...")
 
-        # 1. 先在事件循环中关闭数据库（需要循环还在运行）
+        # 1. 先在事件循环中执行应用清理（需要循环还在运行）
         if loop and loop.is_running():
-            logger.info("Closing database...")
             try:
-                future = asyncio.run_coroutine_threadsafe(close_db(), loop)
-                future.result(timeout=3.0)  # Wait max 3 seconds
-                logger.info("Database closed successfully")
+                future = asyncio.run_coroutine_threadsafe(cleanup_app(), loop)
+                future.result(timeout=5.0)  # Wait max 5 seconds
+                logger.info("Application cleanup completed")
             except asyncio.TimeoutError:
-                logger.error("Database close timeout")
+                logger.error("Application cleanup timeout")
             except Exception as e:
-                logger.error(f"Database close failed: {e}")
+                logger.error(f"Application cleanup failed: {e}")
 
-        # 2. 清理终端管理服务
-        logger.info("Cleaning up terminal manager service...")
-        terminal_manager = get_terminal_manager()
-        terminal_manager.cleanup()
-
-        # 3. 停止后台事件循环（在所有异步操作完成后）
+        # 2. 停止后台事件循环（在所有异步操作完成后）
         if loop and loop.is_running():
             logger.info("Stopping event loop...")
             background_thread_async_executor.stop_loop()
             time.sleep(0.1)  # Give loop some time to stop
 
-        # 4. 等待事件循环线程结束
+        # 3. 等待事件循环线程结束
         if event_loop_thread.is_alive():
             logger.info("Waiting for event loop thread to end...")
             event_loop_thread.join(timeout=2.0)
