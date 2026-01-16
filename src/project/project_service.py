@@ -65,7 +65,9 @@ class ProjectService:
                 existing_projects = await ai_project_crud.read_all(db)
 
                 # 构建现有项目的project_path集合和新扫描到的project_path集合
-                existing_project_paths = {p.project_path for p in existing_projects if p.project_path}
+                existing_project_paths = {
+                    p.project_path for p in existing_projects if p.project_path
+                }
                 new_project_paths = {p.project_path for p in projects}
 
                 # 找出需要删除的项目（数据库中存在但扫描结果中不存在）
@@ -74,7 +76,11 @@ class ProjectService:
                 # 删除不再存在的项目
                 for project_path in projects_to_delete:
                     project_to_delete = next(
-                        (p for p in existing_projects if p.project_path == project_path),
+                        (
+                            p
+                            for p in existing_projects
+                            if p.project_path == project_path
+                        ),
                         None,
                     )
                     if project_to_delete:

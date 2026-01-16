@@ -98,7 +98,9 @@ def create_fastapi_app(on_startup=None, on_cleanup=None) -> FastAPI:
     # 创建部分应用的 lifespan 函数
     from functools import partial
 
-    lifespan_with_callbacks = partial(lifespan, on_startup=on_startup, on_cleanup=on_cleanup)
+    lifespan_with_callbacks = partial(
+        lifespan, on_startup=on_startup, on_cleanup=on_cleanup
+    )
 
     app = FastAPI(
         title="PyWebview Demo API",

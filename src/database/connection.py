@@ -29,35 +29,41 @@ def _get_resource_path(relative_path: str) -> Path:
     candidates = []
 
     # 检测是否在 Nuitka 环境
-    is_nuitka = '__nuitka__' in globals() or '__compiled__' in globals()
+    is_nuitka = "__nuitka__" in globals() or "__compiled__" in globals()
 
     # 1. 尝试从当前可执行文件目录推导（Nuitka 打包环境）
-    if is_nuitka and '__file__' in globals():
+    if is_nuitka and "__file__" in globals():
         try:
             # 在 Nuitka 环境中，__file__ 指向编译后的 .pyc 文件位置
             # 资源文件通常在同一目录或父目录
             current_dir = Path(__file__).parent
             candidates.append(current_dir / relative_path)
-            logger.debug(f"Nuitka: Added path from __file__ parent: {current_dir / relative_path}")
+            logger.debug(
+                f"Nuitka: Added path from __file__ parent: {current_dir / relative_path}"
+            )
         except Exception as e:
             logger.debug(f"Could not get path from Nuitka __file__: {e}")
 
     # 2. 尝试从 Nuitka 二进制目录推导
     try:
-        nuitka_dir = globals().get('__nuitka_binary_dir')
+        nuitka_dir = globals().get("__nuitka_binary_dir")
         if nuitka_dir:
             nuitka_root = Path(nuitka_dir)
             candidates.append(nuitka_root / relative_path)
-            logger.debug(f"Nuitka: Added path from __nuitka_binary_dir: {nuitka_root / relative_path}")
+            logger.debug(
+                f"Nuitka: Added path from __nuitka_binary_dir: {nuitka_root / relative_path}"
+            )
     except Exception as e:
         logger.debug(f"Could not get Nuitka binary dir: {e}")
 
     # 3. 尝试从 __file__ 推导（正常 Python 环境）
     try:
-        if '__file__' in globals():
+        if "__file__" in globals():
             project_root = Path(__file__).parent.parent.parent
             candidates.append(project_root / relative_path)
-            logger.debug(f"Added path from __file__ project root: {project_root / relative_path}")
+            logger.debug(
+                f"Added path from __file__ project root: {project_root / relative_path}"
+            )
     except Exception as e:
         logger.debug(f"Could not get path from __file__: {e}")
 
@@ -152,12 +158,16 @@ async def close_db():
     logger.info("Database connection closed")
 
 
-async def init_db():
+async def _init_db_internal():
     """
-    初始化数据库 - 使用 Alembic 迁移
+    内部数据库初始化函数 - 执行实际的 Alembic 迁移工作。
+
+    此函数包含所有 Alembic 迁移逻辑，应在独立子进程中调用
+    以避免日志配置问题。
     """
     import tempfile
     import zipfile
+
     from alembic import command
     from alembic.config import Config
 
@@ -174,20 +184,23 @@ async def init_db():
     logger.info(f"__file__ = {__file__}")
 
     # 检查是否在 Nuitka 环境中运行
-    nuitka_dir = globals().get('__nuitka_binary_dir')
-    is_nuitka = '__nuitka__' in globals() or '__compiled__' in globals()
+    nuitka_dir = globals().get("__nuitka_binary_dir")
+    is_nuitka = "__nuitka__" in globals() or "__compiled__" in globals()
 
     if nuitka_dir:
         logger.info(f"Running in Nuitka environment")
         logger.info(f"__nuitka_binary_dir = {nuitka_dir}")
     elif is_nuitka:
-        logger.info(f"Running in Nuitka environment (detected via __nuitka__ or __compiled__)")
+        logger.info(
+            f"Running in Nuitka environment (detected via __nuitka__ or __compiled__)"
+        )
         # 尝试获取二进制目录
         try:
             import sys
-            if hasattr(sys, '_MEIPASS'):  # PyInstaller
+
+            if hasattr(sys, "_MEIPASS"):  # PyInstaller
                 nuitka_dir = sys._MEIPASS
-            elif '__file__' in globals():
+            elif "__file__" in globals():
                 # Nuitka: 可执行文件所在目录
                 nuitka_dir = str(Path(__file__).parent)
             logger.info(f"Detected binary directory: {nuitka_dir}")
@@ -214,7 +227,7 @@ async def init_db():
         logger.info(f"Created temporary directory: {temp_dir}")
 
         try:
-            with zipfile.ZipFile(alembic_zip_path, 'r') as zip_ref:
+            with zipfile.ZipFile(alembic_zip_path, "r") as zip_ref:
                 zip_ref.extractall(temp_dir)
                 logger.info(f"Extracted {len(zip_ref.namelist())} files")
 
@@ -222,16 +235,21 @@ async def init_db():
             logger.info(f"Extracted alembic_migrations directory: {alembic_dir}")
 
             if not alembic_dir.exists():
-                raise FileNotFoundError(f"Expected alembic_migrations directory not found in zip")
+                raise FileNotFoundError(
+                    f"Expected alembic_migrations directory not found in zip"
+                )
 
         except Exception as e:
             logger.error(f"Failed to extract alembic_migrations.zip: {e}")
             if temp_dir:
                 import shutil
+
                 shutil.rmtree(temp_dir, ignore_errors=True)
             raise e
     else:
-        logger.info("alembic_migrations.zip not found, looking for alembic_migrations directory...")
+        logger.info(
+            "alembic_migrations.zip not found, looking for alembic_migrations directory..."
+        )
         alembic_dir = _get_resource_path("alembic_migrations")
 
     logger.info("\nDetailed path information:")
@@ -244,12 +262,16 @@ async def init_db():
         # 检查 versions 目录
         alembic_versions_dir = alembic_dir / "versions"
         logger.info(f"  alembic_migrations/versions path = {alembic_versions_dir}")
-        logger.info(f"  alembic_migrations/versions exists = {alembic_versions_dir.exists()}")
+        logger.info(
+            f"  alembic_migrations/versions exists = {alembic_versions_dir.exists()}"
+        )
 
         # 列出 alembic_migrations 目录下的文件
         try:
             files_in_alembic = list(alembic_dir.iterdir())
-            logger.info(f"  Files in alembic_migrations/: {[f.name for f in files_in_alembic]}")
+            logger.info(
+                f"  Files in alembic_migrations/: {[f.name for f in files_in_alembic]}"
+            )
         except Exception as e:
             logger.warning(f"  Could not list alembic_migrations/ directory: {e}")
 
@@ -273,15 +295,21 @@ async def init_db():
 
         # 关键：设置 script_location 指向 alembic_migrations 目录
         if not alembic_dir.exists():
-            raise FileNotFoundError(f"alembic_migrations directory not found at: {alembic_dir}")
+            raise FileNotFoundError(
+                f"alembic_migrations directory not found at: {alembic_dir}"
+            )
 
         alembic_cfg.set_main_option("script_location", str(alembic_dir))
         logger.info(f"Set script_location to: {alembic_dir}")
 
         # 记录当前配置
         logger.info("Alembic configuration:")
-        logger.info(f"  sqlalchemy.url = {alembic_cfg.get_main_option('sqlalchemy.url')}")
-        logger.info(f"  script_location = {alembic_cfg.get_main_option('script_location')}")
+        logger.info(
+            f"  sqlalchemy.url = {alembic_cfg.get_main_option('sqlalchemy.url')}"
+        )
+        logger.info(
+            f"  script_location = {alembic_cfg.get_main_option('script_location')}"
+        )
 
         # 执行迁移到 head
         logger.info("Starting Alembic upgrade to head...")
@@ -291,6 +319,7 @@ async def init_db():
         # 清理临时目录（如果是从 zip 解压的）
         if temp_dir:
             import shutil
+
             logger.info(f"Cleaning up temporary directory: {temp_dir}")
             shutil.rmtree(temp_dir, ignore_errors=True)
 
@@ -300,7 +329,24 @@ async def init_db():
         # 清理临时目录（即使在失败时）
         if temp_dir:
             import shutil
+
             logger.info(f"Cleaning up temporary directory after error: {temp_dir}")
             shutil.rmtree(temp_dir, ignore_errors=True)
 
         raise e
+
+
+async def init_db():
+    """
+    初始化数据库 - 使用 Alembic 迁移
+
+    此函数会在独立子进程中执行数据库初始化，避免 Alembic 的日志配置
+    影响主进程。
+
+    Raises:
+        RuntimeError: 如果子进程执行失败，异常信息会包含详细的错误原因
+    """
+    from src.utils.process_utils import run_in_subprocess
+
+    # run_in_subprocess 会在失败时抛出 RuntimeError 并包含详细错误信息
+    await run_in_subprocess(_init_db_internal, "database initialization")
