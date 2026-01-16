@@ -161,7 +161,9 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
             className='p-1.5 hover:bg-gray-100 rounded-lg transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed'
             title='Refresh session'
           >
-            <RefreshCw className={`h-4 w-4 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`h-4 w-4 text-gray-600 ${loading ? 'animate-spin' : ''}`}
+            />
           </button>
 
           {/* 标题和徽章 */}

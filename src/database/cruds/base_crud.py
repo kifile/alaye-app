@@ -212,9 +212,17 @@ class CRUDBase(Generic[ModelType, CreateSchemaType, UpdateSchemaType, InDbSchema
         return self.schema.model_validate(result) if result else None
 
     async def read_all(
-        self, db: AsyncSession, *, where: Any = None, order_by: Any = None, skip: int = None, limit: int = None
+        self,
+        db: AsyncSession,
+        *,
+        where: Any = None,
+        order_by: Any = None,
+        skip: int = None,
+        limit: int = None,
     ) -> List[InDbSchemaType]:
-        result = await self._read_all(db, where=where, order_by=order_by, skip=skip, limit=limit)
+        result = await self._read_all(
+            db, where=where, order_by=order_by, skip=skip, limit=limit
+        )
         return [self.schema.model_validate(item) for item in result]
 
     async def update(
