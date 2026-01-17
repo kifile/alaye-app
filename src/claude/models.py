@@ -544,7 +544,10 @@ class ClaudeSession(BaseModel):
 
     session_id: str
     session_file: str
-    session_file_md5: Optional[str] = None
+    title: Optional[str] = None  # 会话标题
+    session_file_md5: Optional[str] = None  # 保留用于向后兼容
+    file_mtime: Optional[datetime] = Field(None, exclude=True)  # 文件修改时间
+    file_size: Optional[int] = Field(None, exclude=True)  # 文件大小
     is_agent_session: bool = False
     messages: List[ClaudeMessage] = Field(default_factory=list)
     first_active_at: Optional[datetime] = Field(
@@ -553,8 +556,12 @@ class ClaudeSession(BaseModel):
     last_active_at: Optional[datetime] = Field(
         default=None, exclude=True
     )  # Exclude from serialization
-    project_path: Optional[str] = None
-    git_branch: Optional[str] = None
+    project_path: Optional[str] = Field(
+        None, deprecated=True, description="已弃用：不再从 session 中提取"
+    )
+    git_branch: Optional[str] = Field(
+        None, deprecated=True, description="已弃用：不再从 session 中提取"
+    )
     message_count: int = 0
 
 
@@ -563,14 +570,14 @@ class ClaudeSessionInfo(BaseModel):
 
     session_id: str
     session_file: str
-    last_modified: Optional[datetime] = Field(None, exclude=True)
+    title: Optional[str] = None  # 会话标题
+    file_mtime: Optional[datetime] = Field(None, exclude=True)  # 文件修改时间
+    file_size: Optional[int] = Field(None, exclude=True)  # 文件大小（字节）
     is_agent_session: bool = False
 
     @computed_field
     @property
-    def last_modified_str(self) -> Optional[str]:
+    def file_mtime_str(self) -> Optional[str]:
         return (
-            self.last_modified.strftime("%Y-%m-%d %H:%M:%S")
-            if self.last_modified
-            else None
+            self.file_mtime.strftime("%Y-%m-%d %H:%M:%S") if self.file_mtime else None
         )

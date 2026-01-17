@@ -32,6 +32,13 @@ class AIProjectSession(Base):
         comment="会话ID",
     )
 
+    # 会话标题
+    title = Column(
+        String(255),
+        nullable=True,
+        comment="会话标题",
+    )
+
     # 关联的项目ID（业务关联，无外键约束）
     project_id = Column(
         Integer,
@@ -47,11 +54,25 @@ class AIProjectSession(Base):
         comment="会话文件路径",
     )
 
-    # 会话文件MD5哈希值（用于检测文件变化）
+    # 会话文件MD5哈希值（用于检测文件变化）- 保留用于向后兼容
     session_file_md5 = Column(
         String(32),
         nullable=True,
         comment="会话文件MD5哈希值",
+    )
+
+    # 文件修改时间（用于检测文件变化，替代 MD5）
+    file_mtime = Column(
+        DateTime,
+        nullable=True,
+        comment="文件修改时间",
+    )
+
+    # 文件大小（用于检测文件变化，替代 MD5）
+    file_size = Column(
+        Integer,
+        nullable=True,
+        comment="文件大小（字节）",
     )
 
     # 是否为Agent会话
@@ -96,6 +117,16 @@ class AIProjectSession(Base):
         DateTime,
         nullable=True,
         comment="最后执行时间",
+    )
+
+    # 是否已删除（软删除标记）
+    removed = Column(
+        Boolean,
+        nullable=True,
+        default=False,
+        server_default="0",  # 兼容现有数据，默认未删除
+        index=True,  # 添加索引以提高查询性能
+        comment="是否已删除",
     )
 
     # 创建时间

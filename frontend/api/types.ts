@@ -134,10 +134,6 @@ export interface ScanAllProjectsRequest {
   force_refresh?: boolean;
 }
 
-export interface ScanSingleProjectRequest {
-  project_id: string;
-}
-
 export interface ScanClaudeMemoryRequest {
   project_id: number;
 }
@@ -408,6 +404,10 @@ export interface AIProjectInDB {
   id: number;
   project_name: string;
   project_path?: string;
+  claude_session_path?: string;
+  git_worktree_project?: boolean;
+  git_main_project_path?: string;
+  removed?: boolean;
   ai_tools: AiToolType[];
   first_active_at_str?: string; // Formatted datetime string
   last_active_at_str?: string; // Formatted datetime string
@@ -556,7 +556,6 @@ export type UpdateClaudeSettingsScopeResponse = ApiResponse<boolean>;
 export type ShowFileDialogResponse = ApiResponse<ShowFileDialogData>;
 export type ListProjectsResponse = ApiResponse<AIProjectInDB[]>;
 export type ScanAllProjectsResponse = ApiResponse<boolean>;
-export type ScanSingleProjectResponse = ApiResponse<boolean>;
 export type ScanClaudeMemoryResponse = ApiResponse<ClaudeMemoryInfo>;
 export type ScanClaudeAgentsResponse = ApiResponse<AgentInfo[]>;
 export type ScanClaudeCommandsResponse = ApiResponse<CommandInfo[]>;
@@ -711,8 +710,11 @@ export interface ClaudeMessage {
 
 export interface ClaudeSession {
   session_id: string;
+  title?: string;
   session_file: string;
-  session_file_md5?: string;
+  session_file_md5?: string; // 已弃用，保留兼容
+  file_mtime_str?: string; // Formatted datetime string
+  file_size?: number;
   is_agent_session: boolean;
   messages: ClaudeMessage[];
   project_path?: string;
@@ -720,6 +722,7 @@ export interface ClaudeSession {
   message_count: number;
   last_modified_str?: string; // Formatted datetime string
   first_active_at_str?: string; // Formatted datetime string
+  removed?: boolean;
 }
 
 export interface ClaudeSessionInfo {

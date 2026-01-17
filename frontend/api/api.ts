@@ -28,7 +28,6 @@ import type {
   ShowFileDialogRequest,
   ListProjectsRequest,
   ScanAllProjectsRequest,
-  ScanSingleProjectRequest,
   ScanClaudeMemoryRequest,
   ScanClaudeAgentsRequest,
   ScanClaudeCommandsRequest,
@@ -88,7 +87,6 @@ import type {
   ShowFileDialogResponse,
   ListProjectsResponse,
   ScanAllProjectsResponse,
-  ScanSingleProjectResponse,
   ScanClaudeMemoryResponse,
   ScanClaudeAgentsResponse,
   ScanClaudeCommandsResponse,
@@ -291,17 +289,6 @@ export const scanAllProjects = async (
   request: ScanAllProjectsRequest = {}
 ): Promise<ScanAllProjectsResponse> => {
   return await callAPI<boolean>('scan_all_projects', request);
-};
-
-/**
- * 扫描单个 Claude 项目API
- * @param request 扫描单个项目请求参数
- * @returns Promise<ScanSingleProjectResponse>
- */
-export const scanSingleProject = async (
-  request: ScanSingleProjectRequest
-): Promise<ScanSingleProjectResponse> => {
-  return await callAPI<boolean>('scan_single_project', request);
 };
 
 /**

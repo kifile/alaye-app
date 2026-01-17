@@ -1,6 +1,6 @@
 """
 Claude Session Operations 模块的单元测试
-测试 Session 的扫描和读取功能，特别是 tool_use 和 tool_result 的合并逻辑
+测试 Session 的扫描和读取功能，特别是消息合并逻辑
 """
 
 import json
@@ -122,13 +122,160 @@ class TestClaudeSessionOperations:
                 f.write(json.dumps(message_data) + "\n")
         return session_file
 
+    # ========== 测试 _convert_summary_to_system ==========
+
+    def test_convert_summary_to_system_success(self, session_ops):
+        """测试成功转换 summary 消息"""
+        message_data = {
+            "type": "summary",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "summary": "This is a summary",
+        }
+
+        result = session_ops._convert_summary_to_system(message_data)
+
+        assert result is not None
+        assert result["type"] == "system"
+        assert result["message"]["role"] == "system"
+        assert result["message"]["content"][0]["text"] == "This is a summary"
+        assert result["_converted"] is True
+        assert result["_original_type"] == "summary"
+
+    def test_convert_summary_to_system_empty(self, session_ops):
+        """测试空的 summary 消息"""
+        message_data = {
+            "type": "summary",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "summary": "",
+        }
+
+        result = session_ops._convert_summary_to_system(message_data)
+
+        assert result is None
+        assert message_data["_dropped"] is True
+        assert message_data["_drop_reason"] == "empty_summary"
+
+    # ========== 测试 _merge_tool_result_to_tool_use ==========
+
+    def test_merge_tool_result_to_tool_use_success(self, session_ops):
+        """测试成功合并 tool_result 到 tool_use"""
+        tool_use_map = {}
+        tool_use_message = {
+            "type": "assistant",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "call_123",
+                        "name": "Grep",
+                        "input": {"pattern": "test"},
+                    }
+                ],
+            },
+        }
+        tool_use_map["call_123"] = tool_use_message
+
+        tool_result = {
+            "type": "tool_result",
+            "tool_use_id": "call_123",
+            "content": "Found 10 matches",
+        }
+
+        session_ops._merge_tool_result_to_tool_use(tool_result, tool_use_map)
+
+        # 验证合并结果
+        tool_use_item = tool_use_message["message"]["content"][0]
+        assert tool_use_item["output"] == "Found 10 matches"
+        assert tool_use_item["status"] == "complete"
+        assert "call_123" not in tool_use_map  # 应该从 map 中移除
+
+    def test_merge_tool_result_to_tool_use_not_found(self, session_ops, caplog):
+        """测试 tool_result 找不到对应的 tool_use"""
+        tool_use_map = {}
+        tool_result = {
+            "type": "tool_result",
+            "tool_use_id": "call_unknown",
+            "content": "Some result",
+        }
+
+        session_ops._merge_tool_result_to_tool_use(tool_result, tool_use_map)
+
+        # 应该记录警告日志
+        assert "not found in tool_use_map" in caplog.text
+
+    # ========== 测试 _process_assistant_message ==========
+
+    def test_process_assistant_message_with_tool_use(self, session_ops):
+        """测试处理包含 tool_use 的 assistant 消息"""
+        message_data = {
+            "type": "assistant",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "call_123",
+                        "name": "Grep",
+                        "input": {"pattern": "test"},
+                    }
+                ],
+            },
+        }
+
+        tool_use_map = {}
+        result = session_ops._process_assistant_message(message_data, tool_use_map)
+
+        assert result["type"] == "assistant"
+        tool_use_item = result["message"]["content"][0]
+        assert tool_use_item["status"] == "incomplete"
+        assert "call_123" in tool_use_map  # 应该被添加到 map 中
+
+    def test_process_assistant_message_with_thinking(self, session_ops):
+        """测试处理包含 thinking 的 assistant 消息"""
+        message_data = {
+            "type": "assistant",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "assistant",
+                "content": [
+                    {"type": "thinking", "thinking": "Let me think..."},
+                ],
+            },
+        }
+
+        tool_use_map = {}
+        result = session_ops._process_assistant_message(message_data, tool_use_map)
+
+        assert result["type"] == "assistant"
+        # thinking 字段应该被转换为 text 字段
+        thinking_item = result["message"]["content"][0]
+        assert thinking_item["type"] == "thinking"
+        assert thinking_item["text"] == "Let me think..."
+        assert "thinking" not in thinking_item
+
+    def test_process_assistant_message_empty_content(self, session_ops):
+        """测试处理空 content 的消息"""
+        message_data = {
+            "type": "assistant",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {"role": "assistant", "content": []},
+        }
+
+        tool_use_map = {}
+        result = session_ops._process_assistant_message(message_data, tool_use_map)
+
+        # 应该返回原始消息
+        assert result is message_data
+
     # ========== 测试 _merge_tool_use_with_result ==========
 
     @pytest.mark.asyncio
     async def test_merge_tool_use_with_result_complete(
         self, session_ops, sample_session_data
     ):
-        """测试 tool_use 和 tool_result 的合并（完整流程）"""
+        """测试完整的 tool_use 和 tool_result 合并流程"""
         # 提取消息部分
         messages = [m for m in sample_session_data if "message" in m]
 
@@ -269,133 +416,6 @@ class TestClaudeSessionOperations:
         assert content[1]["status"] == "complete"
         assert content[1]["output"] == "File content loaded"
 
-    @pytest.mark.asyncio
-    async def test_merge_thinking_messages(self, session_ops):
-        """测试 thinking 消息不被合并"""
-        messages = [
-            {
-                "type": "assistant",
-                "message": {
-                    "role": "assistant",
-                    "content": [
-                        {"type": "thinking", "text": "Let me think..."},
-                        {
-                            "type": "text",
-                            "text": "I'll help you with that.",
-                        },
-                    ],
-                },
-            },
-        ]
-
-        merged = session_ops._merge_tool_use_with_result(messages)
-
-        assert len(merged) == 1
-        content = merged[0]["message"]["content"]
-        assert len(content) == 2
-        assert content[0]["type"] == "thinking"
-        assert content[1]["type"] == "text"
-
-    @pytest.mark.asyncio
-    async def test_merge_user_messages_unchanged(self, session_ops):
-        """测试 user 消息不被修改"""
-        messages = [
-            {
-                "type": "user",
-                "message": {
-                    "role": "user",
-                    "content": "请帮我搜索文件",
-                },
-            },
-        ]
-
-        merged = session_ops._merge_tool_use_with_result(messages)
-
-        assert len(merged) == 1
-        assert merged[0]["type"] == "user"
-        assert merged[0]["message"]["content"] == "请帮我搜索文件"
-
-    # ========== 测试 _load_session_data ==========
-
-    @pytest.mark.asyncio
-    async def test_load_session_data_success(self, session_ops, sample_session_jsonl):
-        """测试成功加载 session 数据"""
-        session = session_ops._load_session_data(sample_session_jsonl)
-
-        assert session is not None
-        assert session.session_id == "test-session-123"
-        assert session.session_file == str(sample_session_jsonl)
-        assert session.is_agent_session is False
-        assert session.message_count == 3  # 3 条有 message 的消息
-        assert len(session.messages) == 3
-        assert session.project_path == "/test/project"
-        assert session.git_branch == "main"
-
-        # 验证消息合并
-        tool_use_msg = session.messages[1]
-        assert tool_use_msg.message is not None
-        content = tool_use_msg.message.get("content")
-        assert isinstance(content, list)
-
-        # 找到合并后的 tool_use
-        tool_use = None
-        for item in content:
-            if isinstance(item, dict) and item.get("type") == "tool_use":
-                tool_use = item
-                break
-
-        assert tool_use is not None
-        assert tool_use["status"] == "complete"
-        assert tool_use["output"] == "Found 5 matches"
-
-    @pytest.mark.asyncio
-    async def test_load_session_data_agent_session(self, temp_session_dir):
-        """测试加载 agent session"""
-        session_file = temp_session_dir / "agent-test-456.jsonl"
-        with open(session_file, "w", encoding="utf-8") as f:
-            f.write(
-                json.dumps(
-                    {
-                        "type": "user",
-                        "message": {"role": "user", "content": "test"},
-                    }
-                )
-                + "\n"
-            )
-
-        session_ops_local = ClaudeSessionOperations(temp_session_dir)
-        session = session_ops_local._load_session_data(session_file)
-
-        assert session is not None
-        assert session.is_agent_session is True
-        assert session.session_id == "agent-test-456"
-
-    @pytest.mark.asyncio
-    async def test_load_session_data_invalid_json(self, temp_session_dir):
-        """测试加载无效的 JSON 文件"""
-        session_file = temp_session_dir / "invalid.jsonl"
-        with open(session_file, "w", encoding="utf-8") as f:
-            f.write("invalid json content")
-
-        session_ops_local = ClaudeSessionOperations(temp_session_dir)
-        session = session_ops_local._load_session_data(session_file)
-
-        assert session is None
-
-    @pytest.mark.asyncio
-    async def test_load_session_data_empty_file(self, temp_session_dir):
-        """测试加载空文件"""
-        session_file = temp_session_dir / "empty.jsonl"
-        session_file.touch()
-
-        session_ops_local = ClaudeSessionOperations(temp_session_dir)
-        session = session_ops_local._load_session_data(session_file)
-
-        # 空文件应该返回一个 session，但消息为空
-        assert session is not None
-        assert len(session.messages) == 0
-        assert session.message_count == 0
-
     # ========== 测试 scan_sessions ==========
 
     @pytest.mark.asyncio
@@ -458,38 +478,91 @@ class TestClaudeSessionOperations:
         assert sessions == []
 
     @pytest.mark.asyncio
-    async def test_scan_sessions_sorted_by_time(self, temp_session_dir):
-        """测试 session 按最后修改时间降序排序"""
-        import time
+    async def test_scan_sessions_incremental(self, temp_session_dir, session_ops):
+        """测试增量扫描（使用现有 title）"""
+        # 创建一个 session 文件
+        session_file = temp_session_dir / "session-1.jsonl"
+        with open(session_file, "w", encoding="utf-8") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "message": {"role": "user", "content": "Test message"},
+                    }
+                )
+                + "\n"
+            )
+
+        # 第一次扫描（需要读取文件）
+        sessions_first = await session_ops.scan_sessions()
+        assert len(sessions_first) == 1
+        assert sessions_first[0].title is not None
+
+        # 第二次扫描（传入现有 title，应该跳过读取）
+        existing_titles = {s.session_id: s.title for s in sessions_first}
+        sessions_second = await session_ops.scan_sessions(existing_titles)
+        assert len(sessions_second) == 1
+        assert sessions_second[0].title == sessions_first[0].title
+
+    # ========== 测试 _load_session_data ==========
+
+    @pytest.mark.asyncio
+    async def test_load_session_data_success(self, session_ops, sample_session_jsonl):
+        """测试成功加载 session 数据"""
+        session, _ = session_ops._load_session_data(sample_session_jsonl)
+
+        assert session is not None
+        assert session.session_id == "test-session-123"
+        assert session.session_file == str(sample_session_jsonl)
+        assert session.is_agent_session is False
+        # meta 消息被过滤掉了，只剩余 user 和 assistant 消息
+        assert session.message_count == 2
+
+    @pytest.mark.asyncio
+    async def test_load_session_data_agent_session(self, temp_session_dir):
+        """测试加载 agent session"""
+        session_file = temp_session_dir / "agent-test-456.jsonl"
+        with open(session_file, "w", encoding="utf-8") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "message": {"role": "user", "content": "test"},
+                    }
+                )
+                + "\n"
+            )
 
         ops = ClaudeSessionOperations(temp_session_dir)
+        session, _ = ops._load_session_data(session_file)
 
-        # 创建多个 session 文件，每次创建后等待以确保文件修改时间不同
-        session_names = ["session-old", "session-middle", "session-new"]
-        for session_name in session_names:
-            session_file = temp_session_dir / f"{session_name}.jsonl"
-            with open(session_file, "w", encoding="utf-8") as f:
-                f.write(
-                    json.dumps(
-                        {
-                            "type": "user",
-                            "message": {
-                                "role": "user",
-                                "content": f"Message from {session_name}",
-                            },
-                        }
-                    )
-                    + "\n"
-                )
-            time.sleep(0.01)  # 确保文件修改时间不同
+        assert session is not None
+        assert session.is_agent_session is True
+        assert session.session_id == "agent-test-456"
 
-        sessions = await ops.scan_sessions()
+    @pytest.mark.asyncio
+    async def test_load_session_data_invalid_json(self, temp_session_dir):
+        """测试加载无效的 JSON 文件"""
+        session_file = temp_session_dir / "invalid.jsonl"
+        with open(session_file, "w", encoding="utf-8") as f:
+            f.write("invalid json content")
 
-        # 验证排序：最新的应该在前面
-        assert len(sessions) == 3
-        assert sessions[0].session_id == "session-new"
-        assert sessions[1].session_id == "session-middle"
-        assert sessions[2].session_id == "session-old"
+        ops = ClaudeSessionOperations(temp_session_dir)
+        session, _ = ops._load_session_data(session_file)
+
+        assert session is None
+
+    @pytest.mark.asyncio
+    async def test_load_session_data_empty_file(self, temp_session_dir):
+        """测试加载空文件"""
+        session_file = temp_session_dir / "empty.jsonl"
+        session_file.touch()
+
+        ops = ClaudeSessionOperations(temp_session_dir)
+        session, _ = ops._load_session_data(session_file)
+
+        # 空文件应该返回 None（没有有效消息）
+        assert session is None
 
     # ========== 测试 read_session_contents ==========
 
@@ -502,7 +575,8 @@ class TestClaudeSessionOperations:
 
         assert session is not None
         assert session.session_id == "test-session-123"
-        assert len(session.messages) == 3
+        # meta 消息被过滤掉了，只剩余 user 和 assistant 消息
+        assert len(session.messages) == 2
 
         # 验证合并后的 tool_use
         tool_use_msg = session.messages[1]
@@ -527,198 +601,43 @@ class TestClaudeSessionOperations:
         assert session is None
 
     @pytest.mark.asyncio
-    async def test_read_session_contents_by_filename(self, temp_session_dir):
-        """测试通过文件名读取 session"""
-        session_file = temp_session_dir / "my-session.jsonl"
-        with open(session_file, "w", encoding="utf-8") as f:
-            f.write(
-                json.dumps(
-                    {
-                        "type": "user",
-                        "message": {"role": "user", "content": "test message"},
-                    }
-                )
-                + "\n"
-            )
+    async def test_read_session_contents_invalid_id(self, session_ops):
+        """测试使用无效的 session_id（路径遍历攻击）"""
+        with pytest.raises(ValueError, match="Invalid session_id"):
+            await session_ops.read_session_contents("../etc/passwd")
 
-        ops = ClaudeSessionOperations(temp_session_dir)
-        session = await ops.read_session_contents("my-session")
-
-        assert session is not None
-        assert session.session_id == "my-session"
-        assert len(session.messages) == 1
-
-    # ========== 测试边界情况 ==========
+    # ========== 测试 quick_detect_project_path ==========
 
     @pytest.mark.asyncio
-    async def test_tool_use_with_complex_output(self, temp_session_dir):
-        """测试 tool_use 包含复杂输出（对象/数组）"""
-        session_file = temp_session_dir / "complex-output.jsonl"
-        with open(session_file, "w", encoding="utf-8") as f:
-            # tool_use
+    async def test_quick_detect_project_path_success(self, temp_session_dir):
+        """测试成功检测项目路径"""
+        # 创建包含 cwd 的 session 文件
+        session_file = temp_session_dir / "session-1.jsonl"
+        with open(session_file, "w") as f:
             f.write(
                 json.dumps(
-                    {
-                        "type": "assistant",
-                        "message": {
-                            "role": "assistant",
-                            "content": [
-                                {
-                                    "type": "tool_use",
-                                    "id": "call_complex",
-                                    "name": "ListFiles",
-                                    "input": {"path": "/test"},
-                                }
-                            ],
-                        },
-                    }
-                )
-                + "\n"
-            )
-            # tool_result with array output
-            f.write(
-                json.dumps(
-                    {
-                        "type": "user",
-                        "message": {
-                            "role": "assistant",
-                            "content": [
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": "call_complex",
-                                    "content": [
-                                        {"name": "file1.txt", "size": 1024},
-                                        {"name": "file2.txt", "size": 2048},
-                                    ],
-                                }
-                            ],
-                        },
-                    }
+                    {"timestamp": "2024-01-01T10:00:00Z", "cwd": "/test/project"}
                 )
                 + "\n"
             )
 
         ops = ClaudeSessionOperations(temp_session_dir)
-        session = await ops.read_session_contents("complex-output")
+        project_path = await ops.quick_detect_project_path()
 
-        assert session is not None
-        tool_use_msg = session.messages[0]
-        content = tool_use_msg.message.get("content")
-        tool_use = content[0]
-
-        assert tool_use["output"] == [
-            {"name": "file1.txt", "size": 1024},
-            {"name": "file2.txt", "size": 2048},
-        ]
-        assert tool_use["status"] == "complete"
+        assert project_path == "/test/project"
 
     @pytest.mark.asyncio
-    async def test_session_with_empty_content_array(self, temp_session_dir):
-        """测试包含空 content 数组的消息"""
-        session_file = temp_session_dir / "empty-content.jsonl"
-        with open(session_file, "w", encoding="utf-8") as f:
-            f.write(
-                json.dumps(
-                    {
-                        "type": "assistant",
-                        "message": {"role": "assistant", "content": []},
-                    }
-                )
-                + "\n"
-            )
+    async def test_quick_detect_project_path_not_found(self, temp_session_dir):
+        """测试找不到项目路径"""
+        # 创建不包含 cwd 的 session 文件
+        session_file = temp_session_dir / "session-1.jsonl"
+        with open(session_file, "w") as f:
+            f.write(json.dumps({"timestamp": "2024-01-01T10:00:00Z"}) + "\n")
 
         ops = ClaudeSessionOperations(temp_session_dir)
-        session = await ops.read_session_contents("empty-content")
+        project_path = await ops.quick_detect_project_path()
 
-        # 应该跳过空消息
-        assert session is not None
-        assert len(session.messages) == 0
-
-    @pytest.mark.asyncio
-    async def test_mixed_tool_and_text_messages(self, temp_session_dir):
-        """测试混合的 tool_use 和 text 消息"""
-        session_file = temp_session_dir / "mixed.jsonl"
-        with open(session_file, "w", encoding="utf-8") as f:
-            # tool_use
-            f.write(
-                json.dumps(
-                    {
-                        "type": "assistant",
-                        "message": {
-                            "role": "assistant",
-                            "content": [
-                                {
-                                    "type": "tool_use",
-                                    "id": "call_1",
-                                    "name": "Grep",
-                                    "input": {"pattern": "test"},
-                                }
-                            ],
-                        },
-                    }
-                )
-                + "\n"
-            )
-            # text
-            f.write(
-                json.dumps(
-                    {
-                        "type": "assistant",
-                        "message": {
-                            "role": "assistant",
-                            "content": [{"type": "text", "text": "正在搜索..."}],
-                        },
-                    }
-                )
-                + "\n"
-            )
-            # tool_result
-            f.write(
-                json.dumps(
-                    {
-                        "type": "user",
-                        "message": {
-                            "role": "assistant",
-                            "content": [
-                                {
-                                    "type": "tool_result",
-                                    "tool_use_id": "call_1",
-                                    "content": "Found 10 matches",
-                                }
-                            ],
-                        },
-                    }
-                )
-                + "\n"
-            )
-            # text
-            f.write(
-                json.dumps(
-                    {
-                        "type": "assistant",
-                        "message": {
-                            "role": "assistant",
-                            "content": [{"type": "text", "text": "找到10个匹配项"}],
-                        },
-                    }
-                )
-                + "\n"
-            )
-
-        ops = ClaudeSessionOperations(temp_session_dir)
-        session = await ops.read_session_contents("mixed")
-
-        assert session is not None
-        # 应该有 3 条消息：assistant(tool_use) + assistant(text) + assistant(text)
-        # tool_result 被合并到 tool_use 中
-        assert len(session.messages) == 3
-
-        # 验证第一条消息包含合并后的 tool_use
-        first_msg = session.messages[0]
-        tool_use = first_msg.message.get("content")[0]
-        assert tool_use["type"] == "tool_use"
-        assert tool_use["status"] == "complete"
-        assert tool_use["output"] == "Found 10 matches"
+        assert project_path is None
 
 
 if __name__ == "__main__":

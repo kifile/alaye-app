@@ -2,7 +2,7 @@
 AI项目ORM模型
 """
 
-from sqlalchemy import Column, DateTime, Integer, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text
 from sqlalchemy.dialects.sqlite import JSON
 from sqlalchemy.sql import func
 
@@ -45,6 +45,29 @@ class AIProject(Base):
         Text,
         nullable=True,
         comment="Claude session 存储路径",
+    )
+
+    # 是否为 git worktree 项目
+    git_worktree_project = Column(
+        Boolean,
+        nullable=True,
+        default=False,
+        comment="是否为 git worktree 项目",
+    )
+
+    # git worktree 项目的主项目路径
+    git_main_project_path = Column(
+        Text,
+        nullable=True,
+        comment="git worktree 项目的主项目路径",
+    )
+
+    # 项目路径是否已被移除
+    removed = Column(
+        Boolean,
+        nullable=True,
+        default=False,
+        comment="项目路径是否已被移除",
     )
 
     # AI工具列表，以JSON格式存储

@@ -37,7 +37,7 @@ class ConfigService:
         Returns:
             配置值或None
         """
-        async for db in get_db():
+        async with get_db() as db:
             setting = await app_setting_crud.get_by_id(db, id=key)
             return setting.value if setting else None
 
@@ -55,7 +55,7 @@ class ConfigService:
         Raises:
             ValueError: 如果配置校验失败
         """
-        async for db in get_db():
+        async with get_db() as db:
             # 检查是否已存在配置
             existing_setting = await app_setting_crud.get_by_id(db, id=key)
             old_value = existing_setting.value if existing_setting else None
@@ -98,7 +98,7 @@ class ConfigService:
         Returns:
             所有配置列表
         """
-        async for db in get_db():
+        async with get_db() as db:
             return await app_setting_crud.read_all(db)
 
 

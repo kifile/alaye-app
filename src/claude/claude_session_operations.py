@@ -4,17 +4,26 @@ Claude Session 操作模块
 """
 
 import copy
-import hashlib
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
+
+import aiofiles
+
+from src.utils.time_utils import parse_iso_timestamp
 
 from .models import ClaudeMessage, ClaudeSession, ClaudeSessionInfo
 
 # Configure logger
 logger = logging.getLogger("claude")
+
+# Constants
+VALID_MESSAGE_TYPES: Set[str] = {"user", "assistant", "system"}
+SUMMARY_MESSAGE_TYPE: str = "summary"
+META_MESSAGE_TYPES: Set[str] = {"file-history-snapshot"}
+DEFAULT_TITLE_MAX_LENGTH = 50
 
 
 class ClaudeSessionOperations:
@@ -28,6 +37,183 @@ class ClaudeSessionOperations:
             claude_session_path: 项目的 session 存储目录路径
         """
         self.session_path = claude_session_path
+
+    @staticmethod
+    def _validate_session_id(session_id: str) -> None:
+        """
+        验证 session_id 是否有效，防止路径遍历攻击
+
+        Args:
+            session_id: 要验证的 session ID
+
+        Raises:
+            ValueError: 如果 session_id 无效
+        """
+        if not session_id or not isinstance(session_id, str):
+            raise ValueError("session_id must be a non-empty string")
+
+        # 防止路径遍历攻击
+        if ".." in session_id or "/" in session_id or "\\" in session_id:
+            raise ValueError(
+                f"Invalid session_id (contains path traversal characters): {session_id}"
+            )
+
+        # 防止绝对路径
+        if session_id.startswith(("/", "\\")):
+            raise ValueError(
+                f"Invalid session_id (looks like absolute path): {session_id}"
+            )
+
+    def _convert_summary_to_system(self, message_data: dict) -> Optional[dict]:
+        """
+        将 summary 类型消息转换为 system 类型消息
+
+        Args:
+            message_data: 原始消息数据
+
+        Returns:
+            转换后的消息数据，如果 summary 为空则返回 None
+        """
+        summary_text = message_data.get("summary", "")
+        if not summary_text:
+            logger.warning(
+                f"Summary message has empty summary field | "
+                f"timestamp: {message_data.get('timestamp')} | "
+                f"full message_data: {message_data}"
+            )
+            # 标记为丢弃（非预期）
+            message_data["_dropped"] = True
+            message_data["_drop_reason"] = "empty_summary"
+            message_data["_expected_drop"] = False
+            return None
+
+        # 将 summary 转换为 system 类型消息
+        message_data["type"] = "system"
+        message_data["message"] = {
+            "role": "system",
+            "content": [{"type": "text", "text": str(summary_text)}],
+        }
+        # 标记该消息已被转换（用于统计）
+        message_data["_converted"] = True
+        message_data["_original_type"] = "summary"
+
+        logger.debug(
+            f"Converted summary to system message | "
+            f"timestamp: {message_data.get('timestamp')} | "
+            f"summary length: {len(str(summary_text))}"
+        )
+        return message_data
+
+    def _merge_tool_result_to_tool_use(
+        self, tool_result_item: dict, tool_use_map: Dict[str, dict]
+    ) -> None:
+        """
+        将 tool_result 合并到对应的 tool_use 中
+
+        Args:
+            tool_result_item: tool_result 内容项
+            tool_use_map: tool_use_id -> message_data 映射（会被修改）
+        """
+        tool_use_id = tool_result_item.get("tool_use_id")
+        if tool_use_id and tool_use_id in tool_use_map:
+            # 找到对应的 tool_use 消息
+            tool_use_message_data = tool_use_map[tool_use_id]
+            tool_use_content = tool_use_message_data.get("message", {}).get(
+                "content", []
+            )
+
+            # 在 tool_use_content 中找到对应的 tool_use 并添加 output
+            for tool_use_item in tool_use_content:
+                if (
+                    isinstance(tool_use_item, dict)
+                    and tool_use_item.get("type") == "tool_use"
+                    and tool_use_item.get("id") == tool_use_id
+                ):
+                    tool_use_item["output"] = tool_result_item.get("content")
+                    tool_use_item["status"] = "complete"
+                    break
+
+            # 从 map 中移除已处理的 tool_use（避免重复处理）
+            del tool_use_map[tool_use_id]
+        else:
+            # 找不到对应的 tool_use，记录被丢弃的 tool_result
+            logger.warning(
+                f"Dropping tool_result: tool_use_id={tool_use_id} not found in tool_use_map | "
+                f"full tool_result_item: {tool_result_item}"
+            )
+
+    def _process_assistant_message(
+        self, message_data: dict, tool_use_map: Dict[str, dict]
+    ) -> dict:
+        """
+        处理 assistant 消息，规范化 tool_use 和 thinking
+
+        Args:
+            message_data: 原始消息数据
+            tool_use_map: tool_use_id -> message_data 映射（会被修改）
+
+        Returns:
+            处理后的消息数据
+        """
+        message = message_data.get("message", {})
+        content = message.get("content", [])
+
+        if not isinstance(content, list) or len(content) == 0:
+            return message_data
+
+        # 检查是否包含 tool_use
+        has_tool_use = any(
+            isinstance(item, dict) and item.get("type") == "tool_use"
+            for item in content
+        )
+
+        if has_tool_use:
+            # 为 tool_use 添加 incomplete status（如果没有 output）
+            # 使用浅拷贝以提高性能
+            message_data_copy = copy.copy(message_data)
+            # 深拷贝 message 部分，因为需要修改 content
+            message_data_copy["message"] = copy.deepcopy(
+                message_data.get("message", {})
+            )
+            content_copy = message_data_copy["message"].get("content", [])
+
+            for item in content_copy:
+                if isinstance(item, dict) and item.get("type") == "tool_use":
+                    tool_use_id = item.get("id")
+                    if tool_use_id:
+                        # 检测重复的 tool_use_id
+                        if tool_use_id in tool_use_map:
+                            logger.warning(
+                                f"Duplicate tool_use_id detected: {tool_use_id} | "
+                                f"timestamp: {message_data.get('timestamp')} | "
+                                f"previous entry will be overwritten"
+                            )
+                        # 记录到 map 中，供后续 tool_result 查找
+                        tool_use_map[tool_use_id] = message_data_copy
+
+                    # 如果没有 output，标记为 incomplete
+                    if "output" not in item and "status" not in item:
+                        item["status"] = "incomplete"
+
+            return message_data_copy
+        else:
+            # 普通 assistant 消息（text、thinking 等），需要规范化处理
+            # 使用浅拷贝以提高性能
+            message_data_copy = copy.copy(message_data)
+            # 深拷贝 message 部分，因为需要修改 content
+            message_data_copy["message"] = copy.deepcopy(
+                message_data.get("message", {})
+            )
+            content_copy = message_data_copy["message"].get("content", [])
+
+            # 规范化 thinking 类型：将 thinking 字段转换为 text 字段
+            for item in content_copy:
+                if isinstance(item, dict) and item.get("type") == "thinking":
+                    # 如果存在 thinking 字段但没有 text 字段，则进行转换
+                    if "thinking" in item and "text" not in item:
+                        item["text"] = item.pop("thinking")
+
+            return message_data_copy
 
     def _merge_tool_use_with_result(self, raw_messages: List[dict]) -> List[dict]:
         """
@@ -47,19 +233,57 @@ class ClaudeSessionOperations:
         tool_use_map: Dict[str, dict] = {}
 
         for message_data in raw_messages:
+            message_type = message_data.get("type")
+
+            # 处理 summary 类型消息 - 转换为 system role 的消息
+            if message_type == SUMMARY_MESSAGE_TYPE:
+                converted_message = self._convert_summary_to_system(message_data)
+                if converted_message:
+                    merged_messages.append(converted_message)
+                continue
+
             message = message_data.get("message", {})
             content = message.get("content", [])
 
             # 跳过空消息
             if not message:
-                # 保留非消息类型（如 meta、file-history-snapshot）
-                if message_data.get("type") not in ["user", "assistant"]:
+                # 丢弃非消息类型（如 meta、file-history-snapshot）
+                message_type = message_data.get("type")
+                if message_type not in VALID_MESSAGE_TYPES:
+                    # 对于已知的特殊类型，使用 debug 级别
+                    if (
+                        message_type in META_MESSAGE_TYPES
+                        or message_type == SUMMARY_MESSAGE_TYPE
+                    ):
+                        logger.debug(
+                            f"Dropping known message type: {message_type} | "
+                            f"timestamp: {message_data.get('timestamp')}"
+                        )
+                    else:
+                        logger.warning(
+                            f"Dropping unknown message type: {message_type} | "
+                            f"timestamp: {message_data.get('timestamp')} | "
+                            f"full message_data: {message_data}"
+                        )
+                    # 标记为丢弃，并判断是预期内还是非预期
+                    message_data["_dropped"] = True
+                    message_data["_drop_reason"] = f"invalid_type:{message_type}"
+                    message_data["_expected_drop"] = message_type in META_MESSAGE_TYPES
                     continue
                 merged_messages.append(message_data)
                 continue
 
             # 处理空 content
             if not content or (isinstance(content, list) and len(content) == 0):
+                logger.warning(
+                    f"Dropping message with empty content: {message_data.get('type')} | "
+                    f"timestamp: {message_data.get('timestamp')} | "
+                    f"full message_data: {message_data}"
+                )
+                # 标记为丢弃（非预期）
+                message_data["_dropped"] = True
+                message_data["_drop_reason"] = "empty_content"
+                message_data["_expected_drop"] = False
                 continue
 
             # 处理 user 消息中的 tool_result
@@ -75,74 +299,18 @@ class ClaudeSessionOperations:
                 if tool_results:
                     # 遍历所有 tool_result，找到对应的 tool_use 并合并
                     for tool_result_item in tool_results:
-                        tool_use_id = tool_result_item.get("tool_use_id")
-                        if tool_use_id and tool_use_id in tool_use_map:
-                            # 找到对应的 tool_use 消息
-                            tool_use_message_data = tool_use_map[tool_use_id]
-                            tool_use_content = tool_use_message_data.get(
-                                "message", {}
-                            ).get("content", [])
-
-                            # 在 tool_use_content 中找到对应的 tool_use 并添加 output
-                            for tool_use_item in tool_use_content:
-                                if (
-                                    isinstance(tool_use_item, dict)
-                                    and tool_use_item.get("type") == "tool_use"
-                                    and tool_use_item.get("id") == tool_use_id
-                                ):
-                                    tool_use_item["output"] = tool_result_item.get(
-                                        "content"
-                                    )
-                                    tool_use_item["status"] = "complete"
-                                    break
-
-                            # 从 map 中移除已处理的 tool_use（避免重复处理）
-                            del tool_use_map[tool_use_id]
+                        self._merge_tool_result_to_tool_use(
+                            tool_result_item, tool_use_map
+                        )
                     # 不单独添加 tool_result 消息（已经合并到 tool_use 中）
                     continue
 
             # 处理 assistant 消息
             if isinstance(content, list) and len(content) > 0:
-                # 检查是否包含 tool_use
-                has_tool_use = any(
-                    isinstance(item, dict) and item.get("type") == "tool_use"
-                    for item in content
+                processed_message = self._process_assistant_message(
+                    message_data, tool_use_map
                 )
-
-                if has_tool_use:
-                    # 为 tool_use 添加 incomplete status（如果没有 output）
-                    message_data_copy = copy.deepcopy(message_data)
-                    content_copy = message_data_copy.get("message", {}).get(
-                        "content", []
-                    )
-
-                    for item in content_copy:
-                        if isinstance(item, dict) and item.get("type") == "tool_use":
-                            tool_use_id = item.get("id")
-                            if tool_use_id:
-                                # 记录到 map 中，供后续 tool_result 查找
-                                tool_use_map[tool_use_id] = message_data_copy
-
-                            # 如果没有 output，标记为 incomplete
-                            if "output" not in item and "status" not in item:
-                                item["status"] = "incomplete"
-
-                    merged_messages.append(message_data_copy)
-                else:
-                    # 普通 assistant 消息（text、thinking 等），需要规范化处理
-                    message_data_copy = copy.deepcopy(message_data)
-                    content_copy = message_data_copy.get("message", {}).get(
-                        "content", []
-                    )
-
-                    # 规范化 thinking 类型：将 thinking 字段转换为 text 字段
-                    for item in content_copy:
-                        if isinstance(item, dict) and item.get("type") == "thinking":
-                            # 如果存在 thinking 字段但没有 text 字段，则进行转换
-                            if "thinking" in item and "text" not in item:
-                                item["text"] = item.pop("thinking")
-
-                    merged_messages.append(message_data_copy)
+                merged_messages.append(processed_message)
             else:
                 # 字符串类型的 content（user 消息），直接添加
                 merged_messages.append(message_data)
@@ -200,8 +368,24 @@ class ClaudeSessionOperations:
 
             # 合并多条消息
             if len(consecutive_messages) > 1:
+                # 检查 content 类型的一致性
+                content_types = set()
+                for msg in consecutive_messages:
+                    content = msg.get("message", {}).get("content")
+                    if content is None:
+                        continue
+                    if isinstance(content, list):
+                        content_types.add("list")
+                    elif isinstance(content, str):
+                        content_types.add("string")
+                    else:
+                        content_types.add("other")
+
                 # 创建合并后的消息
-                merged_message = copy.deepcopy(current_message)
+                merged_message = copy.copy(current_message)
+                merged_message["message"] = copy.deepcopy(
+                    current_message.get("message", {})
+                )
 
                 # 合并所有 content
                 merged_contents = []
@@ -211,12 +395,25 @@ class ClaudeSessionOperations:
                         if isinstance(content, list):
                             merged_contents.extend(content)
                         else:
-                            # 字符串类型的 content，转换为数组形式
-                            merged_contents.append({"type": "text", "text": content})
+                            # 字符串类型的 content
+                            # 如果所有消息都是字符串，保持为字符串（用分隔符连接）
+                            if content_types == {"string"}:
+                                merged_contents.append(content)
+                            else:
+                                # 混合类型，转换为统一格式
+                                merged_contents.append(
+                                    {"type": "text", "text": content}
+                                )
 
                 # 更新合并后的消息
                 if merged_message.get("message"):
-                    merged_message["message"]["content"] = merged_contents
+                    # 如果所有消息都是字符串，合并为单个字符串
+                    if content_types == {"string"} and len(merged_contents) > 1:
+                        merged_message["message"]["content"] = "\n".join(
+                            merged_contents
+                        )
+                    else:
+                        merged_message["message"]["content"] = merged_contents
 
                 merged_messages.append(merged_message)
                 i = j
@@ -226,122 +423,15 @@ class ClaudeSessionOperations:
 
         return merged_messages
 
-    def _load_session_data(self, session_file: Path) -> Optional[ClaudeSession]:
+    async def scan_sessions(
+        self, existing_titles: Optional[dict[str, str]] = None
+    ) -> List[ClaudeSessionInfo]:
         """
-        从 JSONL 文件加载 session 数据
+        扫描 session 列表（只返回基本信息，选择性读取文件内容）
 
         Args:
-            session_file: session 文件路径
-
-        Returns:
-            Optional[ClaudeSession]: 加载的 session 数据，如果失败则返回 None
-        """
-        session_id = session_file.stem
-        is_agent_session = session_file.name.startswith("agent-")
-
-        try:
-            with open(session_file, "rb") as f:
-                # Read entire file content for MD5 calculation
-                content_bytes = f.read()
-                file_hash = hashlib.md5()
-                file_hash.update(content_bytes)
-                file_md5 = file_hash.hexdigest()
-
-                # Decode content for JSON parsing
-                content = content_bytes.decode("utf-8")
-
-                # 第一遍：收集所有原始消息
-                raw_messages = []
-                for line in content.splitlines():
-                    line = line.strip()
-                    if line:
-                        message_data = json.loads(line)
-                        raw_messages.append(message_data)
-
-                # 第二遍：合并 tool_use 和 tool_result
-                merged_messages = self._merge_tool_use_with_result(raw_messages)
-
-                # 第三遍：合并连续的同一 role 的消息
-                merged_messages = self._merge_consecutive_messages(merged_messages)
-
-                # 第四遍：创建 ClaudeMessage 对象
-                messages = []
-                first_active_at = None
-                last_active_at = None
-                project_path = None
-                git_branch = None
-
-                for message_data in merged_messages:
-                    # Create ClaudeMessage object using model_validate
-                    message = ClaudeMessage.model_validate(
-                        {
-                            "timestamp": message_data.get("timestamp", ""),
-                            "message": message_data.get("message"),
-                            "cwd": message_data.get("cwd"),
-                            "gitBranch": message_data.get("gitBranch"),
-                            "raw_data": message_data,
-                        }
-                    )
-                    messages.append(message)
-
-                    # Extract metadata from messages
-                    if "timestamp" in message_data:
-                        timestamp_str = message_data["timestamp"]
-                        if timestamp_str.endswith("Z"):
-                            timestamp_str = timestamp_str.replace("Z", "+00:00")
-                        timestamp = datetime.fromisoformat(timestamp_str)
-
-                        # Convert to naive datetime for consistent comparison
-                        if timestamp.tzinfo is not None:
-                            timestamp = timestamp.replace(tzinfo=None)
-
-                        if first_active_at is None:
-                            first_active_at = timestamp
-                        last_active_at = max(last_active_at or timestamp, timestamp)
-
-                    if "cwd" in message_data and not project_path:
-                        project_path = message_data["cwd"]
-
-                    if "gitBranch" in message_data and not git_branch:
-                        git_branch = message_data["gitBranch"]
-
-                # 计算 message_count：统计所有 content 项的总数
-                message_count = 0
-                for msg in messages:
-                    if msg.message is not None:
-                        content = msg.message.get("content")
-                        if isinstance(content, list):
-                            message_count += len(content)
-                        elif content:
-                            message_count += 1
-
-                # Create and return updated session with loaded data
-                return ClaudeSession(
-                    session_id=session_id,
-                    session_file=str(session_file),
-                    session_file_md5=file_md5,
-                    is_agent_session=is_agent_session,
-                    messages=messages,
-                    first_active_at=first_active_at,
-                    last_active_at=last_active_at,
-                    project_path=project_path,
-                    git_branch=git_branch,
-                    message_count=message_count,
-                )
-
-        except (IOError, UnicodeDecodeError) as e:
-            logger.error(f"Failed to read file {session_file}: {e}")
-            return None
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse {session_file}: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Unexpected error loading {session_file}: {e}")
-            return None
-
-    async def scan_sessions(self) -> List[ClaudeSessionInfo]:
-        """
-        扫描 session 列表（只返回基本信息，不读取文件内容）
+            existing_titles: 已存在的 session 标题映射 {session_id: title}，
+                           如果提供了 title，则跳过读取文件
 
         Returns:
             List[ClaudeSessionInfo]: session 简要信息列表
@@ -351,6 +441,7 @@ class ClaudeSessionOperations:
             return []
 
         session_infos = []
+        existing_titles = existing_titles or {}
 
         # 扫描该目录下的所有 session 文件
         for session_file in self.session_path.glob("*.jsonl"):
@@ -359,30 +450,554 @@ class ClaudeSessionOperations:
 
             # 获取文件最后修改时间并转换为 datetime
             try:
-                mtime = session_file.stat().st_mtime
-                last_modified = datetime.fromtimestamp(mtime)
+                file_stat = session_file.stat()
+                file_mtime = datetime.fromtimestamp(file_stat.st_mtime)
+                file_size = file_stat.st_size
             except Exception as e:
-                logger.warning(f"Failed to get mtime for {session_file}: {e}")
-                last_modified = None
+                logger.warning(f"Failed to get file stat for {session_file}: {e}")
+                file_mtime = None
+                file_size = None
+
+            # 如果已有 title，直接使用；否则读取文件获取
+            title = None
+            if session_id in existing_titles and existing_titles[session_id]:
+                title = existing_titles[session_id]
+                logger.debug(f"Using existing title for session: {session_id}")
+            else:
+                # 只在需要时读取文件获取 title
+                title, _ = await self._read_session_title(session_file)
 
             session_info = ClaudeSessionInfo(
                 session_id=session_id,
                 session_file=str(session_file),
-                last_modified=last_modified,
+                title=title,
+                file_mtime=file_mtime,
+                file_size=file_size,
                 is_agent_session=is_agent_session,
             )
             session_infos.append(session_info)
 
-        # 按最后修改时间降序排序（最新的在前面）
-        session_infos.sort(
-            key=lambda x: (x.last_modified or datetime.min), reverse=True
-        )
+        # 按文件修改时间降序排序（最新的在前面）
+        session_infos.sort(key=lambda x: (x.file_mtime or datetime.min), reverse=True)
 
         return session_infos
 
+    async def _read_session_title(
+        self, session_file: Path, max_length: int = DEFAULT_TITLE_MAX_LENGTH
+    ) -> tuple[Optional[str], int]:
+        """
+        从 session 文件中读取标题
+
+        优先级：
+        1. 第一行的 summary 字段（如果 type='summary'）
+        2. 第一条用户消息的内容
+        3. 第一条 assistant 消息的 text 内容（用于 agent session）
+
+        跳过特殊行（不增加行号计数）：
+        - type='file-history-snapshot'
+        - 用户消息内容为 'Warmup'
+
+        Args:
+            session_file: session 文件路径
+            max_length: 标题最大长度（超过则截取并添加省略号）
+
+        Returns:
+            tuple[Optional[str], int]: (session 标题, 提取标题的行号)，
+                                       如果未找到则返回 (None, 0)
+        """
+        try:
+            line_number = 0
+            async with aiofiles.open(session_file, "r", encoding="utf-8") as f:
+                async for raw_line in f:
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+
+                    try:
+                        message_data = json.loads(line)
+                        msg_type = message_data.get("type", "")
+
+                        # 跳过 file-history-snapshot（不增加行号）
+                        if msg_type == "file-history-snapshot":
+                            logger.debug(
+                                f"Skipping file-history-snapshot in {session_file.name}"
+                            )
+                            continue
+
+                        # 只在有效行增加行号计数
+                        line_number += 1
+
+                        # 优先检查是否是 summary 类型
+                        if msg_type == "summary":
+                            # 使用 summary 字段作为标题
+                            summary = message_data.get("summary", "")
+                            if summary:
+                                title = self._truncate_title(str(summary), max_length)
+                                if title:
+                                    logger.debug(
+                                        f"Extracted title from summary in {session_file.name} at line {line_number}: {title}"
+                                    )
+                                    return title, line_number
+
+                        # 检查消息内容
+                        message = message_data.get("message", {})
+                        if isinstance(message, dict):
+                            role = message.get("role", "")
+                            content = message.get("content", "")
+
+                            # 如果是用户消息
+                            if role == "user":
+                                # 跳过 Warmup 消息（系统预热请求）
+                                if content == "Warmup":
+                                    logger.debug(
+                                        f"Skipping Warmup message in {session_file.name}"
+                                    )
+                                    # 回退行号计数（因为这不是有效的内容行）
+                                    line_number -= 1
+                                    continue
+
+                                # 使用用户消息内容作为标题
+                                if content:
+                                    title = self._truncate_title(
+                                        str(content), max_length
+                                    )
+                                    if title:
+                                        logger.debug(
+                                            f"Extracted title from user message in {session_file.name} at line {line_number}: {title}"
+                                        )
+                                        return title, line_number
+
+                            # 如果是 assistant 消息（用于 agent session）
+                            elif role == "assistant":
+                                # 尝试从 content 中提取 text
+                                text = self._extract_text_from_content(content)
+                                if text:
+                                    title = self._truncate_title(text, max_length)
+                                    if title:
+                                        logger.debug(
+                                            f"Extracted title from assistant message in {session_file.name} at line {line_number}: {title}"
+                                        )
+                                        return title, line_number
+
+                    except json.JSONDecodeError:
+                        # 跳过无法解析的行，继续尝试下一行
+                        continue
+        except (IOError, UnicodeDecodeError, OSError) as e:
+            logger.warning(f"Failed to read title from {session_file}: {e}")
+        return None, 0
+
+    def _truncate_title(self, text: str, max_length: int) -> str:
+        """
+        截断标题到指定长度，如果超过则添加省略号
+
+        Args:
+            text: 原始文本
+            max_length: 最大长度
+
+        Returns:
+            str: 截断后的标题（如果超过长度则添加 "..."）
+        """
+        # 清理文本：移除换行和多余空格
+        cleaned_text = " ".join(text.split())
+
+        # 如果超过长度限制，截取并添加省略号
+        if len(cleaned_text) > max_length:
+            return cleaned_text[: max_length - 3] + "..."
+        return cleaned_text[:max_length]
+
+    def _extract_text_from_content(self, content) -> Optional[str]:
+        """
+        从 content 中提取 text 内容
+
+        Args:
+            content: message 的 content 字段
+
+        Returns:
+            Optional[str]: 提取的文本，如果未找到则返回 None
+        """
+        if isinstance(content, str):
+            return content
+        elif isinstance(content, list):
+            for item in content:
+                if isinstance(item, dict):
+                    if item.get("type") == "text":
+                        text = item.get("text", "")
+                        if text:
+                            return text
+        return None
+
+    async def _extract_project_path_from_session(
+        self, session_file: Path
+    ) -> Optional[str]:
+        """
+        从 session 文件中提取项目路径（遍历所有行直到找到 cwd）
+
+        Args:
+            session_file: session 文件路径
+
+        Returns:
+            Optional[str]: 项目路径，如果未找到则返回 None
+        """
+        try:
+            async with aiofiles.open(session_file, "r", encoding="utf-8") as f:
+                async for line in f:
+                    line = line.strip()
+                    if line:
+                        try:
+                            message_data = json.loads(line)
+                            # 尝试从 cwd 字段获取项目路径
+                            if "cwd" in message_data and message_data["cwd"]:
+                                return message_data["cwd"]
+                        except json.JSONDecodeError:
+                            # 跳过无法解析的行，继续尝试下一行
+                            continue
+        except (IOError, UnicodeDecodeError, OSError) as e:
+            logger.warning(f"Failed to read project path from {session_file}: {e}")
+        return None
+
+    async def quick_detect_project_path(self) -> Optional[str]:
+        """
+        快速检测项目路径，优先从最近修改的 session 文件中提取项目路径
+
+        Returns:
+            Optional[str]: 项目路径，如果未找到则返回 None
+        """
+        if not self.session_path.exists():
+            return None
+
+        # 获取所有 session 文件并按修改时间排序（最新的在前）
+        session_files = list(self.session_path.glob("*.jsonl"))
+        if not session_files:
+            return None
+
+        # 按文件修改时间逆序排序（最新的在前）
+        try:
+            session_files.sort(
+                key=lambda f: f.stat().st_mtime if f.exists() else 0, reverse=True
+            )
+        except OSError as e:
+            logger.warning(f"Failed to sort session files by mtime: {e}")
+            # 排序失败，继续使用未排序的列表
+
+        # 从最近的 session 文件开始查找项目路径
+        for session_file in session_files:
+            try:
+                project_path = await self._extract_project_path_from_session(
+                    session_file
+                )
+                if project_path:
+                    logger.debug(
+                        f"Found project path: {project_path} from {session_file.name} "
+                        f"(mtime: {datetime.fromtimestamp(session_file.stat().st_mtime)})"
+                    )
+                    return project_path
+            except OSError as e:
+                logger.warning(f"Failed to stat {session_file}: {e}")
+                continue
+
+        return None
+
+    def _load_session_data(
+        self, session_file: Path, debug: bool = False
+    ) -> tuple[Optional[ClaudeSession], dict]:
+        """
+        完整加载 session 数据（包含所有 messages）
+
+        Args:
+            session_file: session 文件路径
+            debug: 是否收集详细的调试信息（默认为 False）
+
+        Returns:
+            tuple[Optional[ClaudeSession], dict]: (完整的 session 数据, 调试信息字典)
+                - session: 完整的 session 数据，如果失败则返回 None
+                - debug_info: 当 debug=True 时包含详细统计信息，否则只包含基本错误信息
+                    - raw_total: 原始总行数
+                    - raw_effective: 有效消息数量
+                    - raw_meta: meta 消息数量
+                    - raw_user: user 消息数量
+                    - raw_assistant: assistant 消息数量
+                    - raw_system: system 消息数量（来自 summary 转换）
+                    - raw_summary: summary 消息数量（转换前）
+                    - raw_tool_use: 原始 tool_use 数量
+                    - raw_tool_result: 原始 tool_result 数量
+                    - raw_thinking: 原始 thinking 数量
+                    - merged_total: 合并后消息总数
+                    - merged_tool_use: 合并后 tool_use 数量
+                    - merged_tool_use_complete: 完成的 tool_use 数量
+                    - merged_tool_use_incomplete: 未完成的 tool_use 数量
+                    - merged_text: 合并后 text 数量
+                    - merged_thinking: 合并后 thinking 数量
+                    - merged_system: 合并后 system 消息数量（来自 summary）
+                    - dropped_messages: 丢弃的消息总数
+                    - dropped_expected: 预期内的丢弃数量（如 file-history-snapshot）
+                    - dropped_unexpected: 非预期的丢弃数量（需要警告）
+                    - dropped_samples: 最多 2 条被丢弃消息的示例
+                    - error: 错误信息（如果有）
+        """
+        session_id = session_file.stem
+        is_agent_session = session_file.name.startswith("agent-")
+
+        # 初始化调试信息（只初始化基本字段，详细字段按需初始化）
+        debug_info: Dict[str, Any] = {
+            "error": None,
+        }
+
+        # 只在 debug 模式下初始化详细统计字段
+        if debug:
+            debug_info.update(
+                {
+                    "raw_total": 0,
+                    "raw_effective": 0,
+                    "raw_meta": 0,
+                    "raw_user": 0,
+                    "raw_assistant": 0,
+                    "raw_system": 0,
+                    "raw_summary": 0,
+                    "raw_tool_use": 0,
+                    "raw_tool_result": 0,
+                    "raw_thinking": 0,
+                    "merged_total": 0,
+                    "merged_tool_use": 0,
+                    "merged_tool_use_complete": 0,
+                    "merged_tool_use_incomplete": 0,
+                    "merged_text": 0,
+                    "merged_thinking": 0,
+                    "merged_system": 0,
+                    "dropped_messages": 0,
+                    "dropped_samples": [],  # 返回所有丢弃消息的样本，不在这里过滤
+                }
+            )
+
+        try:
+            # 获取文件统计信息
+            file_stat = session_file.stat()
+            file_mtime = datetime.fromtimestamp(file_stat.st_mtime)
+            file_size = file_stat.st_size
+
+            # 读取整个文件
+            with open(session_file, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            # 解析所有行并同时统计原始消息
+            raw_messages = []
+            first_active_at = None
+            last_active_at = None
+            total_lines = 0
+            empty_lines = 0
+            invalid_json_lines = 0
+
+            # 在 debug 模式下的统计变量
+            raw_meta = raw_user = raw_assistant = raw_system = raw_summary = 0
+            raw_tool_use = raw_tool_result = raw_thinking = 0
+
+            for line in content.splitlines():
+                total_lines += 1
+                line = line.strip()
+                if not line:
+                    empty_lines += 1
+                    continue
+
+                try:
+                    message_data = json.loads(line)
+                    raw_messages.append(message_data)
+
+                    # 提取时间信息
+                    if "timestamp" in message_data:
+                        timestamp_str = message_data["timestamp"]
+                        timestamp = parse_iso_timestamp(timestamp_str)
+
+                        if timestamp:
+                            if first_active_at is None:
+                                first_active_at = timestamp
+                            last_active_at = max(last_active_at or timestamp, timestamp)
+
+                    # 在 debug 模式下同时统计原始消息
+                    if debug:
+                        msg_type = message_data.get("type", "")
+                        message = message_data.get("message", {})
+
+                        if msg_type == "meta":
+                            raw_meta += 1
+                        elif msg_type == "summary":
+                            raw_summary += 1
+                        elif msg_type == "user":
+                            raw_user += 1
+                            # 统计 user 消息中的 tool_result
+                            content = message.get("content", [])
+                            if isinstance(content, list):
+                                for item in content:
+                                    if (
+                                        isinstance(item, dict)
+                                        and item.get("type") == "tool_result"
+                                    ):
+                                        raw_tool_result += 1
+                        elif msg_type == "assistant":
+                            raw_assistant += 1
+                            # 统计 assistant 消息中的 content 类型
+                            content = message.get("content", [])
+                            if isinstance(content, list):
+                                for item in content:
+                                    if isinstance(item, dict):
+                                        if item.get("type") == "tool_use":
+                                            raw_tool_use += 1
+                                        elif item.get("type") == "thinking":
+                                            raw_thinking += 1
+                            elif isinstance(content, str) and content:
+                                raw_thinking += 1
+                        elif msg_type == "system":
+                            raw_system += 1
+
+                except json.JSONDecodeError:
+                    invalid_json_lines += 1
+                    continue
+
+            # 在 debug 模式下保存原始消息统计
+            if debug:
+                debug_info["raw_total"] = total_lines
+                debug_info["raw_effective"] = len(raw_messages)
+                debug_info["raw_meta"] = raw_meta
+                debug_info["raw_user"] = raw_user
+                debug_info["raw_assistant"] = raw_assistant
+                debug_info["raw_system"] = raw_system
+                debug_info["raw_summary"] = raw_summary
+                debug_info["raw_tool_use"] = raw_tool_use
+                debug_info["raw_tool_result"] = raw_tool_result
+                debug_info["raw_thinking"] = raw_thinking
+
+            # 如果没有找到有效数据，返回 None
+            if not raw_messages:
+                logger.debug(
+                    f"No valid messages found in {session_file} | "
+                    f"total_lines: {total_lines} | "
+                    f"empty_lines: {empty_lines} | "
+                    f"invalid_json_lines: {invalid_json_lines}"
+                )
+                return None, debug_info
+
+            # 合并 tool_use 和 tool_result
+            merged_messages = self._merge_tool_use_with_result(raw_messages)
+
+            # 合并连续的同一 role 的消息
+            merged_messages = self._merge_consecutive_messages(merged_messages)
+
+            # 只在 debug 模式下收集被丢弃的消息和统计信息
+            if debug:
+                # 收集被丢弃的消息（用于调试）
+                # 通过检查 _dropped 标记来判断，而不是通过 id 比较
+                dropped = [m for m in raw_messages if m.get("_dropped", False)]
+                debug_info["dropped_messages"] = len(dropped)
+
+                # 保存最多 2 条被丢弃的消息样本（所有丢弃消息）
+                for dropped_msg in dropped[:2]:
+                    sample = {
+                        "type": dropped_msg.get("type"),
+                        "timestamp": dropped_msg.get("timestamp"),
+                        "role": dropped_msg.get("message", {}).get("role"),
+                        "drop_reason": dropped_msg.get("_drop_reason", "unknown"),
+                    }
+                    # 提取内容的前 100 个字符作为示例
+                    content = dropped_msg.get("message", {}).get("content")
+                    if isinstance(content, str):
+                        sample["content_preview"] = content[:100]
+                    elif isinstance(content, list) and len(content) > 0:
+                        sample["content_preview"] = (
+                            f"[{content[0].get('type', 'unknown')}]"
+                        )
+                    # 对于 summary 类型，尝试从 summary 字段获取内容
+                    elif dropped_msg.get("type") == "summary":
+                        summary_text = dropped_msg.get("summary", "")
+                        sample["content_preview"] = str(summary_text)[:100]
+                    debug_info["dropped_samples"].append(sample)
+
+            # 创建 ClaudeMessage 对象
+            messages = []
+            for message_data in merged_messages:
+                # 清理内部标记字段（以 _ 开头的字段）
+                clean_data = {
+                    k: v for k, v in message_data.items() if not k.startswith("_")
+                }
+
+                message = ClaudeMessage.model_validate(
+                    {
+                        "timestamp": clean_data.get("timestamp", ""),
+                        "message": clean_data.get("message"),
+                        "cwd": clean_data.get("cwd"),
+                        "gitBranch": clean_data.get("gitBranch"),
+                        "raw_data": clean_data,
+                    }
+                )
+                messages.append(message)
+
+            message_count = len(messages)
+
+            # 如果合并后消息条数为 0，返回 None（所有消息都被过滤掉了）
+            if message_count == 0:
+                logger.warning(
+                    f"All messages were filtered out after merging in {session_file.name} | "
+                    f"total_lines: {total_lines} | "
+                    f"raw_messages count: {len(raw_messages)} | "
+                    f"empty_lines: {empty_lines} | "
+                    f"invalid_json_lines: {invalid_json_lines} | "
+                    f"merged_messages count: {len(merged_messages)}"
+                )
+                return None, debug_info
+
+            # 只在 debug 模式下统计合并后的消息
+            if debug:
+                debug_info["merged_total"] = message_count
+                for message_data in merged_messages:
+                    message = message_data.get("message", {})
+                    if isinstance(message, dict):
+                        # 检查 role 是否为 system（来自 summary）
+                        if message.get("role") == "system":
+                            debug_info["merged_system"] += 1
+
+                    content = message.get("content", [])
+                    if isinstance(content, list):
+                        for item in content:
+                            if isinstance(item, dict):
+                                if item.get("type") == "tool_use":
+                                    debug_info["merged_tool_use"] += 1
+                                    if item.get("status") == "complete":
+                                        debug_info["merged_tool_use_complete"] += 1
+                                    elif item.get("status") == "incomplete":
+                                        debug_info["merged_tool_use_incomplete"] += 1
+                                elif item.get("type") == "text":
+                                    debug_info["merged_text"] += 1
+                                elif item.get("type") == "thinking":
+                                    debug_info["merged_thinking"] += 1
+                    elif isinstance(content, str):
+                        debug_info["merged_text"] += 1
+
+            session = ClaudeSession(
+                session_id=session_id,
+                session_file=str(session_file),
+                session_file_md5=None,
+                file_mtime=file_mtime,
+                file_size=file_size,
+                is_agent_session=is_agent_session,
+                messages=messages,
+                first_active_at=first_active_at,
+                last_active_at=last_active_at,
+                project_path=None,  # 不再提取
+                git_branch=None,  # 不再提取
+                message_count=message_count,
+            )
+
+            return session, debug_info
+
+        except (IOError, UnicodeDecodeError, OSError) as e:
+            debug_info["error"] = f"Failed to read file: {e}"
+            logger.error(f"Failed to read file {session_file}: {e}")
+            return None, debug_info
+        except Exception as e:
+            debug_info["error"] = f"Unexpected error: {e}"
+            logger.error(f"Unexpected error loading {session_file}: {e}")
+            return None, debug_info
+
     async def read_session_contents(self, session_id: str) -> Optional[ClaudeSession]:
         """
-        读取指定 session 的完整内容（包含 messages）
+        读取指定 session 的完整内容（包含所有 messages）
 
         Args:
             session_id: session ID
@@ -390,7 +1005,13 @@ class ClaudeSessionOperations:
         Returns:
             Optional[ClaudeSession]: session 完整数据，包含 messages
                                     如果找不到则返回 None
+
+        Raises:
+            ValueError: 如果 session_id 无效（包含路径遍历字符等）
         """
+        # 验证 session_id，防止路径遍历攻击
+        self._validate_session_id(session_id)
+
         if not self.session_path.exists():
             logger.warning(f"Session directory does not exist: {self.session_path}")
             return None
@@ -403,7 +1024,7 @@ class ClaudeSessionOperations:
         ]
 
         for session_file in session_files:
-            session = self._load_session_data(session_file)
+            session, _ = self._load_session_data(session_file)
             if session:
                 return session
 

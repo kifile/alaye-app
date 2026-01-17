@@ -277,14 +277,6 @@ class ScanAllProjectsRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
-class ScanSingleProjectRequest(BaseModel):
-    """扫描单个项目请求模型"""
-
-    project_id: int = Field(..., description="项目ID")
-
-    model_config = ConfigDict(extra="allow")
-
-
 class ScanClaudeMemoryRequest(BaseModel):
     """扫描Claude Memory请求模型"""
 

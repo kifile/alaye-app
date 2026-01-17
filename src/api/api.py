@@ -77,7 +77,6 @@ from .api_models import (
     ScanLSPServersRequest,
     ScanMCPServersRequest,
     ScanSessionsRequest,
-    ScanSingleProjectRequest,
     SetTerminalSizeRequest,
     UninstallClaudePluginRequest,
     UpdateClaudeHookRequest,
@@ -499,34 +498,6 @@ class APICore:
         # 执行扫描
         await project_service.scan_and_save_all_projects()
         return ApiResponse.success_response(True)
-
-    @expose_api(ScanSingleProjectRequest, bool, "扫描单个 Claude 项目API")
-    @api_logging
-    @api_exception_handler
-    async def scan_single_project(
-        self, input_data: ScanSingleProjectRequest
-    ) -> ApiResponse[bool]:
-        """
-        扫描单个 Claude 项目的核心业务逻辑
-
-        Args:
-            input_data: 经过验证的输入数据，包含：
-                - project_id: 项目ID
-
-        Returns:
-            操作是否成功完成
-        """
-        # 执行扫描
-        success = await project_service.scan_and_save_single_project(
-            input_data.project_id
-        )
-
-        if success:
-            return ApiResponse.success_response(True)
-        else:
-            return ApiResponse.error_response(
-                404, f"项目 '{input_data.project_id}' 不存在或扫描失败"
-            )
 
     @expose_api(
         ScanClaudeMemoryRequest, ClaudeMemoryInfo, "扫描指定项目的Claude Memory API"

@@ -21,6 +21,13 @@ class AIProjectCreate(BaseModel):
     claude_session_path: Optional[str] = Field(
         None, description="Claude session 存储路径"
     )
+    git_worktree_project: Optional[bool] = Field(
+        False, description="是否为 git worktree 项目"
+    )
+    git_main_project_path: Optional[str] = Field(
+        None, description="git worktree 项目的主项目路径"
+    )
+    removed: Optional[bool] = Field(False, description="项目路径是否已被移除")
     ai_tools: List[AiToolType] = Field(default=[], description="AI工具列表")
     first_active_at: Optional[datetime] = Field(None, description="首次执行时间")
     last_active_at: Optional[datetime] = Field(None, description="最后执行时间")
@@ -35,6 +42,13 @@ class AIProjectUpdate(BaseModel):
     claude_session_path: Optional[str] = Field(
         None, description="Claude session 存储路径"
     )
+    git_worktree_project: Optional[bool] = Field(
+        None, description="是否为 git worktree 项目"
+    )
+    git_main_project_path: Optional[str] = Field(
+        None, description="git worktree 项目的主项目路径"
+    )
+    removed: Optional[bool] = Field(None, description="项目路径是否已被移除")
     ai_tools: Optional[List[AiToolType]] = Field(None, description="AI工具列表")
     first_active_at: Optional[datetime] = Field(None, description="首次执行时间")
     last_active_at: Optional[datetime] = Field(None, description="最后执行时间")
@@ -49,6 +63,13 @@ class AIProjectInDB(BaseModel):
     claude_session_path: Optional[str] = Field(
         None, description="Claude session 存储路径"
     )
+    git_worktree_project: Optional[bool] = Field(
+        None, description="是否为 git worktree 项目"
+    )
+    git_main_project_path: Optional[str] = Field(
+        None, description="git worktree 项目的主项目路径"
+    )
+    removed: Optional[bool] = Field(None, description="项目路径是否已被移除")
     ai_tools: List[AiToolType] = Field(..., description="AI工具列表")
     first_active_at: Optional[datetime] = Field(
         None, description="首次执行时间", exclude=True
