@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { ArrowLeft, Loader2, MessageSquare, Calendar, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { readSessionContents } from '@/api/api';
@@ -16,82 +16,51 @@ interface SessionDetailProps {
 export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailProps) {
   const [session, setSession] = useState<ClaudeSession | null>(null);
   const [loading, setLoading] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(20); // 初始显示20条消息
-  const observerTarget = useRef<HTMLDivElement>(null);
 
   // 使用 useCallback 避免函数重新创建
-  const loadSessionContent = useCallback(async () => {
-    if (!sessionId) return;
+  const loadSessionContent = useCallback(
+    async (skipLoading = false) => {
+      if (!sessionId) return;
 
-    try {
-      setLoading(true);
-      const response = await readSessionContents({
-        project_id: projectId,
-        session_id: sessionId,
-      });
-
-      if (!response.success) {
-        toast.error('Failed to load session', {
-          description: response.error || 'Unknown error',
-        });
-        return;
+      // 只在首次加载或明确需要时显示 loading
+      if (!skipLoading) {
+        setLoading(true);
       }
 
-      setSession(response.data || null);
-      // 重置可见数量
-      setVisibleCount(20);
-    } catch (error) {
-      console.error('Failed to load session content:', error);
-      toast.error('Failed to load session', {
-        description: error instanceof Error ? error.message : 'Unknown error',
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [sessionId, projectId]);
+      try {
+        const response = await readSessionContents({
+          project_id: projectId,
+          session_id: sessionId,
+        });
+
+        if (!response.success) {
+          toast.error('Failed to load session', {
+            description: response.error || 'Unknown error',
+          });
+          return;
+        }
+
+        setSession(response.data || null);
+      } catch (error) {
+        console.error('Failed to load session content:', error);
+        toast.error('Failed to load session', {
+          description: error instanceof Error ? error.message : 'Unknown error',
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [sessionId, projectId]
+  );
 
   useEffect(() => {
     if (sessionId && projectId > 0) {
-      loadSessionContent();
+      // 首次加载时显示 loading
+      loadSessionContent(false);
     } else {
       setSession(null);
     }
   }, [sessionId, projectId, loadSessionContent]);
-
-  // 实现无限滚动加载更多消息
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      entries => {
-        if (
-          entries[0].isIntersecting &&
-          session &&
-          visibleCount < session.messages.length
-        ) {
-          setVisibleCount(prev => Math.min(prev + 20, session.messages.length));
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    const currentTarget = observerTarget.current;
-    if (currentTarget) {
-      observer.observe(currentTarget);
-    }
-
-    return () => {
-      if (currentTarget) {
-        observer.unobserve(currentTarget);
-      }
-    };
-  }, [session, visibleCount]);
-
-  // 使用 useMemo 缓存可见的消息列表
-  const visibleMessages = useMemo(() => {
-    if (!session) return [];
-    return session.messages.slice(0, visibleCount);
-  }, [session, visibleCount]);
-
-  const hasMore = session && visibleCount < session.messages.length;
 
   if (!sessionId) {
     return (
@@ -107,7 +76,7 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
     );
   }
 
-  if (loading) {
+  if (loading && !session) {
     return (
       <div className='h-full flex items-center justify-center'>
         <div className='text-center'>
@@ -143,7 +112,7 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
   return (
     <div className='h-full flex flex-col bg-white'>
       {/* Header */}
-      <div className='border-b border-gray-200 px-4 py-2 bg-white'>
+      <div className='border-b border-gray-200 px-4 py-3 bg-white'>
         <div className='flex items-center gap-3'>
           {/* 返回按钮 */}
           <button
@@ -154,36 +123,27 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
             <ArrowLeft className='h-4 w-4 text-gray-600' />
           </button>
 
-          {/* 刷新按钮 */}
-          <button
-            onClick={loadSessionContent}
-            disabled={loading}
-            className='p-1.5 hover:bg-gray-100 rounded-lg transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed'
-            title='Refresh session'
-          >
-            <RefreshCw
-              className={`h-4 w-4 text-gray-600 ${loading ? 'animate-spin' : ''}`}
-            />
-          </button>
-
           {/* 标题和徽章 */}
-          <div className='flex items-center gap-2 shrink-0'>
-            <h2 className='text-sm font-semibold text-gray-900'>
-              {session.is_agent_session && '🤖 '}
-              {session.session_id.slice(0, 8)}...
-            </h2>
-            {session.is_agent_session && (
-              <span className='px-1.5 py-0.5 text-[10px] bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded'>
-                Agent
-              </span>
-            )}
+          <div className='flex flex-col gap-1 shrink-0'>
+            <div className='flex items-center gap-2'>
+              <h2 className='text-sm font-semibold text-gray-900 truncate'>
+                {session.is_agent_session && '🤖 '}
+                {session.title || 'Untitled Session'}
+              </h2>
+              {session.is_agent_session && (
+                <span className='px-1.5 py-0.5 text-[10px] bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded'>
+                  Agent
+                </span>
+              )}
+            </div>
+            <div className='text-xs text-gray-400 font-mono'>{session.session_id}</div>
           </div>
 
           {/* 分隔线 */}
           <div className='w-px h-4 bg-gray-200 shrink-0' />
 
           {/* 元数据 */}
-          <div className='flex items-center gap-3 text-xs text-gray-500 min-w-0'>
+          <div className='flex items-center gap-3 text-xs text-gray-500 min-w-0 flex-1'>
             <div className='flex items-center gap-1 shrink-0'>
               <MessageSquare className='h-3 w-3' />
               <span>{session.message_count}</span>
@@ -210,6 +170,18 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
               </div>
             )}
           </div>
+
+          {/* 刷新按钮 */}
+          <button
+            onClick={() => loadSessionContent(true)}
+            disabled={loading}
+            className='p-1.5 hover:bg-gray-100 rounded-lg transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed'
+            title='Refresh session'
+          >
+            <RefreshCw
+              className={`h-4 w-4 text-gray-600 ${loading ? 'animate-spin' : ''}`}
+            />
+          </button>
         </div>
       </div>
 
@@ -221,22 +193,12 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
           </div>
         ) : (
           <div className='max-w-4xl mx-auto'>
-            {visibleMessages.map((message, index) => (
+            {session.messages.map((message, index) => (
               <ChatMessage
                 key={`${message.message?.id || 'msg'}-${index}`}
                 message={message}
               />
             ))}
-            {hasMore && (
-              <div ref={observerTarget} className='flex justify-center py-4'>
-                <div className='flex items-center gap-2 text-sm text-gray-500'>
-                  <Loader2 className='h-4 w-4 animate-spin' />
-                  <span>
-                    Loading {visibleCount} of {session.messages.length} messages...
-                  </span>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>

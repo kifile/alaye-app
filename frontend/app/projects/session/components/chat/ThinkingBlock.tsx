@@ -3,6 +3,7 @@
 import React, { useState, memo } from 'react';
 import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
 import type { ContentItem } from './ContentItem';
+import { useTranslation } from 'react-i18next';
 
 interface ThinkingBlockProps {
   item: ContentItem;
@@ -16,6 +17,7 @@ const PREVIEW_LENGTH = 80; // 预览字符数
  * 默认显示预览文字，点击后展开完整内容
  */
 export const ThinkingBlock = memo(({ item }: ThinkingBlockProps) => {
+  const { t } = useTranslation('projects');
   const [expanded, setExpanded] = useState(false);
   const text = item.text || '';
   const isLongText = text.length > PREVIEW_LENGTH;
@@ -40,7 +42,7 @@ export const ThinkingBlock = memo(({ item }: ThinkingBlockProps) => {
         )}
         <Sparkles className='h-4 w-4 text-emerald-700 dark:text-emerald-300 flex-shrink-0' />
         <span className='text-sm font-medium text-emerald-900 dark:text-emerald-100'>
-          Thinking Process
+          {t('session.thinkingBlock.title') || 'Thinking Process'}
         </span>
       </button>
       {/* 始终显示预览文字 */}
@@ -52,7 +54,7 @@ export const ThinkingBlock = memo(({ item }: ThinkingBlockProps) => {
               onClick={() => setExpanded(true)}
               className='ml-2 text-xs text-emerald-700 dark:text-emerald-300 underline hover:text-emerald-900 dark:hover:text-emerald-100'
             >
-              展开更多
+              {t('session.thinkingBlock.expandMore') || 'Show more'}
             </button>
           )}
         </div>

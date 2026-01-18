@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Set
 
+from sqlalchemy import case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..claude.claude_projects_scanner import (
@@ -39,15 +40,17 @@ logger = logging.getLogger(__name__)
 class ProjectService:
     """扫描服务类，处理 Claude 项目的扫描和数据持久化"""
 
-    def __init__(self, claude_projects_path: Optional[Path] = None):
+    def __init__(self, user_home: Optional[Path] = None):
         """
         初始化扫描服务
 
         Args:
-            claude_projects_path: Claude 项目目录路径，默认为 $USER/.claude/projects
+            user_home: 用户主目录路径，用于测试或自定义环境。
+                如果为 None，则使用系统默认的 Path.home()
         """
-        self.scanner = ClaudeProjectsScanner(claude_projects_path)
+        self.scanner = ClaudeProjectsScanner(user_home=user_home)
         self.projects_path = self.scanner.projects_path
+        self.user_home = self.scanner.user_home
         self._background_tasks: Set[asyncio.Task] = set()
 
     async def _run_background_task(self, coro):
@@ -506,6 +509,8 @@ class ProjectService:
                 ai_tools=[ai_tool_type],
                 first_active_at=claude_project.first_active_at,
                 last_active_at=claude_project.last_active_at,
+                favorited=existing_project.favorited,
+                favorited_at=existing_project.favorited_at,
             )
             existing_project = await ai_project_crud.update(
                 db, id=existing_project.id, obj_update=update_data
@@ -519,6 +524,8 @@ class ProjectService:
                 git_worktree_project=claude_project.git_worktree_project,
                 git_main_project_path=claude_project.git_main_project_path,
                 removed=claude_project.removed,
+                favorited=False,
+                favorited_at=None,
                 ai_tools=[ai_tool_type],
                 first_active_at=claude_project.first_active_at,
                 last_active_at=claude_project.last_active_at,
@@ -530,16 +537,29 @@ class ProjectService:
 
     async def list_projects(self) -> List[AIProjectInDB]:
         """
-        获取所有项目列表，按照 last_active_at 逆序排序
+        获取所有项目列表，优先按照已收藏的收藏时间逆序排序，然后是未收藏的按照 last_active_at 逆序排序
 
         Returns:
-            项目列表，按照 last_active_at 逆序排序
+            项目列表
         """
         async with get_db() as db:
-            # 查询所有项目，按照 last_active_at 逆序排序
-            # NULL 值排在最后
+            # 查询所有项目
+            # 排序逻辑：
+            # 1. favorited=True 的排在前面 (favorited DESC)
+            # 2. 已收藏的项目按照 favorited_at DESC 排序
+            # 3. 未收藏的项目按照 last_active_at DESC 排序
             projects = await ai_project_crud.read_all(
-                db, order_by=AIProject.last_active_at.desc()
+                db,
+                order_by=[
+                    AIProject.favorited.desc(),  # 收藏的在前
+                    # 使用 case 表达式：
+                    # - 如果 favorited=True，按 favorited_at DESC
+                    # - 如果 favorited=False/None，按 last_active_at DESC
+                    case(
+                        (AIProject.favorited == True, AIProject.favorited_at),
+                        else_=AIProject.last_active_at,
+                    ).desc(),
+                ],
             )
 
             return projects
@@ -557,6 +577,231 @@ class ProjectService:
         async with get_db() as db:
             project = await ai_project_crud.get_by_id(db, id=project_id)
             return project
+
+    async def favorite_project(self, project_id: int) -> Optional[AIProjectInDB]:
+        """
+        收藏项目
+
+        Args:
+            project_id: 项目ID
+
+        Returns:
+            更新后的项目信息，如果项目不存在则返回None
+        """
+        async with get_db() as db:
+            project = await ai_project_crud.get_by_id(db, id=project_id)
+            if not project:
+                return None
+
+            from datetime import datetime, timezone
+
+            update_data = AIProjectUpdate(
+                project_name=None,
+                claude_session_path=None,
+                git_worktree_project=None,
+                git_main_project_path=None,
+                removed=None,
+                ai_tools=None,
+                first_active_at=None,
+                last_active_at=None,
+                favorited=True,
+                favorited_at=datetime.now(timezone.utc),
+            )
+            updated_project = await ai_project_crud.update(
+                db, id=project_id, obj_update=update_data
+            )
+            logger.info(f"Favorited project: {project_id}")
+            return updated_project
+
+    async def unfavorite_project(self, project_id: int) -> Optional[AIProjectInDB]:
+        """
+        取消收藏项目
+
+        Args:
+            project_id: 项目ID
+
+        Returns:
+            更新后的项目信息，如果项目不存在则返回None
+        """
+        async with get_db() as db:
+            project = await ai_project_crud.get_by_id(db, id=project_id)
+            if not project:
+                return None
+
+            update_data = AIProjectUpdate(
+                project_name=None,
+                claude_session_path=None,
+                git_worktree_project=None,
+                git_main_project_path=None,
+                removed=None,
+                ai_tools=None,
+                first_active_at=None,
+                last_active_at=None,
+                favorited=False,
+                favorited_at=None,
+            )
+            updated_project = await ai_project_crud.update(
+                db, id=project_id, obj_update=update_data
+            )
+            logger.info(f"Unfavorited project: {project_id}")
+            return updated_project
+
+    async def delete_project(self, project_id: int) -> bool:
+        """
+        永久删除项目（包括数据库记录和配置文件）
+
+        Args:
+            project_id: 项目ID
+
+        Returns:
+            是否成功删除
+        """
+        async with get_db() as db:
+            try:
+                # 1. 先获取项目信息
+                project = await ai_project_crud.get_by_id(db, id=project_id)
+                if not project:
+                    logger.warning(f"Project {project_id} not found")
+                    return False
+
+                # 2. 从数据库中删除项目
+                await ai_project_crud.delete(db, id=str(project_id))
+                logger.info(f"Deleted project {project_id} from database")
+
+                # 3. 从 Claude 配置中删除项目（通过 scanner）
+                # 删除 ~/.claude.json 中的配置和 session 目录
+                if project.project_path or project.claude_session_path:
+                    scanner_deleted = self.scanner.delete_project(
+                        project_path=project.project_path or "",
+                        session_path=project.claude_session_path,
+                    )
+                    if not scanner_deleted:
+                        logger.warning(
+                            f"Scanner failed to delete project files for {project_id}"
+                        )
+
+                await db.commit()
+                return True
+
+            except Exception as e:
+                await db.rollback()
+                logger.error(f"Failed to delete project {project_id}: {e}")
+                raise
+
+    async def clear_removed_projects(self) -> bool:
+        """
+        一键清理所有已移除的项目
+
+        逻辑：
+        1. 先执行一次扫描更新，确保项目状态最新
+        2. 获取所有 removed=True 的项目
+        3. 逐个执行删除逻辑
+
+        Returns:
+            是否全部成功删除（只要有一个失败就返回 False）
+        """
+        logger.info("Starting to clear removed projects...")
+
+        # 1. 先执行扫描更新，确保项目状态最新
+        await self.scan_and_save_all_projects()
+
+        # 2. 获取所有 removed=True 的项目
+        async with get_db() as db:
+            removed_projects = await ai_project_crud.read_all(
+                db, where=AIProject.removed == True
+            )
+
+        total_removed = len(removed_projects)
+        logger.info(f"Found {total_removed} removed projects to delete")
+
+        # 3. 逐个执行删除逻辑
+        all_success = True
+        for project in removed_projects:
+            try:
+                success = await self.delete_project(project.id)
+                if success:
+                    logger.info(f"Successfully deleted removed project {project.id}")
+                else:
+                    all_success = False
+                    logger.warning(f"Failed to delete removed project {project.id}")
+            except Exception as e:
+                all_success = False
+                logger.error(f"Error deleting removed project {project.id}: {e}")
+
+        logger.info(
+            f"Clear removed projects completed: total={total_removed}, "
+            f"success={all_success}"
+        )
+
+        return all_success
+
+    async def scan_sessions(self, project_id: int) -> List[ClaudeSessionInfo]:
+        """
+        扫描项目的 session 列表（优先使用数据库数据，减少文件读取）
+
+        逻辑：
+        1. 从数据库获取项目信息
+        2. 从数据库获取已有的 session 数据（包含 title）
+        3. 调用 session_ops.scan_sessions，传入数据库中的 title
+        4. 只对数据库中缺失或 title 为空的 session 读取文件
+
+        Args:
+            project_id: 项目ID
+
+        Returns:
+            List[ClaudeSessionInfo]: session 简要信息列表
+
+        Raises:
+            ValueError: 项目不存在或缺少 session 路径
+        """
+        from pathlib import Path
+
+        # 1. 从数据库获取项目信息
+        project = await self.get_project_by_id(project_id)
+        if not project:
+            raise ValueError(f"项目 '{project_id}' 不存在")
+
+        # 检查项目是否有 session 路径
+        session_path_str = project.claude_session_path
+        if not session_path_str:
+            logger.debug(
+                f"Project {project.project_name}: no session path configured, returning empty list"
+            )
+            return []
+
+        session_path = Path(session_path_str)
+        if not session_path.exists():
+            logger.warning(f"Session directory does not exist: {session_path}")
+            return []
+
+        # 2. 从数据库获取已有的 session 数据（仅未删除的）
+        async with get_db() as db:
+            existing_sessions = await ai_project_session_crud.get_by_project_id(
+                db, project_id=project_id, include_removed=False
+            )
+
+        # 构建 session_id -> title 的映射
+        existing_titles = {
+            s.session_id: s.title
+            for s in existing_sessions
+            if s.title  # 只使用非空的 title
+        }
+
+        logger.debug(
+            f"Project {project.project_name}: found {len(existing_titles)} sessions with existing titles in database"
+        )
+
+        # 3. 调用 session_ops.scan_sessions，传入数据库中的 title
+        session_ops = ClaudeSessionOperations(session_path)
+        session_infos = await session_ops.scan_sessions(existing_titles)
+
+        logger.debug(
+            f"Project {project.project_name}: scanned {len(session_infos)} sessions "
+            f"(used {len(existing_titles)} titles from database, "
+            f"read {len(session_infos) - len(existing_titles)} files)"
+        )
+
+        return session_infos
 
 
 # 创建全局扫描服务实例

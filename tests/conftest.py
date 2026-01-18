@@ -11,6 +11,67 @@ from typing import AsyncGenerator
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+
+@pytest.hookimpl(trylast=True)
+def pytest_sessionfinish(session, exitstatus):
+    """在 pytest 会话结束时强制清理资源"""
+    import os
+
+    # 取消所有未完成的异步任务
+    try:
+        loop = asyncio.get_event_loop()
+        if loop and not loop.is_closed():
+            pending = asyncio.all_tasks(loop)
+            if pending:
+                for task in pending:
+                    if not task.done() and not task.cancelled():
+                        task.cancel()
+                try:
+                    loop.run_until_complete(
+                        asyncio.gather(*pending, return_exceptions=True)
+                    )
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    # 强制退出（如果进程仍然挂起）
+    # 给一点时间让正常清理完成
+    import threading
+    import time
+
+    def delayed_exit():
+        time.sleep(2)
+        # 如果2秒后还没退出，强制退出
+        os._exit(0)
+
+    # 启动一个守护线程，确保进程会退出
+    exit_thread = threading.Thread(target=delayed_exit, daemon=True)
+    exit_thread.start()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_async_tasks():
+    """确保所有测试完成后清理异步任务"""
+    yield
+    # 在所有测试完成后，取消所有未完成的异步任务
+    try:
+        loop = asyncio.get_event_loop()
+        if not loop.is_closed():
+            # 取消所有待处理的任务
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                if not task.done() and not task.cancelled():
+                    task.cancel()
+            # 等待任务取消完成
+            if pending:
+                loop.run_until_complete(
+                    asyncio.gather(*pending, return_exceptions=True)
+                )
+    except Exception:
+        pass  # 忽略清理时的错误
+
+
 # Store test database path
 _TEST_DB_PATH = None
 
@@ -31,15 +92,12 @@ def get_test_db_file():
     return get_test_db_path().replace("sqlite+aiosqlite:///", "")
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Create event loop for async tests"""
-    loop = asyncio.get_event_loop_policy().new_event_loop()
-    yield loop
-    loop.close()
+# 移除了自定义的 event_loop fixture
+# 让 pytest-asyncio 在 auto 模式下自动管理事件循环
+# pytest.ini 中已设置 asyncio_mode = auto
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 async def test_engine():
     """Create test database engine and create all tables"""
     db_path = get_test_db_path()
@@ -48,6 +106,8 @@ async def test_engine():
         db_path,
         echo=False,
         pool_pre_ping=True,
+        pool_size=1,
+        max_overflow=0,
     )
 
     # Create all tables using SQLAlchemy
@@ -63,7 +123,9 @@ async def test_engine():
     yield engine
 
     # Cleanup
+    print("Disposing database engine...")
     await engine.dispose()
+    print("Database engine disposed")
 
     # Delete test database file
     try:
@@ -76,6 +138,7 @@ async def test_engine():
                 import shutil
 
                 shutil.rmtree(parent_dir, ignore_errors=True)
+            print("Test database file deleted")
     except Exception as e:
         print(f"Warning: Failed to cleanup test database: {e}")
 

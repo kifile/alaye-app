@@ -1,12 +1,34 @@
 'use client';
 
 import React, { useState, memo } from 'react';
-import { Bot, ChevronDown, ChevronRight, Settings } from 'lucide-react';
+import { Bot, ChevronDown, ChevronRight, Settings, Server } from 'lucide-react';
 import type { ContentItem } from './ContentItem';
+import { useTranslation } from 'react-i18next';
 
 interface ToolUseBlockProps {
   item: ContentItem;
 }
+
+/**
+ * 解析 MCP 工具名称
+ * mcp__serverName__methodName -> { isMCP: true, serverName, methodName }
+ */
+const parseMcpToolName = (name: string) => {
+  if (!name.startsWith('mcp__')) {
+    return { isMCP: false };
+  }
+
+  const parts = name.split('__');
+  if (parts.length >= 3) {
+    return {
+      isMCP: true,
+      serverName: parts[1],
+      methodName: parts.slice(2).join('__'), // 处理方法名中可能包含 __ 的情况
+    };
+  }
+
+  return { isMCP: false };
+};
 
 /**
  * 工具调用块组件
@@ -14,6 +36,7 @@ interface ToolUseBlockProps {
  * 添加视觉指示器显示是否有参数和输出
  */
 export const ToolUseBlock = memo(({ item }: ToolUseBlockProps) => {
+  const { t } = useTranslation('projects');
   const [expanded, setExpanded] = useState(false);
   const status = item.status || (item.output ? 'complete' : 'incomplete');
   const isComplete = status === 'complete';
@@ -22,13 +45,17 @@ export const ToolUseBlock = memo(({ item }: ToolUseBlockProps) => {
   const hasOutput = !!item.output;
   const hasDetails = hasInput || hasOutput;
 
+  // 解析 MCP 工具
+  const mcpInfo = item.name ? parseMcpToolName(item.name) : { isMCP: false };
+  const isMCP = mcpInfo.isMCP;
+
   return (
     <div
       className={`my-2 rounded-lg border transition-all duration-200 ${
         isComplete
           ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/30'
           : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/30'
-      } ${hasInput ? 'border-l-4 border-l-blue-400' : ''} ${hasOutput ? 'border-r-4 border-r-green-400' : ''}`}
+      }`}
     >
       {/* 默认显示的摘要行 */}
       <div
@@ -37,51 +64,118 @@ export const ToolUseBlock = memo(({ item }: ToolUseBlockProps) => {
       >
         {/* 图标 */}
         <div className={`p-1 rounded ${isComplete ? 'bg-blue-500' : 'bg-amber-500'}`}>
-          <Bot className='h-3 w-3 text-white' />
+          {isMCP ? (
+            <Server className='h-3 w-3 text-white' />
+          ) : (
+            <Bot className='h-3 w-3 text-white' />
+          )}
         </div>
 
         {/* 函数名称 */}
         {item.name && (
-          <span
-            className={`px-2 py-0.5 text-xs rounded font-mono font-medium ${
-              isComplete
-                ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
-                : 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300'
-            }`}
-          >
-            {item.name}
-          </span>
-        )}
-
-        {/* 参数指示器 */}
-        {hasInput && (
-          <div
-            className='flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400'
-            title='Has parameters'
-          >
-            <Settings className='h-3 w-3' />
-          </div>
-        )}
-
-        {/* 输出指示器 */}
-        {hasOutput && (
-          <div
-            className='flex items-center gap-1 text-[10px] text-green-600 dark:text-green-400'
-            title='Has output'
-          >
-            <svg
-              className='h-3 w-3'
-              fill='none'
-              stroke='currentColor'
-              viewBox='0 0 24 24'
-            >
-              <path
-                strokeLinecap='round'
-                strokeLinejoin='round'
-                strokeWidth={2}
-                d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.707.293H19a2 2 0 012 2z'
-              />
-            </svg>
+          <div className='flex items-center gap-0.5'>
+            {isMCP ? (
+              // MCP 工具显示格式：(MCP) serverName / methodName
+              <>
+                <span
+                  className={`px-2 py-0.5 text-xs rounded font-mono font-medium ${
+                    isComplete
+                      ? 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300'
+                      : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300'
+                  }`}
+                >
+                  (MCP) {mcpInfo.serverName}
+                </span>
+                <span className='text-gray-400 text-xs'>/</span>
+                <span
+                  className={`px-2 py-0.5 text-xs rounded font-mono ${
+                    isComplete
+                      ? 'bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+                      : 'bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+                  }`}
+                >
+                  {mcpInfo.methodName}
+                </span>
+              </>
+            ) : (
+              // 普通工具显示
+              <span
+                className={`px-2 py-0.5 text-xs rounded font-mono font-medium ${
+                  isComplete
+                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                    : 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300'
+                }`}
+              >
+                {item.name}
+              </span>
+            )}
+            {/* 如果是 Read/Edit/Write 工具，显示文件路径 */}
+            {(item.name === 'Read' || item.name === 'Edit' || item.name === 'Write') &&
+              item.input?.file_path && (
+                <span
+                  className={`px-2 py-0.5 text-xs rounded font-mono ${
+                    isComplete
+                      ? 'bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
+                      : 'bg-amber-50 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400'
+                  }`}
+                  title={item.input.file_path}
+                >
+                  {(() => {
+                    const filePath = item.input.file_path as string;
+                    return filePath.length > 20
+                      ? `...${filePath.slice(-20)}`
+                      : filePath;
+                  })()}
+                </span>
+              )}
+            {/* 如果是 Bash 工具，显示 command */}
+            {item.name === 'Bash' && item.input?.command && (
+              <span
+                className={`px-2 py-0.5 text-xs rounded font-mono ${
+                  isComplete
+                    ? 'bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
+                    : 'bg-amber-50 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400'
+                }`}
+                title={item.input.command}
+              >
+                {(() => {
+                  const command = item.input.command as string;
+                  return command.length > 20 ? `${command.slice(0, 20)}...` : command;
+                })()}
+              </span>
+            )}
+            {/* 如果是 Grep/Glob 工具，显示 pattern */}
+            {(item.name === 'Grep' || item.name === 'Glob') && item.input?.pattern && (
+              <span
+                className={`px-2 py-0.5 text-xs rounded font-mono ${
+                  isComplete
+                    ? 'bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
+                    : 'bg-amber-50 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400'
+                }`}
+                title={item.input.pattern}
+              >
+                {(() => {
+                  const pattern = item.input.pattern as string;
+                  return pattern.length > 20 ? `...${pattern.slice(-20)}` : pattern;
+                })()}
+              </span>
+            )}
+            {/* 如果是 WebSearch 工具，显示 query */}
+            {item.name === 'WebSearch' && item.input?.query && (
+              <span
+                className={`px-2 py-0.5 text-xs rounded font-mono ${
+                  isComplete
+                    ? 'bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400'
+                    : 'bg-amber-50 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400'
+                }`}
+                title={item.input.query}
+              >
+                {(() => {
+                  const query = item.input.query as string;
+                  return query.length > 20 ? `${query.slice(0, 20)}...` : query;
+                })()}
+              </span>
+            )}
           </div>
         )}
 

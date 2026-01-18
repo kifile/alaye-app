@@ -119,4 +119,9 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* 修复列表项中段落的显示，避免不必要的换行 */
+  li[data-list-item] > p {
+    display: inline;
+    margin-bottom: 0;
+  }
 }

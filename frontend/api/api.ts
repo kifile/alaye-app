@@ -345,6 +345,47 @@ export const getProject = async (request: IDRequest): Promise<GetProjectResponse
 };
 
 /**
+ * 收藏项目API
+ * @param request 收藏项目请求参数
+ * @returns Promise<ApiResponse<AIProjectInDB>>
+ */
+export const favoriteProject = async (
+  request: IDRequest
+): Promise<ApiResponse<AIProjectInDB>> => {
+  return await callAPI<AIProjectInDB>('favorite_project', request);
+};
+
+/**
+ * 取消收藏项目API
+ * @param request 取消收藏项目请求参数
+ * @returns Promise<ApiResponse<AIProjectInDB>>
+ */
+export const unfavoriteProject = async (
+  request: IDRequest
+): Promise<ApiResponse<AIProjectInDB>> => {
+  return await callAPI<AIProjectInDB>('unfavorite_project', request);
+};
+
+/**
+ * 永久删除项目API
+ * @param request 删除项目请求参数
+ * @returns Promise<ApiResponse<boolean>>
+ */
+export const deleteProject = async (
+  request: IDRequest
+): Promise<ApiResponse<boolean>> => {
+  return await callAPI<boolean>('delete_project', request);
+};
+
+/**
+ * 清理所有已移除项目API
+ * @returns Promise<ApiResponse<boolean>>
+ */
+export const clearRemovedProjects = async (): Promise<ApiResponse<boolean>> => {
+  return await callAPI<boolean>('clear_removed_projects', {});
+};
+
+/**
  * 加载指定项目Markdown内容API
  * @param request 加载Markdown内容请求参数
  * @returns Promise<LoadMarkdownContentResponse>

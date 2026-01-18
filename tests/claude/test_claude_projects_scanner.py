@@ -416,5 +416,194 @@ class TestScanprojectsWithoutSessions:
         assert existing_count == 1
 
 
+class TestDeleteProject:
+    """测试 delete_project 方法"""
+
+    @pytest.fixture
+    def temp_user_home(self):
+        """创建临时用户主目录"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            yield home
+
+    @pytest.fixture
+    def scanner(self, temp_user_home):
+        """创建 scanner 实例"""
+        return ClaudeProjectsScanner(user_home=temp_user_home)
+
+    @pytest.fixture
+    def temp_projects_dir(self, temp_user_home):
+        """创建临时 Claude projects 目录"""
+        projects_dir = temp_user_home / ".claude" / "projects"
+        projects_dir.mkdir(parents=True)
+        return projects_dir
+
+    @pytest.fixture
+    def valid_project_config(self, temp_user_home, tmp_path):
+        """创建合法的项目配置文件"""
+        config_path = temp_user_home / ".claude.json"
+        test_project_path = tmp_path / "test-project"
+        test_project_path.mkdir(parents=True)
+
+        test_config = {
+            "projects": {
+                str(test_project_path): {
+                    "allowedTools": ["claude"],
+                    "mcpServers": {},
+                },
+                "/Users/test/project2": {
+                    "allowedTools": ["claude"],
+                    "mcpServers": {},
+                },
+            }
+        }
+        with open(config_path, "w") as f:
+            json.dump(test_config, f)
+        return test_config, test_project_path
+
+    def test_delete_project_success(
+        self, scanner, valid_project_config, temp_projects_dir
+    ):
+        """测试成功删除项目"""
+        test_config, test_project_path = valid_project_config
+
+        # 创建 session 目录
+        session_path = temp_projects_dir / "test-session"
+        session_path.mkdir()
+        (session_path / "session1.jsonl").write_text("{}\n")
+
+        # 删除项目
+        result = scanner.delete_project(
+            project_path=str(test_project_path), session_path=str(session_path)
+        )
+
+        assert result is True
+
+        # 验证 .claude.json 中的项目配置已删除
+        config_path = scanner.user_home / ".claude.json"
+        with open(config_path, "r") as f:
+            config = json.load(f)
+
+        assert str(test_project_path) not in config.get("projects", {})
+        assert "/Users/test/project2" in config.get("projects", {})
+
+        # 验证 session 目录已删除
+        assert not session_path.exists()
+
+    def test_delete_project_remove_from_claude_json_only(
+        self, scanner, valid_project_config
+    ):
+        """测试仅从 .claude.json 删除项目（不删除 session）"""
+        test_config, test_project_path = valid_project_config
+
+        # 删除项目，不提供 session_path
+        result = scanner.delete_project(
+            project_path=str(test_project_path), session_path=None
+        )
+
+        assert result is True
+
+        # 验证 .claude.json 中的项目配置已删除
+        config_path = scanner.user_home / ".claude.json"
+        with open(config_path, "r") as f:
+            config = json.load(f)
+
+        assert str(test_project_path) not in config.get("projects", {})
+
+    def test_delete_project_nonexistent_in_config(
+        self, scanner, temp_user_home, tmp_path
+    ):
+        """测试删除配置中不存在的项目"""
+        # 创建一个不在配置中的项目路径
+        nonexistent_path = tmp_path / "nonexistent-project"
+        nonexistent_path.mkdir(parents=True)
+
+        # 删除项目
+        result = scanner.delete_project(
+            project_path=str(nonexistent_path), session_path=None
+        )
+
+        # 应该返回 True（因为项目本来就不在配置中）
+        assert result is True
+
+    def test_delete_project_with_session_directory(
+        self, scanner, valid_project_config, temp_projects_dir
+    ):
+        """测试删除项目并删除 session 目录"""
+        test_config, test_project_path = valid_project_config
+
+        # 创建包含多个文件的 session 目录
+        session_path = temp_projects_dir / "test-session"
+        session_path.mkdir()
+        (session_path / "session1.jsonl").write_text("{}\n")
+        (session_path / "session2.jsonl").write_text("{}\n")
+        (session_path / "subdir").mkdir()
+        (session_path / "subdir" / "session3.jsonl").write_text("{}\n")
+
+        # 删除项目
+        result = scanner.delete_project(
+            project_path=str(test_project_path), session_path=str(session_path)
+        )
+
+        assert result is True
+        assert not session_path.exists()
+
+    def test_delete_project_session_not_exist(
+        self, scanner, valid_project_config, tmp_path
+    ):
+        """测试删除项目时 session 目录不存在"""
+        test_config, test_project_path = valid_project_config
+
+        # 使用不存在的 session 路径
+        nonexistent_session = tmp_path / "nonexistent-session"
+
+        # 删除项目
+        result = scanner.delete_project(
+            project_path=str(test_project_path), session_path=str(nonexistent_session)
+        )
+
+        # 应该仍然成功（session 不存在不影响删除）
+        assert result is True
+
+        # 验证 .claude.json 中的项目配置已删除
+        config_path = scanner.user_home / ".claude.json"
+        with open(config_path, "r") as f:
+            config = json.load(f)
+
+        assert str(test_project_path) not in config.get("projects", {})
+
+    def test_delete_project_empty_projects_in_config(
+        self, scanner, valid_project_config, tmp_path
+    ):
+        """测试删除最后一个项目后 projects 键被删除"""
+        test_config, test_project_path = valid_project_config
+
+        # 手动修改配置，只保留一个项目
+        config_path = scanner.user_home / ".claude.json"
+        modified_config = {
+            "projects": {
+                str(test_project_path): {
+                    "allowedTools": ["claude"],
+                    "mcpServers": {},
+                }
+            }
+        }
+        with open(config_path, "w") as f:
+            json.dump(modified_config, f)
+
+        # 删除唯一的项目
+        result = scanner.delete_project(
+            project_path=str(test_project_path), session_path=None
+        )
+
+        assert result is True
+
+        # 验证 projects 键也被删除
+        with open(config_path, "r") as f:
+            config = json.load(f)
+
+        assert "projects" not in config or config.get("projects") == {}
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

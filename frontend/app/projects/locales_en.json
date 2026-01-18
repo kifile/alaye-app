@@ -1,9 +1,15 @@
 {
   "title": "Projects",
   "description": "View and manage all Claude projects",
-  "refresh": "Refresh Projects",
+  "refresh": "Refresh",
   "refreshing": "Refreshing...",
   "scanProjects": "Scan Projects",
+  "clearRemoved": "Clear Removed",
+  "clearingRemoved": "Clearing...",
+  "clearRemovedConfirmTitle": "Clear Removed Projects",
+  "clearRemovedConfirmDescription": "This will permanently delete all removed projects.\n\nNote: This will only delete the configuration records in the AI tool, not the actual project files.\n\nThis action cannot be undone.",
+  "clearRemovedConfirm": "Clear",
+  "clearRemovedCancel": "Cancel",
   "noProjects": "No Projects",
   "noProjectsDesc": "No Claude projects found. Click the refresh button to scan for projects.",
   "loadFailed": "Failed to load project list",
@@ -14,6 +20,14 @@
   "scanComplete": "Scan complete",
   "scanCompleteDesc": "Project list has been updated",
   "refreshFailed": "Refresh failed",
+  "clearRemovedSuccess": "Cleared {{count}} removed project(s)",
+  "clearRemovedFailed": "Failed to clear removed projects",
+  "favoriteSuccess": "Added to favorites",
+  "favoriteFailed": "Failed to add to favorites",
+  "unfavoriteSuccess": "Removed from favorites",
+  "unfavoriteFailed": "Failed to remove from favorites",
+  "deleteSuccess": "Project deleted",
+  "deleteFailed": "Failed to delete project",
   "detail": {
     "loading": "Loading project details...",
     "notFound": "Project Not Found",
@@ -288,8 +302,23 @@
   "card": {
     "noPathInfo": "No path information",
     "lastActive": "Last active:",
-    "config": "Config",
-    "viewSessions": "View Sessions"
+    "removed": "REMOVED",
+    "removedTooltip": "This project has been deleted",
+    "favorite": "Favorite",
+    "unfavorite": "Unfavorite",
+    "delete": "Delete",
+    "permanentlyDelete": "Permanently Delete",
+    "configure": "Configure",
+    "viewSessions": "View Sessions",
+    "moreActions": "More Actions",
+    "deleteConfirmTitle": "Delete Project",
+    "deleteConfirmDescription": "Are you sure you want to delete \"{{projectName}}\"?\n\nNote: This will only delete the configuration record in the AI tool, not the actual project files.\n\nThis action cannot be undone.",
+    "deleteCancel": "Cancel",
+    "deleteConfirm": "Delete",
+    "deleteInProgress": "Deleting...",
+    "permanentlyDeleteConfirmTitle": "Permanently Delete Project",
+    "permanentlyDeleteConfirmDescription": "Are you sure you want to permanently delete \"{{projectName}}\"? This action cannot be undone.",
+    "permanentlyDeleteConfirm": "Permanently Delete"
   },
   "sidebar": {
     "title": "Claude Config",
@@ -818,6 +847,12 @@
       "project": "Project",
       "local": "Local",
       "plugin": "Plugin: {{name}}"
+    }
+  },
+  "session": {
+    "thinkingBlock": {
+      "title": "Thinking Process",
+      "expandMore": "Show more"
     }
   }
 }

@@ -12,6 +12,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { formatTime } from '@/lib/utils';
 
 interface SessionListProps {
   projectId: number;
@@ -41,14 +42,7 @@ export function SessionList({
         return;
       }
 
-      // 按 last_modified 降序排序
-      const sortedSessions = (response.data || []).sort((a, b) => {
-        const dateA = a.last_modified ? new Date(a.last_modified).getTime() : 0;
-        const dateB = b.last_modified ? new Date(b.last_modified).getTime() : 0;
-        return dateB - dateA;
-      });
-
-      setSessions(sortedSessions);
+      setSessions(response.data || []);
     } catch (error) {
       console.error('Failed to load sessions:', error);
       toast.error('Failed to load sessions', {
@@ -64,23 +58,6 @@ export function SessionList({
       loadSessions();
     }
   }, [projectId]);
-
-  // 格式化时间
-  const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-
-    return date.toLocaleDateString();
-  };
 
   return (
     <div className='h-full flex flex-col bg-white'>
@@ -144,11 +121,34 @@ export function SessionList({
                           <TooltipTrigger asChild>
                             <p className='text-sm font-medium text-gray-900 truncate cursor-help'>
                               {session.is_agent_session && '🤖 '}
-                              {session.session_id}
+                              {session.title || session.session_id}
                             </p>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p className='text-xs'>{session.session_id}</p>
+                            <div className='text-xs max-w-xs space-y-2'>
+                              {session.title && (
+                                <div>
+                                  <div className='font-semibold mb-0.5'>Title</div>
+                                  <div>{session.title}</div>
+                                </div>
+                              )}
+                              <div>
+                                <div className='font-semibold mb-0.5'>Session ID</div>
+                                <div className='break-all font-mono text-[10px]'>
+                                  {session.session_id}
+                                </div>
+                              </div>
+                              <div>
+                                <div className='font-semibold mb-0.5'>
+                                  Last Modified
+                                </div>
+                                <div>
+                                  {session.file_mtime_str
+                                    ? formatTime(session.file_mtime_str)
+                                    : 'Unknown'}
+                                </div>
+                              </div>
+                            </div>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -158,12 +158,18 @@ export function SessionList({
                         </span>
                       )}
                     </div>
-                    <div className='flex items-center gap-1 text-xs text-gray-500'>
-                      <Calendar className='h-3 w-3' />
-                      <span>
-                        {session.last_modified_str
-                          ? formatTime(session.last_modified_str)
-                          : 'Unknown'}
+                    <div className='flex items-center gap-2 text-xs text-gray-500'>
+                      <div className='flex items-center gap-1'>
+                        <Calendar className='h-3 w-3' />
+                        <span>
+                          {session.file_mtime_str
+                            ? formatTime(session.file_mtime_str)
+                            : 'Unknown'}
+                        </span>
+                      </div>
+                      <span className='text-gray-300'>•</span>
+                      <span className='truncate font-mono text-[10px]'>
+                        {session.session_id.slice(0, 8)}
                       </span>
                     </div>
                   </div>

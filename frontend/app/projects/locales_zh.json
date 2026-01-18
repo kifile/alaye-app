@@ -1,9 +1,15 @@
 {
   "title": "项目列表",
   "description": "查看和管理所有 Claude 项目",
-  "refresh": "刷新项目",
+  "refresh": "刷新",
   "refreshing": "刷新中...",
   "scanProjects": "扫描项目",
+  "clearRemoved": "清理已删除",
+  "clearingRemoved": "清理中...",
+  "clearRemovedConfirmTitle": "清理已删除项目",
+  "clearRemovedConfirmDescription": "这将永久删除所有已标记为移除的项目配置信息。\n\n注意：此操作仅删除在 AI 工具中的配置记录，不会删除实际的项目文件。\n\n此操作无法撤销。",
+  "clearRemovedConfirm": "清理",
+  "clearRemovedCancel": "取消",
   "noProjects": "暂无项目",
   "noProjectsDesc": "没有找到任何 Claude 项目，点击刷新按钮扫描项目。",
   "loadFailed": "加载项目列表失败",
@@ -14,6 +20,14 @@
   "scanComplete": "扫描完成",
   "scanCompleteDesc": "项目列表已更新",
   "refreshFailed": "刷新失败",
+  "clearRemovedSuccess": "已清理 {{count}} 个已删除项目",
+  "clearRemovedFailed": "清理已删除项目失败",
+  "favoriteSuccess": "已添加到收藏",
+  "favoriteFailed": "收藏失败",
+  "unfavoriteSuccess": "已取消收藏",
+  "unfavoriteFailed": "取消收藏失败",
+  "deleteSuccess": "项目已删除",
+  "deleteFailed": "删除项目失败",
   "detail": {
     "loading": "加载项目详情中...",
     "notFound": "项目不存在",
@@ -288,8 +302,23 @@
   "card": {
     "noPathInfo": "无路径信息",
     "lastActive": "最后活跃:",
-    "config": "配置",
-    "viewSessions": "查看会话"
+    "removed": "已移除",
+    "removedTooltip": "此项目已被删除",
+    "favorite": "收藏",
+    "unfavorite": "取消收藏",
+    "delete": "删除",
+    "permanentlyDelete": "永久删除",
+    "configure": "配置",
+    "viewSessions": "查看会话",
+    "moreActions": "更多操作",
+    "deleteConfirmTitle": "删除项目",
+    "deleteConfirmDescription": "确定要删除 \"{{projectName}}\" 吗？\n\n注意：此操作仅删除在 AI 工具中的配置记录，不会删除实际的项目文件。\n\n此操作无法撤销。",
+    "deleteCancel": "取消",
+    "deleteConfirm": "删除",
+    "deleteInProgress": "删除中...",
+    "permanentlyDeleteConfirmTitle": "永久删除项目",
+    "permanentlyDeleteConfirmDescription": "确定要永久删除 \"{{projectName}}\" 吗？此操作无法撤销。",
+    "permanentlyDeleteConfirm": "永久删除"
   },
   "sidebar": {
     "title": "Claude 配置",
@@ -818,6 +847,12 @@
       "project": "项目",
       "local": "本地",
       "plugin": "插件: {{name}}"
+    }
+  },
+  "session": {
+    "thinkingBlock": {
+      "title": "思考过程",
+      "expandMore": "展开更多"
     }
   }
 }

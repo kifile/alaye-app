@@ -130,6 +130,10 @@ export interface ListProjectsRequest {
   // 获取项目列表请求无需参数
 }
 
+export interface DeleteProjectRequest {
+  id: number;
+}
+
 export interface ScanAllProjectsRequest {
   force_refresh?: boolean;
 }
@@ -408,6 +412,8 @@ export interface AIProjectInDB {
   git_worktree_project?: boolean;
   git_main_project_path?: string;
   removed?: boolean;
+  favorited?: boolean;
+  favorited_at_str?: string; // Formatted datetime string
   ai_tools: AiToolType[];
   first_active_at_str?: string; // Formatted datetime string
   last_active_at_str?: string; // Formatted datetime string
@@ -561,6 +567,7 @@ export type ScanClaudeAgentsResponse = ApiResponse<AgentInfo[]>;
 export type ScanClaudeCommandsResponse = ApiResponse<CommandInfo[]>;
 export type ScanClaudeSkillsResponse = ApiResponse<SkillInfo[]>;
 export type GetProjectResponse = ApiResponse<AIProjectInDB>;
+export type DeleteProjectResponse = ApiResponse<boolean>;
 export type LoadMarkdownContentResponse = ApiResponse<MarkdownContentDTO>;
 export type UpdateMarkdownContentResponse = ApiResponse<boolean>;
 export type RenameMarkdownContentResponse = ApiResponse<boolean>;
@@ -728,8 +735,8 @@ export interface ClaudeSession {
 export interface ClaudeSessionInfo {
   session_id: string;
   session_file: string;
-  last_modified: string; // ISO datetime string
-  last_modified_str?: string; // Formatted datetime string
+  title?: string; // Session title
+  file_mtime_str?: string; // Formatted datetime string
   is_agent_session: boolean;
 }
 

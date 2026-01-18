@@ -2,7 +2,13 @@
  * 内容项类型定义
  * 用于 Claude 消息中的不同内容类型
  */
-export type ContentItemType = 'text' | 'tool_use' | 'thinking';
+export type ContentItemType =
+  | 'text'
+  | 'tool_use'
+  | 'server_tool_use'
+  | 'thinking'
+  | 'interrupted'
+  | 'command';
 
 export interface ContentItem {
   type: ContentItemType;
@@ -15,4 +21,6 @@ export interface ContentItem {
   id?: string;
   content?: string | Array<any>;
   is_continuation?: boolean;
+  // Command 类型专用字段
+  command?: string; // command 名称，例如 /code-review:code-review
 }

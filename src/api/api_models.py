@@ -277,6 +277,12 @@ class ScanAllProjectsRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class ClearRemovedProjectsRequest(BaseModel):
+    """清理已移除项目请求模型"""
+
+    model_config = ConfigDict(extra="allow")
+
+
 class ScanClaudeMemoryRequest(BaseModel):
     """扫描Claude Memory请求模型"""
 

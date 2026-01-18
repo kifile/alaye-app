@@ -70,6 +70,21 @@ class AIProject(Base):
         comment="项目路径是否已被移除",
     )
 
+    # 是否已收藏
+    favorited = Column(
+        Boolean,
+        nullable=True,
+        default=False,
+        comment="是否已收藏",
+    )
+
+    # 收藏时间
+    favorited_at = Column(
+        DateTime,
+        nullable=True,
+        comment="收藏时间",
+    )
+
     # AI工具列表，以JSON格式存储
     ai_tools = Column(
         JSON,

@@ -94,6 +94,7 @@ class ClaudeProjectsScanner:
         self,
         project_path: str,
         project_session_path: Optional[str],
+        last_active_at: Optional[datetime] = None,
     ) -> ClaudeProject:
         """
         创建 ClaudeProject 对象的辅助方法
@@ -101,6 +102,7 @@ class ClaudeProjectsScanner:
         Args:
             project_path: 项目路径
             project_session_path: 项目 session 路径（可能为 None）
+            last_active_at: 最后活跃时间（可能为 None）
 
         Returns:
             ClaudeProject: 创建的项目对象
@@ -121,7 +123,7 @@ class ClaudeProjectsScanner:
             project_path=project_path,
             project_session_path=project_session_path,
             first_active_at=None,
-            last_active_at=None,
+            last_active_at=last_active_at,
             git_worktree_project=is_worktree,
             git_main_project_path=main_project_path,
             removed=is_removed,
@@ -131,7 +133,7 @@ class ClaudeProjectsScanner:
         self, project_session_path: Path, valid_projects: set
     ) -> Optional[ClaudeProject]:
         """
-        快速扫描项目基本信息（使用 session_ops 快速提取路径）
+        快速扫描项目基本信息（使用 session_ops 快速提取路径和活跃时间）
 
         Args:
             project_session_path: 项目 session 目录路径
@@ -143,9 +145,9 @@ class ClaudeProjectsScanner:
         if not project_session_path.exists():
             return None
 
-        # 使用 ClaudeSessionOperations 快速扫描项目路径
+        # 使用 ClaudeSessionOperations 快速扫描项目路径和最后活跃时间
         session_ops = ClaudeSessionOperations(project_session_path)
-        project_display_path = await session_ops.quick_detect_project_path()
+        project_display_path, last_active_at = await session_ops.detect_project_info()
 
         # 如果没有找到项目路径，返回 None
         if not project_display_path:
@@ -167,7 +169,7 @@ class ClaudeProjectsScanner:
 
         # 创建 ClaudeProject 对象
         return self._create_claude_project(
-            project_display_path, str(project_session_path)
+            project_display_path, str(project_session_path), last_active_at
         )
 
     def detect_git_worktree(self, project_path: str) -> tuple[bool, Optional[str]]:
@@ -294,3 +296,60 @@ class ClaudeProjectsScanner:
                 logger.warning(f"Failed to process project {project_path}: {e}")
 
         return projects
+
+    def delete_project(
+        self, project_path: str, session_path: Optional[str] = None
+    ) -> bool:
+        """
+        从 Claude 配置中永久删除项目
+
+        Args:
+            project_path: 项目路径
+            session_path: 可选的 session 路径，如果提供则删除 session 目录
+
+        Returns:
+            bool: 是否成功删除
+        """
+        import shutil
+
+        from .settings_helper import load_config, save_config
+
+        claude_json_path = self.user_home / ".claude.json"
+
+        # 1. 从 ~/.claude.json 中移除项目配置
+        if claude_json_path.exists():
+            config = load_config(claude_json_path)
+
+            # 查找并删除项目配置
+            proj_key = None
+            for proj_path in list(config.get("projects", {}).keys()):
+                try:
+                    if Path(proj_path).resolve() == Path(project_path).resolve():
+                        proj_key = proj_path
+                        break
+                except Exception:
+                    continue
+
+            if proj_key:
+                if "projects" in config:
+                    del config["projects"][proj_key]
+                    # 如果 projects 为空，删除 projects 键
+                    if not config["projects"]:
+                        del config["projects"]
+                save_config(claude_json_path, config)
+                logger.info(f"Removed project from ~/.claude.json: {project_path}")
+
+        # 2. 删除 session 目录（如果提供）
+        if session_path:
+            session_dir = Path(session_path)
+            if session_dir.exists():
+                try:
+                    shutil.rmtree(session_dir)
+                    logger.info(f"Deleted session directory: {session_dir}")
+                except Exception as e:
+                    logger.error(
+                        f"Failed to delete session directory {session_dir}: {e}"
+                    )
+                    return False
+
+        return True

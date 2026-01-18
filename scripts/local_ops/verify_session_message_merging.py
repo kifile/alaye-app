@@ -60,13 +60,9 @@ def analyze_and_check_warnings(
     # 只在有非预期丢弃时才警告
     unexpected_dropped = 0
     for sample in analysis.get("dropped_samples", []):
-        # 判断是否为预期内的丢弃
-        drop_reason = sample.get("drop_reason", "")
-        if drop_reason == "invalid_type:file-history-snapshot":
+        # 使用 _expected_drop 标记来判断是否为预期内的丢弃
+        if sample.get("_expected_drop", False):
             # 预期内的丢弃，不产生警告
-            continue
-        elif drop_reason.startswith("invalid_type:"):
-            # 其他无效类型（如 meta），也视为预期内
             continue
         else:
             # 其他原因的丢弃（如 empty_content）是非预期的
@@ -83,12 +79,9 @@ def analyze_and_check_warnings(
     # 只显示非预期丢弃的样本（最多 2 条）
     unexpected_samples = []
     for sample in analysis.get("dropped_samples", []):
-        drop_reason = sample.get("drop_reason", "")
-        if drop_reason == "invalid_type:file-history-snapshot":
+        # 使用 _expected_drop 标记来判断是否为预期内的丢弃
+        if sample.get("_expected_drop", False):
             # 预期内丢弃，不显示
-            continue
-        elif drop_reason.startswith("invalid_type:"):
-            # 其他无效类型也视为预期内
             continue
         else:
             # 非预期丢弃，显示
@@ -265,9 +258,10 @@ def verify_all_session_merging():
                                     timestamp = timestamp[:19]  # 只显示前19个字符
                                 role = sample.get("role", "N/A")
                                 msg_type = sample.get("type", "N/A")
+                                subtype = sample.get("subtype", "N/A")
                                 drop_reason = sample.get("drop_reason", "unknown")
                                 print(
-                                    f"           [{i}] type={msg_type}, role={role}, reason={drop_reason}"
+                                    f"           [{i}] type={msg_type}, subtype={subtype}, role={role}, reason={drop_reason}"
                                 )
                                 print(f"               timestamp={timestamp}")
                                 print(f"               content={content_preview}")

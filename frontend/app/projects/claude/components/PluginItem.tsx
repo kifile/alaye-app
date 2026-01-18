@@ -451,7 +451,7 @@ export function PluginItem({ plugin, projectId, onPluginChange }: PluginItemProp
                     variant='default'
                     size='sm'
                     className='flex-1 rounded-r-none'
-                    onClick={() => handleInstall(ConfigScope.LOCAL)}
+                    onClick={() => handleInstall(ConfigScope.USER)}
                     disabled={loading}
                   >
                     <Download className='w-3.5 h-3.5 mr-1.5' />
@@ -459,7 +459,7 @@ export function PluginItem({ plugin, projectId, onPluginChange }: PluginItemProp
                       t('pluginItem.installing')
                     ) : (
                       <span>
-                        {t('pluginItem.installPlugin')} ({t('pluginItem.scope.local')})
+                        {t('pluginItem.installPlugin')} ({t('pluginItem.scope.user')})
                       </span>
                     )}
                   </Button>

@@ -122,39 +122,6 @@ class TestClaudeSessionOperations:
                 f.write(json.dumps(message_data) + "\n")
         return session_file
 
-    # ========== 测试 _convert_summary_to_system ==========
-
-    def test_convert_summary_to_system_success(self, session_ops):
-        """测试成功转换 summary 消息"""
-        message_data = {
-            "type": "summary",
-            "timestamp": "2024-01-01T10:00:00Z",
-            "summary": "This is a summary",
-        }
-
-        result = session_ops._convert_summary_to_system(message_data)
-
-        assert result is not None
-        assert result["type"] == "system"
-        assert result["message"]["role"] == "system"
-        assert result["message"]["content"][0]["text"] == "This is a summary"
-        assert result["_converted"] is True
-        assert result["_original_type"] == "summary"
-
-    def test_convert_summary_to_system_empty(self, session_ops):
-        """测试空的 summary 消息"""
-        message_data = {
-            "type": "summary",
-            "timestamp": "2024-01-01T10:00:00Z",
-            "summary": "",
-        }
-
-        result = session_ops._convert_summary_to_system(message_data)
-
-        assert result is None
-        assert message_data["_dropped"] is True
-        assert message_data["_drop_reason"] == "empty_summary"
-
     # ========== 测试 _merge_tool_result_to_tool_use ==========
 
     def test_merge_tool_result_to_tool_use_success(self, session_ops):
@@ -268,6 +235,171 @@ class TestClaudeSessionOperations:
 
         # 应该返回原始消息
         assert result is message_data
+
+    # ========== 测试 _convert_command_message ==========
+
+    def test_convert_command_message_with_meta(self, session_ops):
+        """测试转换 command 消息（有 isMeta 后续消息）"""
+        command_message = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": "<command-message>code-review:code-review</command-message>\n<command-name>/code-review:code-review</command-name>",
+            },
+        }
+
+        meta_message = {
+            "type": "user",
+            "isMeta": True,
+            "timestamp": "2024-01-01T10:00:01Z",
+            "message": {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Provide a code review for the given pull request.",
+                    }
+                ],
+            },
+        }
+
+        result = session_ops._convert_command_message(command_message, meta_message)
+
+        assert result is not None
+        assert result["type"] == "user"
+        assert result["message"]["role"] == "user"
+        content = result["message"]["content"]
+        assert len(content) == 1
+        assert content[0]["type"] == "command"
+        assert content[0]["command"] == "/code-review:code-review"
+        assert (
+            content[0]["content"] == "Provide a code review for the given pull request."
+        )
+        assert result["_converted"] is True
+        assert result["_original_type"] == "command"
+        # 验证原始 meta 消息被标记为跳过
+        assert meta_message.get("_skipped_next") is True
+
+    def test_convert_command_message_without_meta(self, session_ops):
+        """测试转换 command 消息（没有 isMeta 后续消息）"""
+        command_message = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": "<command-message>test-command</command-message>\n<command-name>/test</command-name>",
+            },
+        }
+
+        result = session_ops._convert_command_message(command_message, None)
+
+        assert result is not None
+        assert result["type"] == "user"
+        content = result["message"]["content"]
+        assert len(content) == 1
+        assert content[0]["type"] == "command"
+        assert content[0]["command"] == "/test"
+        assert content[0]["content"] == ""
+
+    def test_convert_command_message_non_command(self, session_ops):
+        """测试非 command 消息不被转换"""
+        normal_message = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {"role": "user", "content": "This is a normal message"},
+        }
+
+        result = session_ops._convert_command_message(normal_message, None)
+
+        assert result is None
+
+    def test_convert_command_message_empty_content(self, session_ops):
+        """测试空 content 的消息不被转换"""
+        message_with_empty_content = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {"role": "user", "content": []},
+        }
+
+        result = session_ops._convert_command_message(message_with_empty_content, None)
+
+        assert result is None
+
+    def test_convert_command_message_partial_tags(self, session_ops):
+        """测试只有部分 command 标签的消息不被转换"""
+        partial_command_message = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": "<command-message>test</command-message>",
+            },
+        }
+
+        result = session_ops._convert_command_message(partial_command_message, None)
+
+        assert result is None
+
+    def test_convert_command_message_with_extra_text(self, session_ops):
+        """测试 command 标签前后有额外文本时不会被转换"""
+        message_with_extra = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": "Please help me <command-message>test</command-message>\n<command-name>/test</command-name>",
+            },
+        }
+
+        result = session_ops._convert_command_message(message_with_extra, None)
+
+        assert result is None
+
+    def test_convert_command_message_embedded_in_text(self, session_ops):
+        """测试 command 标签嵌入在文本中间时不会被转换"""
+        embedded_message = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": "<command-message>test</command-message>\n<command-name>/test</command-name> and then do something else",
+            },
+        }
+
+        result = session_ops._convert_command_message(embedded_message, None)
+
+        assert result is None
+
+    def test_convert_command_message_whitespace_variations(self, session_ops):
+        """测试不同空白格变体应该被正确识别"""
+        # 只有换行符
+        message_with_newline = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": "<command-message>test</command-message>\n<command-name>/test</command-name>",
+            },
+        }
+
+        result = session_ops._convert_command_message(message_with_newline, None)
+        assert result is not None
+        assert result["message"]["content"][0]["command"] == "/test"
+
+        # 多个换行符和空格
+        message_with_spaces = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": "<command-message>test</command-message>\n  \n<command-name>/test2</command-name>  ",
+            },
+        }
+
+        result = session_ops._convert_command_message(message_with_spaces, None)
+        assert result is not None
+        assert result["message"]["content"][0]["command"] == "/test2"
 
     # ========== 测试 _merge_tool_use_with_result ==========
 
@@ -416,6 +548,84 @@ class TestClaudeSessionOperations:
         assert content[1]["status"] == "complete"
         assert content[1]["output"] == "File content loaded"
 
+    @pytest.mark.asyncio
+    async def test_merge_command_message_with_meta(self, session_ops):
+        """测试完整的 command 消息合并流程（有 isMeta 消息）"""
+        messages = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-01T10:00:00Z",
+                "message": {
+                    "role": "user",
+                    "content": "<command-message>code-review:code-review</command-message>\n<command-name>/code-review:code-review</command-name>",
+                },
+            },
+            {
+                "type": "user",
+                "isMeta": True,
+                "timestamp": "2024-01-01T10:00:01Z",
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Provide a detailed code review of the PR.",
+                        }
+                    ],
+                },
+            },
+            {
+                "type": "user",
+                "timestamp": "2024-01-01T10:00:02Z",
+                "message": {"role": "user", "content": "Normal user message"},
+            },
+        ]
+
+        merged = session_ops._merge_tool_use_with_result(messages)
+
+        # 应该有 2 条消息（command + normal user message）
+        assert len(merged) == 2
+
+        # 第一条是 command 消息
+        command_msg = merged[0]
+        assert command_msg["type"] == "user"
+        assert command_msg["message"]["role"] == "user"
+        content = command_msg["message"]["content"]
+        assert len(content) == 1
+        assert content[0]["type"] == "command"
+        assert content[0]["command"] == "/code-review:code-review"
+        assert content[0]["content"] == "Provide a detailed code review of the PR."
+
+        # 第二条是普通 user 消息
+        normal_msg = merged[1]
+        assert normal_msg["type"] == "user"
+        assert normal_msg["message"]["content"] == "Normal user message"
+
+    @pytest.mark.asyncio
+    async def test_merge_command_message_without_meta(self, session_ops):
+        """测试 command 消息合并流程（没有 isMeta 消息）"""
+        messages = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-01T10:00:00Z",
+                "message": {
+                    "role": "user",
+                    "content": "<command-message>test</command-message>\n<command-name>/test</command-name>",
+                },
+            },
+        ]
+
+        merged = session_ops._merge_tool_use_with_result(messages)
+
+        # 应该有 1 条 command 消息
+        assert len(merged) == 1
+        command_msg = merged[0]
+        assert command_msg["type"] == "user"
+        content = command_msg["message"]["content"]
+        assert content[0]["type"] == "command"
+        assert content[0]["command"] == "/test"
+        assert content[0]["content"] == ""
+
     # ========== 测试 scan_sessions ==========
 
     @pytest.mark.asyncio
@@ -509,7 +719,7 @@ class TestClaudeSessionOperations:
     @pytest.mark.asyncio
     async def test_load_session_data_success(self, session_ops, sample_session_jsonl):
         """测试成功加载 session 数据"""
-        session, _ = session_ops._load_session_data(sample_session_jsonl)
+        session, _ = await session_ops._load_session_data(sample_session_jsonl)
 
         assert session is not None
         assert session.session_id == "test-session-123"
@@ -534,7 +744,7 @@ class TestClaudeSessionOperations:
             )
 
         ops = ClaudeSessionOperations(temp_session_dir)
-        session, _ = ops._load_session_data(session_file)
+        session, _ = await ops._load_session_data(session_file)
 
         assert session is not None
         assert session.is_agent_session is True
@@ -548,7 +758,7 @@ class TestClaudeSessionOperations:
             f.write("invalid json content")
 
         ops = ClaudeSessionOperations(temp_session_dir)
-        session, _ = ops._load_session_data(session_file)
+        session, _ = await ops._load_session_data(session_file)
 
         assert session is None
 
@@ -559,7 +769,7 @@ class TestClaudeSessionOperations:
         session_file.touch()
 
         ops = ClaudeSessionOperations(temp_session_dir)
-        session, _ = ops._load_session_data(session_file)
+        session, _ = await ops._load_session_data(session_file)
 
         # 空文件应该返回 None（没有有效消息）
         assert session is None
@@ -606,11 +816,11 @@ class TestClaudeSessionOperations:
         with pytest.raises(ValueError, match="Invalid session_id"):
             await session_ops.read_session_contents("../etc/passwd")
 
-    # ========== 测试 quick_detect_project_path ==========
+    # ========== 测试 detect_project_info ==========
 
     @pytest.mark.asyncio
-    async def test_quick_detect_project_path_success(self, temp_session_dir):
-        """测试成功检测项目路径"""
+    async def test_detect_project_info_success(self, temp_session_dir):
+        """测试成功检测项目路径和时间"""
         # 创建包含 cwd 的 session 文件
         session_file = temp_session_dir / "session-1.jsonl"
         with open(session_file, "w") as f:
@@ -622,12 +832,13 @@ class TestClaudeSessionOperations:
             )
 
         ops = ClaudeSessionOperations(temp_session_dir)
-        project_path = await ops.quick_detect_project_path()
+        project_path, last_active = await ops.detect_project_info()
 
         assert project_path == "/test/project"
+        assert last_active is not None
 
     @pytest.mark.asyncio
-    async def test_quick_detect_project_path_not_found(self, temp_session_dir):
+    async def test_detect_project_info_not_found(self, temp_session_dir):
         """测试找不到项目路径"""
         # 创建不包含 cwd 的 session 文件
         session_file = temp_session_dir / "session-1.jsonl"
@@ -635,9 +846,178 @@ class TestClaudeSessionOperations:
             f.write(json.dumps({"timestamp": "2024-01-01T10:00:00Z"}) + "\n")
 
         ops = ClaudeSessionOperations(temp_session_dir)
-        project_path = await ops.quick_detect_project_path()
+        project_path, last_active = await ops.detect_project_info()
 
         assert project_path is None
+        assert last_active is None
+
+    # ========== 测试 _read_session_title ==========
+
+    @pytest.mark.asyncio
+    async def test_read_session_title_with_command(self, temp_session_dir):
+        """测试从 command 消息中提取标题"""
+        session_file = temp_session_dir / "session-command.jsonl"
+        with open(session_file, "w", encoding="utf-8") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "timestamp": "2024-01-01T10:00:00Z",
+                        "message": {
+                            "role": "user",
+                            "content": "<command-message>code-review:code-review</command-message>\n<command-name>/code-review:code-review</command-name>",
+                        },
+                    }
+                )
+                + "\n"
+            )
+
+        ops = ClaudeSessionOperations(temp_session_dir)
+        title, line_number = await ops._read_session_title(session_file)
+
+        assert title == "/code-review:code-review"
+        assert line_number == 1
+
+    @pytest.mark.asyncio
+    async def test_read_session_title_command_truncated(self, temp_session_dir):
+        """测试 command 名称被截断"""
+        session_file = temp_session_dir / "session-command-long.jsonl"
+        long_command_name = (
+            "/very:long:command:name:that:exceeds:default:max:length:limit"
+        )
+        with open(session_file, "w", encoding="utf-8") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "timestamp": "2024-01-01T10:00:00Z",
+                        "message": {
+                            "role": "user",
+                            "content": f"<command-message>test</command-message>\n<command-name>{long_command_name}</command-name>",
+                        },
+                    }
+                )
+                + "\n"
+            )
+
+        ops = ClaudeSessionOperations(temp_session_dir)
+        title, line_number = await ops._read_session_title(session_file)
+
+        # 默认最大长度是 50，所以应该被截断
+        assert title is not None
+        assert len(title) <= 50
+        assert title.endswith("...")
+        assert long_command_name.startswith(title[:-3])
+
+    @pytest.mark.asyncio
+    async def test_read_session_title_normal_message_after_command(
+        self, temp_session_dir
+    ):
+        """测试 command 消息优先于普通消息被用作标题"""
+        session_file = temp_session_dir / "session-mixed.jsonl"
+        with open(session_file, "w", encoding="utf-8") as f:
+            # 写入一条 command 消息
+            f.write(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "timestamp": "2024-01-01T10:00:00Z",
+                        "message": {
+                            "role": "user",
+                            "content": "<command-message>test</command-message>\n<command-name>/test</command-name>",
+                        },
+                    }
+                )
+                + "\n"
+            )
+            # 写入一条普通消息
+            f.write(
+                json.dumps(
+                    {
+                        "type": "user",
+                        "timestamp": "2024-01-01T10:00:01Z",
+                        "message": {"role": "user", "content": "Normal message"},
+                    }
+                )
+                + "\n"
+            )
+
+        ops = ClaudeSessionOperations(temp_session_dir)
+        title, line_number = await ops._read_session_title(session_file)
+
+        # 应该使用 command 名称作为标题
+        assert title == "/test"
+        assert line_number == 1
+
+    @pytest.mark.asyncio
+    async def test_extract_command_name_success(self, session_ops):
+        """测试成功提取 command 名称"""
+        content = "<command-message>code-review:code-review</command-message>\n<command-name>/code-review:code-review</command-name>"
+        result = session_ops._extract_command_name(content)
+
+        assert result == "/code-review:code-review"
+
+    def test_extract_command_name_non_command(self, session_ops):
+        """测试非 command 消息返回 None"""
+        content = "This is a normal message"
+        result = session_ops._extract_command_name(content)
+
+        assert result is None
+
+    def test_extract_command_name_partial_tags(self, session_ops):
+        """测试只有部分标签返回 None"""
+        content = "<command-message>test</command-message>"
+        result = session_ops._extract_command_name(content)
+
+        assert result is None
+
+    def test_extract_command_name_with_extra_text(self, session_ops):
+        """测试 command 标签前后有额外文本时返回 None"""
+        content = "Please help <command-message>test</command-message>\n<command-name>/test</command-name>"
+        result = session_ops._extract_command_name(content)
+
+        assert result is None
+
+    def test_extract_command_name_embedded_in_text(self, session_ops):
+        """测试 command 标签嵌入在文本中间时返回 None"""
+        content = "<command-message>test</command-message>\n<command-name>/test</command-name> and then more text"
+        result = session_ops._extract_command_name(content)
+
+        assert result is None
+
+    def test_extract_command_name_with_prefix_text(self, session_ops):
+        """测试 command 标签前有文本时返回 None"""
+        content = "prefix <command-message>test</command-message>\n<command-name>/test</command-name>"
+        result = session_ops._extract_command_name(content)
+
+        assert result is None
+
+    def test_extract_command_name_exact_match(self, session_ops):
+        """测试完全匹配标准格式"""
+        content = "<command-message>test</command-message>\n<command-name>/exact-match</command-name>"
+        result = session_ops._extract_command_name(content)
+
+        assert result == "/exact-match"
+
+    def test_extract_command_name_with_trailing_spaces(self, session_ops):
+        """测试尾部有空格应该被 strip 后匹配"""
+        content = "<command-message>test</command-message>\n<command-name>/trailing</command-name>  "
+        result = session_ops._extract_command_name(content)
+
+        assert result == "/trailing"
+
+    def test_extract_command_name_empty_string(self, session_ops):
+        """测试空字符串返回 None"""
+        result = session_ops._extract_command_name("")
+        assert result is None
+
+    def test_extract_command_name_non_string_input(self, session_ops):
+        """测试非字符串输入返回 None"""
+        result = session_ops._extract_command_name(["list", "content"])
+        assert result is None
+
+        result = session_ops._extract_command_name({"type": "object"})
+        assert result is None
 
 
 if __name__ == "__main__":
