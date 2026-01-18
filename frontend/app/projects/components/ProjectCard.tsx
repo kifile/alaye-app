@@ -165,10 +165,21 @@ export function ProjectCard({
                 )}
               </div>
 
-              {/* 路径 */}
-              <CardDescription className='text-xs line-clamp-1 font-mono'>
-                {project.project_path || t('card.noPathInfo')}
-              </CardDescription>
+              {/* 路径 - 带 tooltip */}
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <CardDescription className='text-xs line-clamp-1 font-mono cursor-help opacity-70'>
+                      {project.project_path || t('card.noPathInfo')}
+                    </CardDescription>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className='font-mono text-xs'>
+                      {project.project_path || t('card.noPathInfo')}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
 
             {/* 操作按钮组 */}
@@ -181,13 +192,19 @@ export function ProjectCard({
                       <Button
                         variant='ghost'
                         size='icon'
-                        className='h-8 w-8 transition-opacity'
+                        className='h-8 w-8 transition-opacity focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'
                         onClick={handleToggleFavorite}
+                        aria-label={
+                          isFavorited
+                            ? t('card.unfavorite') || 'Unfavorite'
+                            : t('card.favorite') || 'Favorite'
+                        }
+                        aria-pressed={isFavorited}
                       >
                         {isFavorited ? (
                           <Star className='h-4 w-4 fill-yellow-400 text-yellow-400' />
                         ) : (
-                          <Star className='h-4 w-4' />
+                          <Star className='h-4 w-4 text-muted-foreground/50 hover:text-amber-400 transition-colors' />
                         )}
                       </Button>
                     </TooltipTrigger>
@@ -209,8 +226,9 @@ export function ProjectCard({
                     <Button
                       variant='ghost'
                       size='icon'
-                      className='h-8 w-8 transition-opacity'
+                      className='h-8 w-8 transition-opacity focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'
                       onClick={handleViewSessions}
+                      aria-label={t('card.viewSessions') || 'View Sessions'}
                     >
                       <History className='h-4 w-4' />
                     </Button>
@@ -227,7 +245,8 @@ export function ProjectCard({
                   <Button
                     variant='ghost'
                     size='icon'
-                    className='h-8 w-8 transition-opacity'
+                    className='h-8 w-8 transition-opacity focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'
+                    aria-label={t('card.moreActions') || 'More actions'}
                   >
                     <MoreVertical className='h-4 w-4' />
                   </Button>
@@ -282,21 +301,33 @@ export function ProjectCard({
           <div className='flex items-center justify-between text-xs text-muted-foreground'>
             {/* 最后活跃时间 */}
             {project.last_active_at_str && (
-              <div className='flex items-center gap-1.5'>
-                <Activity className='h-3 w-3 opacity-60' />
-                <span className='opacity-80'>
-                  {t('card.lastActive')} {formatTime(project.last_active_at_str)}
-                </span>
-              </div>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className='flex items-center gap-1.5 cursor-help'>
+                      <Activity className='h-3 w-3 opacity-60' />
+                      <span className='opacity-80'>
+                        {formatTime(project.last_active_at_str)}
+                      </span>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      {t('card.lastActive')} {formatTime(project.last_active_at_str)}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             )}
 
             {/* 快速操作按钮 */}
             {!isRemoved && (
               <Button
-                variant='ghost'
+                variant='outline'
                 size='sm'
-                className='h-7 px-2.5 text-xs transition-opacity hover:bg-primary/10 hover:text-primary'
+                className='h-7 px-2.5 text-xs font-medium transition-all hover:bg-primary hover:text-primary-foreground hover:border-primary hover:shadow-sm focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none'
                 onClick={handleConfig}
+                aria-label={`${t('card.configure') || 'Configure'} ${project.project_name}`}
               >
                 <Settings className='h-3.5 w-3.5 mr-1.5' />
                 {t('card.configure') || 'Configure'}

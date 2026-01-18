@@ -14,7 +14,7 @@ export function cn(...inputs: ClassValue[]) {
  * @example
  * formatTime("2024-01-18T10:30:00Z") // "5m ago"
  * formatTime("2024-01-17T10:30:00Z") // "1d ago"
- * formatTime("2024-01-01T10:30:00Z") // "1/1/2024"
+ * formatTime("2024-01-01T10:30:00Z") // "2024-01-01"
  */
 export function formatTime(dateStr: string): string {
   const date = new Date(dateStr);
@@ -29,5 +29,9 @@ export function formatTime(dateStr: string): string {
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 7) return `${diffDays}d ago`;
 
-  return date.toLocaleDateString();
+  // Format as YYYY-MM-DD
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }

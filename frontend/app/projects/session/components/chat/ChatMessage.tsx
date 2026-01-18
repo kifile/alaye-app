@@ -101,6 +101,7 @@ export function ChatMessage({ message, isLoading }: ChatMessageProps) {
                   <CommandBlock
                     key={`command-${index}`}
                     command={item.command || ''}
+                    args={item.args}
                     content={
                       typeof item.content === 'string'
                         ? item.content

@@ -23,4 +23,5 @@ export interface ContentItem {
   is_continuation?: boolean;
   // Command 类型专用字段
   command?: string; // command 名称，例如 /code-review:code-review
+  args?: string; // command 参数，例如 http://localhost:3000/projects
 }

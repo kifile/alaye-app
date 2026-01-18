@@ -131,7 +131,9 @@ class ClaudeSessionOperations:
         将 command 消息转换为用户消息，并标记为 command 类型
 
         Command 消息的格式（严格匹配）：
-        1. 第一条消息的 content 必须完全是：<command-message>...</command-message>\n<command-name>...</command-name>
+        1. 第一条消息的 content 必须完全是：
+           - <command-message>...</command-message>\n<command-name>...</command-name>
+           - 或：<command-message>...</command-message>\n<command-name>...</command-name>\n<command-args>...</command-args>
         2. 第二条消息（可选）是 isMeta=true，包含 command 的具体内容
 
         Args:
@@ -149,17 +151,21 @@ class ClaudeSessionOperations:
             return None
 
         # 严格匹配：整个 content 必须是标准的 command 消息格式
-        # 格式：<command-message>xxx</command-message> <换行> <command-name>xxx</command-name>
+        # 格式 1：<command-message>xxx</command-message> <换行> <command-name>xxx</command-name>
+        # 格式 2：<command-message>xxx</command-message> <换行> <command-name>xxx</command-name> <换行> <command-args>xxx</command-args>
         command_pattern = re.compile(
-            r"^<command-message>.*?</command-message>\s*<command-name>(.*?)</command-name>$"
+            r"^<command-message>.*?</command-message>\s*<command-name>(.*?)</command-name>(?:\s*<command-args>(.*?)</command-args>)?$"
         )
         match = command_pattern.match(content.strip())
 
         if not match:
             return None
 
-        # 提取 command 名称
+        # 提取 command 名称和参数
         command_name = match.group(1)
+        command_args = (
+            match.group(2) if len(match.groups()) > 1 and match.group(2) else None
+        )
 
         # 提取 command 内容（从下一条 isMeta 消息中）
         command_content = None
@@ -191,6 +197,7 @@ class ClaudeSessionOperations:
                     "type": "command",
                     "command": command_name,
                     "content": command_content or "",
+                    "args": command_args or "",
                 }
             ],
         }
@@ -202,7 +209,8 @@ class ClaudeSessionOperations:
             f"Converted command message | "
             f"timestamp: {message_data.get('timestamp')} | "
             f"command: {command_name} | "
-            f"has_content: {command_content is not None}"
+            f"has_content: {command_content is not None} | "
+            f"has_args: {command_args is not None}"
         )
         return converted_message
 
@@ -764,7 +772,8 @@ class ClaudeSessionOperations:
         从 content 中提取 command 名称
 
         严格匹配：content 必须完全是标准的 command 消息格式
-        格式：<command-message>...</command-message>\n<command-name>...</command-name>
+        格式 1：<command-message>...</command-message>\n<command-name>...</command-name>
+        格式 2：<command-message>...</command-message>\n<command-name>...</command-name>\n<command-args>...</command-args>
 
         Args:
             content: 消息的 content 字段
@@ -776,10 +785,11 @@ class ClaudeSessionOperations:
             return None
 
         # 严格匹配整个 content 必须是 command 消息格式
-        # 格式：<command-message>xxx</command-message> <换行> <command-name>xxx</command-name>
+        # 格式 1：<command-message>xxx</command-message> <换行> <command-name>xxx</command-name>
+        # 格式 2：<command-message>xxx</command-message> <换行> <command-name>xxx</command-name> <换行> <command-args>xxx</command-args>
         # 前后不能有其他字符
         command_pattern = re.compile(
-            r"^<command-message>.*?</command-message>\s*<command-name>(.*?)</command-name>$"
+            r"^<command-message>.*?</command-message>\s*<command-name>(.*?)</command-name>(?:\s*<command-args>.*?)?$"
         )
         match = command_pattern.match(content.strip())
 
