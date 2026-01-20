@@ -3,12 +3,14 @@
 import React, { useState, memo, useMemo } from 'react';
 import { Bot, User } from 'lucide-react';
 import type { ClaudeMessage } from '@/api/types';
+import { formatChatTime } from '@/lib/utils';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ToolUseBlock } from './ToolUseBlock';
 import { SystemBlock } from './SystemBlock';
 import { InterruptedBlock } from './InterruptedBlock';
 import { CommandBlock } from './CommandBlock';
+import { AgentBlock } from './AgentBlock';
 import type { ContentItem } from './ContentItem';
 
 interface ChatMessageProps {
@@ -23,9 +25,9 @@ export function ChatMessage({ message, isLoading }: ChatMessageProps) {
   // 根据用户类型调整圆角样式
   const getBubbleClass = () => {
     if (isUser) {
-      return 'bg-blue-500 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm';
+      return 'bg-blue-500 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-md';
     }
-    return 'bg-gray-100 dark:bg-gray-800 px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm overflow-x-auto';
+    return 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-md border border-gray-200 dark:border-gray-700 overflow-x-hidden';
   };
 
   // 缓存 content 解析结果，避免每次渲染都重新处理
@@ -54,7 +56,9 @@ export function ChatMessage({ message, isLoading }: ChatMessageProps) {
 
   // 渲染 text 内容（Markdown）
   const renderTextContent = (text: string, index: number) => {
-    return <MarkdownRenderer key={`text-${index}`} text={text} />;
+    return (
+      <MarkdownRenderer key={`text-${index}`} text={text} isUserMessage={isUser} />
+    );
   };
 
   // 渲染内容
@@ -111,6 +115,9 @@ export function ChatMessage({ message, isLoading }: ChatMessageProps) {
                     }
                   />
                 );
+              case 'subagent':
+                // Subagent 调用，使用 AgentBlock 渲染
+                return <AgentBlock key={`subagent-${index}`} item={item} />;
               case 'text':
                 return item.text ? renderTextContent(item.text, index) : null;
               default:
@@ -138,7 +145,7 @@ export function ChatMessage({ message, isLoading }: ChatMessageProps) {
           {message.timestamp && (
             <div className='flex justify-center'>
               <span className='text-xs text-gray-500 mt-2'>
-                {new Date(message.timestamp).toLocaleTimeString()}
+                {formatChatTime(message.timestamp)}
               </span>
             </div>
           )}
@@ -150,12 +157,15 @@ export function ChatMessage({ message, isLoading }: ChatMessageProps) {
               <span className='text-sm text-gray-600 dark:text-gray-400'>You</span>
               <User className='h-4 w-4 text-gray-600 dark:text-gray-400' />
             </div>
-            <div className='bg-blue-500 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm text-sm'>
+            <div className={`${getBubbleClass()} text-sm max-w-full`}>
               {renderContent()}
             </div>
             {message.timestamp && (
-              <span className='text-xs text-gray-500 mt-1'>
-                {new Date(message.timestamp).toLocaleTimeString()}
+              <span
+                className='text-xs text-gray-500 mt-1'
+                title={new Date(message.timestamp).toLocaleString()}
+              >
+                {formatChatTime(message.timestamp)}
               </span>
             )}
           </div>
@@ -172,17 +182,22 @@ export function ChatMessage({ message, isLoading }: ChatMessageProps) {
             {isLoading ? (
               <div className='bg-gray-100 dark:bg-gray-800 px-4 py-2.5 rounded-2xl rounded-tl-sm text-sm'>
                 <div className='flex space-x-1'>
-                  <div className='w-2 h-2 bg-gray-400 rounded-full animate-bounce'></div>
-                  <div className='w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100'></div>
-                  <div className='w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200'></div>
+                  <div className='w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce'></div>
+                  <div className='w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce delay-100'></div>
+                  <div className='w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce delay-200'></div>
                 </div>
               </div>
             ) : (
-              <div className={`${getBubbleClass()} text-sm`}>{renderContent()}</div>
+              <div className={`${getBubbleClass()} text-sm max-w-full`}>
+                {renderContent()}
+              </div>
             )}
             {message.timestamp && (
-              <span className='text-xs text-gray-500 mt-1'>
-                {new Date(message.timestamp).toLocaleTimeString()}
+              <span
+                className='text-xs text-gray-500 mt-1'
+                title={new Date(message.timestamp).toLocaleString()}
+              >
+                {formatChatTime(message.timestamp)}
               </span>
             )}
           </div>

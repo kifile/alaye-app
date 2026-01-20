@@ -6,12 +6,6 @@ import { toast } from 'sonner';
 import { scanSessions } from '@/api/api';
 import type { ClaudeSessionInfo } from '@/api/types';
 import { useTranslation } from 'react-i18next';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { formatTime } from '@/lib/utils';
 
 interface SessionListProps {
@@ -100,10 +94,10 @@ export function SessionList({
               <button
                 key={session.session_id}
                 onClick={() => onSessionSelect(session.session_id)}
-                className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
+                className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-l-4 ${
                   selectedSessionId === session.session_id
-                    ? 'bg-blue-50 border-l-4 border-blue-500'
-                    : 'border-l-4 border-transparent'
+                    ? 'bg-blue-50 border-blue-500'
+                    : 'border-transparent'
                 }`}
               >
                 <div className='flex items-start gap-3'>
@@ -116,42 +110,10 @@ export function SessionList({
                   />
                   <div className='flex-1 min-w-0'>
                     <div className='flex items-center gap-2 mb-1'>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <p className='text-sm font-medium text-gray-900 truncate cursor-help'>
-                              {session.is_agent_session && '🤖 '}
-                              {session.title || session.session_id}
-                            </p>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <div className='text-xs max-w-xs space-y-2'>
-                              {session.title && (
-                                <div>
-                                  <div className='font-semibold mb-0.5'>Title</div>
-                                  <div>{session.title}</div>
-                                </div>
-                              )}
-                              <div>
-                                <div className='font-semibold mb-0.5'>Session ID</div>
-                                <div className='break-all font-mono text-[10px]'>
-                                  {session.session_id}
-                                </div>
-                              </div>
-                              <div>
-                                <div className='font-semibold mb-0.5'>
-                                  Last Modified
-                                </div>
-                                <div>
-                                  {session.file_mtime_str
-                                    ? formatTime(session.file_mtime_str)
-                                    : 'Unknown'}
-                                </div>
-                              </div>
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <p className='text-sm font-medium text-gray-900 truncate'>
+                        {session.is_agent_session && '🤖 '}
+                        {session.title || session.session_id}
+                      </p>
                       {session.is_agent_session && (
                         <span className='px-1.5 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded border border-purple-300 dark:border-purple-700'>
                           Agent
@@ -168,7 +130,7 @@ export function SessionList({
                         </span>
                       </div>
                       <span className='text-gray-300'>•</span>
-                      <span className='truncate font-mono text-[10px]'>
+                      <span className='truncate font-mono text-xs'>
                         {session.session_id.slice(0, 8)}
                       </span>
                     </div>

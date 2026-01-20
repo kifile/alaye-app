@@ -183,6 +183,10 @@ class ClaudeSessionOperations:
                         command_content = item.get("text", "")
                         break
 
+            # 清理系统标签（如果存在）
+            if command_content:
+                command_content = self._clean_system_tags(command_content)
+
             # 在原始的 next_message_data 上添加标记，使其在后续处理中被过滤
             next_message_data["_skipped_next"] = True
 
@@ -225,6 +229,7 @@ class ClaudeSessionOperations:
             tool_use_map: tool_use_id -> message_data 映射（会被修改）
         """
         tool_use_id = tool_result_item.get("tool_use_id")
+
         if tool_use_id and tool_use_id in tool_use_map:
             # 找到对应的 tool_use 消息
             tool_use_message_data = tool_use_map[tool_use_id]
@@ -233,24 +238,438 @@ class ClaudeSessionOperations:
             )
 
             # 在 tool_use_content 中找到对应的 tool_use 或 server_tool_use 并添加 output
-            for tool_use_item in tool_use_content:
+            for item in tool_use_content:
                 if (
-                    isinstance(tool_use_item, dict)
-                    and tool_use_item.get("type") in ("tool_use", "server_tool_use")
-                    and tool_use_item.get("id") == tool_use_id
+                    isinstance(item, dict)
+                    and item.get("type") in ("tool_use", "server_tool_use")
+                    and item.get("id") == tool_use_id
                 ):
-                    tool_use_item["output"] = tool_result_item.get("content")
-                    tool_use_item["status"] = "complete"
+                    item["output"] = tool_result_item.get("content")
+                    item["status"] = "complete"
                     break
 
-            # 从 map 中移除已处理的 tool_use（避免重复处理）
-            del tool_use_map[tool_use_id]
+            # 注意：不从 map 中移除 tool_use，因为后续的 isMeta 消息可能还需要引用它
+            # del tool_use_map[tool_use_id]
         else:
             # 找不到对应的 tool_use，记录被丢弃的 tool_result
             logger.warning(
                 f"Dropping tool_result: tool_use_id={tool_use_id} not found in tool_use_map | "
                 f"full tool_result_item: {tool_result_item}"
             )
+
+    def _merge_meta_to_tool_use(
+        self, meta_message: dict, tool_use_map: Dict[str, dict]
+    ) -> None:
+        """
+        将 isMeta 消息合并到对应的 tool_use 中
+
+        Args:
+            meta_message: isMeta=true 的消息数据
+            tool_use_map: tool_use_id -> message_data 映射（会被修改）
+        """
+        source_tool_use_id = meta_message.get("sourceToolUseID")
+
+        if source_tool_use_id and source_tool_use_id in tool_use_map:
+            # 找到对应的 tool_use 消息
+            tool_use_message_data = tool_use_map[source_tool_use_id]
+            tool_use_content = tool_use_message_data.get("message", {}).get(
+                "content", []
+            )
+
+            # 在 tool_use_content 中找到对应的 tool_use 或 server_tool_use 并添加 extra
+            for item in tool_use_content:
+                if (
+                    isinstance(item, dict)
+                    and item.get("type") in ("tool_use", "server_tool_use")
+                    and item.get("id") == source_tool_use_id
+                ):
+                    # 从 isMeta 消息的 message.content 中提取 text 内容
+                    message = meta_message.get("message", {})
+                    content = message.get("content", "")
+
+                    # 提取 text 内容
+                    text_content = None
+                    if isinstance(content, str):
+                        text_content = content
+                    elif isinstance(content, list) and len(content) > 0:
+                        # 从数组中提取 text 内容
+                        for content_item in content:
+                            if (
+                                isinstance(content_item, dict)
+                                and content_item.get("type") == "text"
+                            ):
+                                text_content = content_item.get("text", "")
+                                break
+
+                    # 只有当存在 text_content 时才添加 extra
+                    if text_content:
+                        item["extra"] = text_content
+
+                    break
+
+            logger.debug(
+                f"Merged isMeta message to tool_use: sourceToolUseID={source_tool_use_id} | "
+                f"timestamp: {meta_message.get('timestamp')}"
+            )
+        else:
+            # 找不到对应的 tool_use，记录被丢弃的 isMeta 消息
+            logger.warning(
+                f"Dropping isMeta message: sourceToolUseID={source_tool_use_id} not found in tool_use_map | "
+                f"timestamp: {meta_message.get('timestamp')} | "
+                f"uuid: {meta_message.get('uuid')}"
+            )
+
+    def _insert_subagent_items(
+        self,
+        merged_messages: List[dict],
+        subagent_messages_map: Optional[Dict[str, List[dict]]] = None,
+    ) -> List[dict]:
+        """
+        将 subagent content items 插入到对应 tool_use 后的位置
+
+        Args:
+            merged_messages: 已合并的消息列表
+            subagent_messages_map: parentToolUseID -> subagent 消息列表的映射
+
+        Returns:
+            List[dict]: 插入 subagent items 后的消息列表
+        """
+        if not subagent_messages_map:
+            return merged_messages
+
+        # 收集所有需要插入的 subagent items
+        subagent_items_to_insert = self._collect_subagent_items(
+            merged_messages, subagent_messages_map
+        )
+
+        if not subagent_items_to_insert:
+            return merged_messages
+
+        # 插入 subagent items 到对应位置
+        return self._insert_items_into_messages(
+            merged_messages, subagent_items_to_insert
+        )
+
+    def _collect_subagent_items(
+        self, merged_messages: List[dict], subagent_messages_map: Dict[str, List[dict]]
+    ) -> Dict[str, dict]:
+        """
+        收集所有需要插入的 subagent items
+
+        Args:
+            merged_messages: 已合并的消息列表
+            subagent_messages_map: parentToolUseID -> subagent 消息列表的映射
+
+        Returns:
+            Dict[str, dict]: tool_use_id -> subagent content item 的映射
+        """
+        subagent_items_to_insert = {}
+
+        for message_data in merged_messages:
+            content = message_data.get("message", {}).get("content", [])
+            if not isinstance(content, list):
+                continue
+
+            for item in content:
+                if self._is_tool_use_item(item):
+                    tool_use_id = item.get("id")
+                    if tool_use_id and tool_use_id in subagent_messages_map:
+                        subagent_item = self._create_subagent_item(
+                            item, subagent_messages_map[tool_use_id], tool_use_id
+                        )
+                        if subagent_item:
+                            subagent_items_to_insert[tool_use_id] = subagent_item
+
+        return subagent_items_to_insert
+
+    def _is_tool_use_item(self, item: dict) -> bool:
+        """
+        检查是否是 tool_use 或 server_tool_use 类型的 item
+
+        Args:
+            item: content item
+
+        Returns:
+            bool: 是否是 tool_use 类型
+        """
+        return isinstance(item, dict) and item.get("type") in (
+            "tool_use",
+            "server_tool_use",
+        )
+
+    def _create_subagent_item(
+        self, tool_use_item: dict, subagent_msgs: List[dict], tool_use_id: str
+    ) -> Optional[dict]:
+        """
+        创建单个 subagent content item
+
+        Args:
+            tool_use_item: 父 tool_use item
+            subagent_msgs: subagent 消息列表（标准格式）
+            tool_use_id: tool_use ID
+
+        Returns:
+            Optional[dict]: subagent content item，如果失败则返回 None
+        """
+        try:
+            # 提取 agent 类型和描述
+            agent_type = tool_use_item.get("input", {}).get("subagent_type", "unknown")
+            agent_description = tool_use_item.get("input", {}).get("description", "")
+
+            # 将标准格式消息转换为 raw_messages 格式
+            raw_subagent_msgs = [
+                self._convert_to_raw_message_format(msg) for msg in subagent_msgs
+            ]
+
+            # 使用统一的消息处理流程
+            _, claude_messages = self._process_session_messages(raw_subagent_msgs)
+
+            if not claude_messages:
+                logger.warning(f"No valid messages in subagent {tool_use_id}")
+                return None
+
+            # 创建 ClaudeSession 对象
+            subagent_session = ClaudeSession(
+                session_id=tool_use_id,
+                session_file="",  # subagent session 没有独立文件
+                title=agent_description or f"{agent_type} execution",
+                is_agent_session=True,
+                messages=claude_messages,
+                message_count=len(claude_messages),
+                first_active_at=None,
+                last_active_at=None,
+            )
+
+            logger.info(
+                f"Created subagent session: agent_type={agent_type}, "
+                f"message_count={len(claude_messages)}, tool_use_id={tool_use_id}"
+            )
+
+            # 创建 subagent content item，包含完整的 session
+            return {
+                "type": "subagent",
+                "agent_type": agent_type,
+                "description": agent_description,
+                "session": subagent_session.model_dump(),
+                "tool_use_id": tool_use_id,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to create subagent item for {tool_use_id}: {e}")
+            return None
+
+    def _convert_to_raw_message_format(self, msg: dict) -> dict:
+        """
+        将标准格式消息转换为 raw_message 格式
+
+        Args:
+            msg: 标准格式的消息
+
+        Returns:
+            dict: raw_message 格式的消息
+        """
+        raw_msg = {
+            "type": msg.get("type"),
+            "timestamp": msg.get("timestamp"),
+            "message": msg.get("message"),
+            "uuid": msg.get("uuid"),
+        }
+        # 保留其他可能的字段
+        for key in ["cwd", "gitBranch"]:
+            if key in msg:
+                raw_msg[key] = msg[key]
+        return raw_msg
+
+    def _insert_items_into_messages(
+        self, merged_messages: List[dict], subagent_items_to_insert: Dict[str, dict]
+    ) -> List[dict]:
+        """
+        将 subagent items 插入到消息列表的对应位置
+
+        Args:
+            merged_messages: 已合并的消息列表
+            subagent_items_to_insert: tool_use_id -> subagent content item 的映射
+
+        Returns:
+            List[dict]: 插入 subagent items 后的消息列表
+        """
+        result_messages = []
+        for message_data in merged_messages:
+            result_messages.append(message_data)
+
+            content = message_data.get("message", {}).get("content", [])
+            if not isinstance(content, list):
+                continue
+
+            # 找到所有 tool_use，在它们后面插入对应的 subagent item
+            for item in content:
+                if self._is_tool_use_item(item):
+                    tool_use_id = item.get("id")
+                    if tool_use_id in subagent_items_to_insert:
+                        # 创建一个新的消息，包含 subagent content item
+                        subagent_item = subagent_items_to_insert[tool_use_id]
+                        subagent_message = {
+                            "type": "assistant",
+                            "timestamp": message_data.get(
+                                "timestamp"
+                            ),  # 使用父消息时间戳以保持消息顺序
+                            "message": {
+                                "role": "assistant",
+                                "content": [subagent_item],
+                            },
+                            "_is_subagent_wrapper": True,
+                        }
+                        result_messages.append(subagent_message)
+
+        return result_messages
+
+    def _process_session_messages(
+        self, raw_messages: List[dict]
+    ) -> tuple[List[dict], List[ClaudeMessage]]:
+        """
+        处理 session 消息的完整流程（主流程和 subagent 流程通用）
+
+        这个方法封装了统一的消息处理流程，包括：
+        1. 合并 tool_use 和 tool_result
+        2. 提取并处理 subagent 消息（如果存在）
+        3. 合并连续的同 role 消息
+        4. 创建 ClaudeMessage 对象列表
+
+        Args:
+            raw_messages: 原始消息列表
+
+        Returns:
+            tuple[List[dict], List[ClaudeMessage]]:
+                - 处理后的消息字典列表（包含内部标记）
+                - ClaudeMessage 对象列表（用于存储）
+        """
+        # 1. 合并 tool_use 和 tool_result，提取 subagent 消息
+        merged_messages = self._merge_tool_use_with_result(raw_messages)
+
+        # 2. 合并连续的同 role 消息
+        merged_messages = self._merge_consecutive_messages(merged_messages)
+
+        # 3. 创建 ClaudeMessage 对象列表
+        claude_messages = []
+        for message_data in merged_messages:
+            # 清理内部标记字段（以 _ 开头的字段，但保留 _from_subagent）
+            clean_data = {
+                k: v
+                for k, v in message_data.items()
+                if not k.startswith("_") or k == "_from_subagent"
+            }
+
+            claude_message = ClaudeMessage.model_validate(
+                {
+                    "timestamp": clean_data.get("timestamp", ""),
+                    "message": clean_data.get("message"),
+                    "cwd": clean_data.get("cwd"),
+                    "gitBranch": clean_data.get("gitBranch"),
+                    "raw_data": clean_data,
+                }
+            )
+            claude_messages.append(claude_message)
+
+        return merged_messages, claude_messages
+
+    def _extract_progress_messages(
+        self, raw_messages: List[dict]
+    ) -> Dict[str, List[dict]]:
+        """
+        从原始消息中提取所有 progress 消息，并按 parentToolUseID 分组
+
+        Progress 消息是 subagent 执行过程中的进度更新，包含：
+        - parentToolUseID: 父 tool_use 的 ID
+        - data.normalizedMessages: 完整的对话历史
+
+        Args:
+            raw_messages: 原始消息列表
+
+        Returns:
+            Dict[str, List[dict]]: parentToolUseID -> subagent 消息列表的映射
+        """
+        progress_map: Dict[str, List[dict]] = {}
+
+        for message_data in raw_messages:
+            if message_data.get("type") != "progress":
+                continue
+
+            parent_tool_use_id = message_data.get("parentToolUseID")
+            if not parent_tool_use_id:
+                continue
+
+            # 初始化该 tool_use 的 subagent 消息列表
+            if parent_tool_use_id not in progress_map:
+                progress_map[parent_tool_use_id] = []
+
+            # 从 data.normalizedMessages 中提取消息
+            normalized_messages = message_data.get("data", {}).get(
+                "normalizedMessages", []
+            )
+            if isinstance(normalized_messages, list):
+                for msg in normalized_messages:
+                    # 转换为标准消息格式
+                    converted_msg = self._convert_progress_message_to_standard(msg)
+                    if converted_msg:
+                        progress_map[parent_tool_use_id].append(converted_msg)
+
+        # 去重并保持顺序（基于 timestamp）
+        for tool_use_id in progress_map:
+            messages = progress_map[tool_use_id]
+            # 使用 dict 去重（基于 uuid 或 timestamp）
+            seen = set()
+            unique_messages = []
+            for msg in messages:
+                # 使用 uuid 作为唯一标识
+                msg_uuid = msg.get("uuid") or msg.get("timestamp")
+                if msg_uuid and msg_uuid not in seen:
+                    seen.add(msg_uuid)
+                    unique_messages.append(msg)
+            progress_map[tool_use_id] = unique_messages
+
+        logger.debug(
+            f"Extracted progress messages for {len(progress_map)} tool_uses | "
+            f"total subagent messages: {sum(len(msgs) for msgs in progress_map.values())}"
+        )
+
+        return progress_map
+
+    def _convert_progress_message_to_standard(
+        self, progress_msg: dict
+    ) -> Optional[dict]:
+        """
+        将 progress 消息中的消息转换为标准格式
+
+        Args:
+            progress_msg: progress 消息中的单条消息
+
+        Returns:
+            Optional[dict]: 转换后的标准消息，如果转换失败则返回 None
+        """
+        if not isinstance(progress_msg, dict):
+            return None
+
+        msg_type = progress_msg.get("type")
+        if msg_type not in ("user", "assistant", "system"):
+            return None
+
+        # 提取标准字段
+        message = progress_msg.get("message", {})
+        if not message:
+            return None
+
+        # 创建标准格式的消息
+        standard_msg = {
+            "type": msg_type,
+            "timestamp": progress_msg.get("timestamp"),
+            "message": message,
+            "uuid": progress_msg.get("uuid"),
+            # 标记这是来自 subagent 的消息
+            "_from_subagent": True,
+            "_subagent": True,
+        }
+
+        return standard_msg
 
     def _process_assistant_message(
         self, message_data: dict, tool_use_map: Dict[str, dict]
@@ -331,10 +750,12 @@ class ClaudeSessionOperations:
 
     def _merge_tool_use_with_result(self, raw_messages: List[dict]) -> List[dict]:
         """
-        合并 tool_use 和 tool_result 消息
+        合并 tool_use 和 tool_result 消息，并提取 subagent 对话
 
         当遇到 tool_result 时，根据 tool_use_id 找到对应的 tool_use 消息，
         将两者合并成一条包含完整信息的消息。
+
+        同时，从 progress 消息中提取 subagent 的执行对话，并附加到对应的 tool_use 中。
 
         Args:
             raw_messages: 原始消息列表
@@ -345,6 +766,17 @@ class ClaudeSessionOperations:
         merged_messages = []
         # tool_use_id -> message_data 映射
         tool_use_map: Dict[str, dict] = {}
+
+        # 提取所有 progress 消息中的 subagent 对话
+        # parentToolUseID -> subagent messages 列表
+        subagent_messages_map = self._extract_progress_messages(raw_messages)
+
+        # 标记所有 progress 消息为已处理
+        for message_data in raw_messages:
+            if message_data.get("type") == "progress":
+                message_data["_dropped"] = True
+                message_data["_drop_reason"] = "progress_extracted"
+                message_data["_expected_drop"] = True
 
         for i, message_data in enumerate(raw_messages):
             message_type = message_data.get("type")
@@ -402,11 +834,11 @@ class ClaudeSessionOperations:
                 # 1. type=system, subtype=turn_duration
                 # 2. type=system, subtype=local_command
                 # 3. type=process (MCP 执行过程)
-                # 4. type=progress (执行进度)
+                # 注意：type=progress 已经被提前处理并提取 subagent 对话
                 is_expected_empty = (
                     message_type == "system"
                     and subtype in ("turn_duration", "local_command")
-                    or message_type in ("process", "progress")
+                    or message_type == "process"
                 )
 
                 if is_expected_empty:
@@ -428,7 +860,7 @@ class ClaudeSessionOperations:
                 logger.warning(
                     f"Dropping message with empty message field: type={message_type}, subtype={subtype} | "
                     f"timestamp: {message_data.get('timestamp')} | "
-                    f"full message_data: {message_data}"
+                    f"uuid: {message_data.get('uuid')}"
                 )
                 # 标记为丢弃（非预期）
                 message_data["_dropped"] = True
@@ -453,12 +885,33 @@ class ClaudeSessionOperations:
                 logger.warning(
                     f"Dropping message with empty content: {message_data.get('type')} | "
                     f"timestamp: {message_data.get('timestamp')} | "
-                    f"full message_data: {message_data}"
+                    f"uuid: {message_data.get('uuid')}"
                 )
                 # 标记为丢弃（非预期）
                 message_data["_dropped"] = True
                 message_data["_drop_reason"] = "empty_content"
                 message_data["_expected_drop"] = False
+                continue
+
+            # 清理用户消息中的开头系统标签
+            if message_data.get("type") == "user" and isinstance(content, str):
+                cleaned_content = self._clean_leading_system_tags(content)
+                # 将字符串 content 转换为标准格式 [{type: "text", text: "..."}]
+                message_data = copy.copy(message_data)
+                message_data["message"] = copy.deepcopy(message_data.get("message", {}))
+                message_data["message"]["content"] = [
+                    {"type": "text", "text": cleaned_content}
+                ]
+                content = message_data["message"]["content"]
+
+            # 处理 isMeta 消息（包含 sourceToolUseID 的元数据消息）
+            if message_data.get("isMeta") and message_data.get("sourceToolUseID"):
+                # 将 isMeta 消息合并到对应的 tool_use 中
+                self._merge_meta_to_tool_use(message_data, tool_use_map)
+                # 标记为已处理
+                message_data["_dropped"] = True
+                message_data["_drop_reason"] = "merged_into_tool_use"
+                message_data["_expected_drop"] = True
                 continue
 
             # 处理 user 消息和 assistant 消息中的 tool_result
@@ -491,6 +944,11 @@ class ClaudeSessionOperations:
             else:
                 # 字符串类型的 content（user 消息），直接添加
                 merged_messages.append(message_data)
+
+        # 后处理：将 subagent 消息插入到对应位置
+        merged_messages = self._insert_subagent_items(
+            merged_messages, subagent_messages_map
+        )
 
         return merged_messages
 
@@ -650,6 +1108,14 @@ class ClaudeSessionOperations:
                 # 只在需要时读取文件获取 title
                 title, _ = await self._read_session_title(session_file)
 
+            # 如果没有标题，说明可能没有产生真实会话，过滤掉该 session
+            if not title:
+                logger.debug(
+                    f"Skipping session without title: {session_id} | "
+                    f"file: {session_file.name}"
+                )
+                continue
+
             session_info = ClaudeSessionInfo(
                 session_id=session_id,
                 session_file=str(session_file),
@@ -798,6 +1264,69 @@ class ClaudeSessionOperations:
 
         return None
 
+    def _clean_leading_system_tags(self, text: str) -> str:
+        """
+        清理用户消息开头部分的系统标签
+
+        只清理文本开头连续出现的系统标签，包括：
+        - <local-command-caveat>...</local-command-caveat>
+        - <command-name>...</command-name>
+        - <command-message>...</command-message>
+        - <command-args>...</command-args>
+        - <local-command-stdout>...</local-command-stdout>
+        - <local-command-stderr>...</local-command-stderr>
+
+        一旦遇到非系统标签的内容，就停止清理。
+
+        Args:
+            text: 原始文本
+
+        Returns:
+            str: 清理后的文本
+        """
+        # 匹配开头连续的系统标签（使用非贪婪匹配）
+        # 这个模式会匹配开头零个或多个连续的系统标签
+        leading_tags_pattern = r"^(?:(?:<local-command-caveat>.*?</local-command-caveat>\s*|(?:<command-name>.*?</command-name>\s*)|(?:<command-message>.*?</command-message>\s*)|(?:<command-args>.*?</command-args>\s*)|(?:<local-command-stdout>.*?</local-command-stdout>\s*)|(?:<local-command-stderr>.*?</local-command-stderr>\s*))+)"
+
+        # 只移除开头的系统标签
+        cleaned_text = re.sub(leading_tags_pattern, "", text, flags=re.DOTALL)
+
+        return cleaned_text.strip()
+
+    def _clean_system_tags(self, text: str) -> str:
+        """
+        清理用户消息中的系统标签（所有出现的位置）
+
+        移除本地命令执行时产生的系统标签，包括：
+        - <local-command-caveat>...</local-command-caveat>
+        - <command-name>...</command-name>
+        - <command-message>...</command-message>
+        - <command-args>...</command-args>
+        - <local-command-stdout>...</local-command-stdout>
+        - <local-command-stderr>...</local-command-stderr>
+
+        Args:
+            text: 原始文本
+
+        Returns:
+            str: 清理后的文本
+        """
+        # 定义需要清理的系统标签模式
+        system_tag_patterns = [
+            r"<local-command-caveat>.*?</local-command-caveat>\s*",
+            r"<command-name>.*?</command-name>\s*",
+            r"<command-message>.*?</command-message>\s*",
+            r"<command-args>.*?</command-args>\s*",
+            r"<local-command-stdout>.*?</local-command-stdout>\s*",
+            r"<local-command-stderr>.*?</local-command-stderr>\s*",
+        ]
+
+        cleaned_text = text
+        for pattern in system_tag_patterns:
+            cleaned_text = re.sub(pattern, "", cleaned_text, flags=re.DOTALL)
+
+        return cleaned_text.strip()
+
     def _truncate_title(self, text: str, max_length: int) -> str:
         """
         截断标题到指定长度，如果超过则添加省略号
@@ -809,8 +1338,10 @@ class ClaudeSessionOperations:
         Returns:
             str: 截断后的标题（如果超过长度则添加 "..."）
         """
+        # 先清理开头的系统标签
+        cleaned_text = self._clean_leading_system_tags(text)
         # 清理文本：移除换行和多余空格
-        cleaned_text = " ".join(text.split())
+        cleaned_text = " ".join(cleaned_text.split())
 
         # 如果超过长度限制，截取并添加省略号
         if len(cleaned_text) > max_length:
@@ -1088,20 +1619,13 @@ class ClaudeSessionOperations:
                 )
                 return None, debug_info
 
-            # 合并 tool_use 和 tool_result
-            merged_messages = self._merge_tool_use_with_result(raw_messages)
-
-            # 合并连续的同一 role 的消息
-            merged_messages = self._merge_consecutive_messages(merged_messages)
-
-            # 只在 debug 模式下收集被丢弃的消息和统计信息
+            # 只在 debug 模式下收集被丢弃的消息
             if debug:
                 # 收集被丢弃的消息（用于调试）
-                # 通过检查 _dropped 标记来判断，而不是通过 id 比较
                 dropped = [m for m in raw_messages if m.get("_dropped", False)]
                 debug_info["dropped_messages"] = len(dropped)
 
-                # 保存最多 2 条被丢弃的消息样本（所有丢弃消息）
+                # 保存最多 2 条被丢弃的消息样本
                 for dropped_msg in dropped[:2]:
                     sample = {
                         "type": dropped_msg.get("type"),
@@ -1111,7 +1635,6 @@ class ClaudeSessionOperations:
                         "_expected_drop": dropped_msg.get("_expected_drop", False),
                         "subtype": dropped_msg.get("subtype"),
                     }
-                    # 提取内容的前 100 个字符作为示例
                     content = dropped_msg.get("message", {}).get("content")
                     if isinstance(content, str):
                         sample["content_preview"] = content[:100]
@@ -1119,31 +1642,13 @@ class ClaudeSessionOperations:
                         sample["content_preview"] = (
                             f"[{content[0].get('type', 'unknown')}]"
                         )
-                    # 对于 summary 类型，尝试从 summary 字段获取内容
                     elif dropped_msg.get("type") == "summary":
                         summary_text = dropped_msg.get("summary", "")
                         sample["content_preview"] = str(summary_text)[:100]
                     debug_info["dropped_samples"].append(sample)
 
-            # 创建 ClaudeMessage 对象
-            messages = []
-            for message_data in merged_messages:
-                # 清理内部标记字段（以 _ 开头的字段）
-                clean_data = {
-                    k: v for k, v in message_data.items() if not k.startswith("_")
-                }
-
-                message = ClaudeMessage.model_validate(
-                    {
-                        "timestamp": clean_data.get("timestamp", ""),
-                        "message": clean_data.get("message"),
-                        "cwd": clean_data.get("cwd"),
-                        "gitBranch": clean_data.get("gitBranch"),
-                        "raw_data": clean_data,
-                    }
-                )
-                messages.append(message)
-
+            # 使用统一的消息处理流程
+            merged_messages, messages = self._process_session_messages(raw_messages)
             message_count = len(messages)
 
             # 如果合并后消息条数为 0，返回 None（所有消息都被过滤掉了）
