@@ -21,6 +21,7 @@ dependencies = [
     "aiosqlite>=0.22.1",
     "greenlet>=3.3.0",
     "aiofiles>=24.1.0",
+    "orjson>=3.11.5",
 ]
 
 [dependency-groups]

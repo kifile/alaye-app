@@ -13,6 +13,9 @@ from typing import Any, Dict, List, Optional, Set
 
 import aiofiles
 
+import orjson
+
+
 from src.utils.time_utils import parse_iso_timestamp
 
 from .models import ClaudeMessage, ClaudeSession, ClaudeSessionInfo
@@ -24,6 +27,10 @@ logger = logging.getLogger("claude")
 VALID_MESSAGE_TYPES: Set[str] = {"user", "assistant", "system"}
 META_MESSAGE_TYPES: Set[str] = {"file-history-snapshot", "summary"}
 DEFAULT_TITLE_MAX_LENGTH = 50
+
+
+def _json_loads(s: str) -> dict:
+    return orjson.loads(s)
 
 
 class ClaudeSessionOperations:
@@ -552,20 +559,16 @@ class ClaudeSessionOperations:
         # 3. 创建 ClaudeMessage 对象列表
         claude_messages = []
         for message_data in merged_messages:
-            # 清理内部标记字段（以 _ 开头的字段，但保留 _from_subagent）
-            clean_data = {
-                k: v
-                for k, v in message_data.items()
-                if not k.startswith("_") or k == "_from_subagent"
-            }
-
+            # 【性能优化】只提取必要的字段，移除 raw_data 以减少数据传输大小
+            # 原始实现包含 raw_data 会导致数据量翻倍
             claude_message = ClaudeMessage.model_validate(
                 {
-                    "timestamp": clean_data.get("timestamp", ""),
-                    "message": clean_data.get("message"),
-                    "cwd": clean_data.get("cwd"),
-                    "gitBranch": clean_data.get("gitBranch"),
-                    "raw_data": clean_data,
+                    "timestamp": message_data.get("timestamp", ""),
+                    "message": message_data.get("message"),
+                    "cwd": message_data.get("cwd"),
+                    "gitBranch": message_data.get("gitBranch"),
+                    # 移除 raw_data，显著减少数据传输大小
+                    # "raw_data": clean_data,
                 }
             )
             claude_messages.append(claude_message)
@@ -1519,11 +1522,9 @@ class ClaudeSessionOperations:
             # 读取会话标题
             title, _ = await self._read_session_title(session_file)
 
-            # 读取整个文件
-            with open(session_file, "r", encoding="utf-8") as f:
-                content = f.read()
-
-            # 解析所有行并同时统计原始消息
+            # 【性能优化】使用流式读取 + orjson 解析
+            # 对于大文件（如 199MB），流式读取可以显著减少内存使用
+            # orjson 比标准 json 快 2-3 倍
             raw_messages = []
             first_active_at = None
             last_active_at = None
@@ -1535,67 +1536,72 @@ class ClaudeSessionOperations:
             raw_meta = raw_user = raw_assistant = raw_system = 0
             raw_tool_use = raw_tool_result = raw_thinking = 0
 
-            for line in content.splitlines():
-                total_lines += 1
-                line = line.strip()
-                if not line:
-                    empty_lines += 1
-                    continue
+            with open(session_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    total_lines += 1
+                    line = line.strip()
+                    if not line:
+                        empty_lines += 1
+                        continue
 
-                try:
-                    message_data = json.loads(line)
-                    raw_messages.append(message_data)
+                    try:
+                        # 使用 orjson 或标准 json 解析
+                        message_data = _json_loads(line)
+                        raw_messages.append(message_data)
 
-                    # 提取时间信息
-                    if "timestamp" in message_data:
-                        timestamp_str = message_data["timestamp"]
-                        timestamp = parse_iso_timestamp(timestamp_str)
+                        # 提取时间信息
+                        if "timestamp" in message_data:
+                            timestamp_str = message_data["timestamp"]
+                            timestamp = parse_iso_timestamp(timestamp_str)
 
-                        if timestamp:
-                            if first_active_at is None:
-                                first_active_at = timestamp
-                            last_active_at = max(last_active_at or timestamp, timestamp)
+                            if timestamp:
+                                if first_active_at is None:
+                                    first_active_at = timestamp
+                                last_active_at = max(
+                                    last_active_at or timestamp, timestamp
+                                )
 
-                    # 在 debug 模式下同时统计原始消息
-                    if debug:
-                        msg_type = message_data.get("type", "")
-                        message = message_data.get("message", {})
+                        # 在 debug 模式下同时统计原始消息
+                        if debug:
+                            msg_type = message_data.get("type", "")
+                            message = message_data.get("message", {})
 
-                        if msg_type == "meta" or msg_type == "summary":
-                            raw_meta += 1
-                        elif msg_type == "user":
-                            raw_user += 1
-                            # 统计 user 消息中的 tool_result
-                            content = message.get("content", [])
-                            if isinstance(content, list):
-                                for item in content:
-                                    if (
-                                        isinstance(item, dict)
-                                        and item.get("type") == "tool_result"
-                                    ):
-                                        raw_tool_result += 1
-                        elif msg_type == "assistant":
-                            raw_assistant += 1
-                            # 统计 assistant 消息中的 content 类型
-                            content = message.get("content", [])
-                            if isinstance(content, list):
-                                for item in content:
-                                    if isinstance(item, dict):
-                                        if item.get("type") in (
-                                            "tool_use",
-                                            "server_tool_use",
+                            if msg_type == "meta" or msg_type == "summary":
+                                raw_meta += 1
+                            elif msg_type == "user":
+                                raw_user += 1
+                                # 统计 user 消息中的 tool_result
+                                content = message.get("content", [])
+                                if isinstance(content, list):
+                                    for item in content:
+                                        if (
+                                            isinstance(item, dict)
+                                            and item.get("type") == "tool_result"
                                         ):
-                                            raw_tool_use += 1
-                                        elif item.get("type") == "thinking":
-                                            raw_thinking += 1
-                            elif isinstance(content, str) and content:
-                                raw_thinking += 1
-                        elif msg_type == "system":
-                            raw_system += 1
+                                            raw_tool_result += 1
+                            elif msg_type == "assistant":
+                                raw_assistant += 1
+                                # 统计 assistant 消息中的 content 类型
+                                content = message.get("content", [])
+                                if isinstance(content, list):
+                                    for item in content:
+                                        if isinstance(item, dict):
+                                            if item.get("type") in (
+                                                "tool_use",
+                                                "server_tool_use",
+                                            ):
+                                                raw_tool_use += 1
+                                            elif item.get("type") == "thinking":
+                                                raw_thinking += 1
+                                elif isinstance(content, str) and content:
+                                    raw_thinking += 1
+                            elif msg_type == "system":
+                                raw_system += 1
 
-                except json.JSONDecodeError:
-                    invalid_json_lines += 1
-                    continue
+                    except (json.JSONDecodeError, KeyError, TypeError):
+                        # 兼容 orjson 和标准 json 的异常
+                        invalid_json_lines += 1
+                        continue
 
             # 在 debug 模式下保存原始消息统计
             if debug:
