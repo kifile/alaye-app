@@ -9,7 +9,9 @@ import logging
 from pathlib import Path
 from typing import List, Optional, Set
 
-from sqlalchemy import case
+from datetime import datetime
+
+from sqlalchemy import case, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..claude.claude_projects_scanner import (
@@ -547,7 +549,7 @@ class ProjectService:
             # 排序逻辑：
             # 1. favorited=True 的排在前面 (favorited DESC)
             # 2. 已收藏的项目按照 favorited_at DESC 排序
-            # 3. 未收藏的项目按照 last_active_at DESC 排序
+            # 3. 未收藏的项目按照 last_active_at DESC 排序，没有 last_active_at 的排最后
             projects = await ai_project_crud.read_all(
                 db,
                 order_by=[
@@ -555,9 +557,10 @@ class ProjectService:
                     # 使用 case 表达式：
                     # - 如果 favorited=True，按 favorited_at DESC
                     # - 如果 favorited=False/None，按 last_active_at DESC
+                    #   - 如果 last_active_at 为 None，使用 datetime.min 确保排在最后
                     case(
                         (AIProject.favorited == True, AIProject.favorited_at),
-                        else_=AIProject.last_active_at,
+                        else_=func.coalesce(AIProject.last_active_at, datetime.min),
                     ).desc(),
                 ],
             )
