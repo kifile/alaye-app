@@ -17,6 +17,8 @@ export const rehypeSanitizeCustomTags: Plugin<[], HtmlRoot> = () => {
       'a',
       'strong',
       'em',
+      'del',
+      's',
       'code',
       'pre',
       'ul',
@@ -70,7 +72,7 @@ export const rehypeSanitizeCustomTags: Plugin<[], HtmlRoot> = () => {
       'img',
     ]);
 
-    visit(tree, 'element', (node: HtmlElement, index, parent: any) => {
+    visit(tree, 'element', (node: HtmlElement, parent: any) => {
       if (!allowedTags.has(node.tagName)) {
         const originalTag = node.tagName;
 

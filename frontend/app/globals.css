@@ -1,6 +1,34 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
+/* 强制内联代码使用等宽字体，覆盖 prose 的默认样式 */
+@layer components {
+  .prose code {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+      'Courier New', monospace !important;
+  }
+
+  .prose-sm code {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+      'Courier New', monospace !important;
+  }
+
+  /* 更高特异性的选择器 */
+  .prose > p > code {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+      'Courier New', monospace !important;
+  }
+
+  .prose-sm > p > code {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+      'Courier New', monospace !important;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

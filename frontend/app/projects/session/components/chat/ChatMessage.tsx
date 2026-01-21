@@ -88,7 +88,13 @@ export function ChatMessage({ message, isLoading }: ChatMessageProps) {
             switch (item.type) {
               case 'tool_use':
               case 'server_tool_use':
-                return <ToolUseBlock key={`tool-use-${index}`} item={item} />;
+                return (
+                  <ToolUseBlock
+                    key={`tool-use-${index}`}
+                    item={item}
+                    isUserMessage={isUser}
+                  />
+                );
               case 'thinking':
                 return <ThinkingBlock key={`thinking-${index}`} item={item} />;
               case 'interrupted':
@@ -117,7 +123,12 @@ export function ChatMessage({ message, isLoading }: ChatMessageProps) {
                 );
               case 'subagent':
                 // Subagent 调用，使用 AgentBlock 渲染
-                return <AgentBlock key={`subagent-${index}`} item={item} />;
+                return (
+                  <AgentBlock
+                    key={`subagent-${index}`}
+                    item={item as Extract<ContentItem, { type: 'subagent' }>}
+                  />
+                );
               case 'text':
                 return item.text ? renderTextContent(item.text, index) : null;
               default:

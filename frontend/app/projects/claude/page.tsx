@@ -222,7 +222,7 @@ function ProjectDetailPageContent() {
         </div>
 
         {/* 主体内容 */}
-        <div className='mx-auto p-2 relative'>
+        <div className='mx-auto p-4 relative'>
           {/* 悬浮折叠按钮 */}
           <div
             className='absolute top-8 bg-white border border-gray-300 rounded-full shadow-md hover:shadow-lg transition-all duration-200 z-30'

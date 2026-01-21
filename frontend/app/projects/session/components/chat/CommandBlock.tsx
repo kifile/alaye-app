@@ -1,7 +1,12 @@
 'use client';
 
 import React, { useState, memo } from 'react';
-import { ChevronDown, ChevronRight, Terminal } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Terminal,
+  Command as CommandIcon,
+} from 'lucide-react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface CommandBlockProps {
@@ -9,6 +14,20 @@ interface CommandBlockProps {
   content?: string;
   args?: string;
 }
+
+/**
+ * 截断文本辅助函数
+ */
+const truncateText = (
+  text: string,
+  maxLength: number,
+  method: 'start' | 'end' = 'start'
+) => {
+  if (text.length <= maxLength) return text;
+  return method === 'start'
+    ? `${text.slice(0, maxLength)}...`
+    : `...${text.slice(-maxLength)}`;
+};
 
 /**
  * Command 消息块组件
@@ -21,34 +40,58 @@ export const CommandBlock = memo(({ command, content, args }: CommandBlockProps)
   const hasArgs = args && args.length > 0;
 
   return (
-    <div className='my-3 p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg'>
-      <button
+    <div className='my-3 rounded-lg border border-purple-300 dark:border-purple-700 bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/40 dark:to-violet-950/40 shadow-sm'>
+      <div
+        className={`flex items-center gap-2 px-3 py-2.5 ${hasContent ? 'cursor-pointer hover:from-purple-100 dark:hover:from-purple-900/50' : ''}`}
         onClick={() => hasContent && setExpanded(!expanded)}
-        className={`flex items-center gap-2 w-full text-left ${
-          !hasContent ? 'cursor-default' : ''
-        }`}
-        disabled={!hasContent}
+        role='button'
+        tabIndex={hasContent ? 0 : undefined}
+        aria-expanded={hasContent ? expanded : undefined}
+        onKeyDown={e => {
+          if (hasContent && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault();
+            setExpanded(!expanded);
+          }
+        }}
       >
-        {hasContent &&
-          (expanded ? (
-            <ChevronDown className='h-4 w-4 text-purple-700 dark:text-purple-300 flex-shrink-0' />
-          ) : (
-            <ChevronRight className='h-4 w-4 text-purple-700 dark:text-purple-300 flex-shrink-0' />
-          ))}
-        <Terminal className='h-4 w-4 text-purple-700 dark:text-purple-300 flex-shrink-0' />
-        <span className='text-sm font-medium text-purple-900 dark:text-purple-100'>
-          {command}
-        </span>
-        {hasArgs && (
-          <span className='text-sm text-purple-700 dark:text-purple-300 font-mono bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded'>
-            {args}
+        {/* 图标 */}
+        <div className='p-1 rounded bg-purple-500 shadow-sm'>
+          <CommandIcon className='h-3 w-3 text-white' />
+        </div>
+
+        {/* 命令名称 */}
+        <div className='flex items-center gap-2 flex-1 min-w-0'>
+          <span className='text-sm font-bold text-purple-900 dark:text-purple-100 flex-shrink-0'>
+            {command}
           </span>
+          {hasArgs && (
+            <span
+              className='text-xs text-purple-700 dark:text-purple-300 font-mono bg-white/80 dark:bg-purple-900/60 px-2.5 py-1 rounded-md border border-purple-200 dark:border-purple-700 truncate max-w-[300px]'
+              title={args}
+            >
+              {truncateText(args, 40, 'start')}
+            </span>
+          )}
+        </div>
+
+        {/* 展开指示器 - 移到右边 */}
+        {hasContent && (
+          <div className='ml-auto text-purple-600 dark:text-purple-400 flex-shrink-0'>
+            {expanded ? (
+              <ChevronDown className='h-4 w-4' />
+            ) : (
+              <ChevronRight className='h-4 w-4' />
+            )}
+          </div>
         )}
-      </button>
+      </div>
+
       {/* 展开后显示具体内容 */}
       {hasContent && expanded && (
-        <div className='mt-3 pl-6 text-sm text-purple-900 dark:text-purple-100 max-h-96 overflow-y-auto'>
-          <MarkdownRenderer text={content} />
+        <div className='px-3 pb-3 pt-1 border-t border-purple-200 dark:border-purple-700'>
+          <div className='pl-10 text-sm text-purple-900 dark:text-purple-100 max-h-96 overflow-y-auto'>
+            <MarkdownRenderer text={content} />
+          </div>
         </div>
       )}
     </div>

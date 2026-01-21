@@ -7,24 +7,22 @@ export type MessageTheme = 'user' | 'assistant';
 
 /**
  * 获取内联代码样式
+ * 使用 ! 前缀确保 prose 样式不会覆盖这些样式
  */
 export const getInlineCodeClass = (theme: MessageTheme): string => {
   if (theme === 'user') {
-    return 'px-1.5 py-0.5 rounded bg-slate-800/90 dark:bg-slate-700/90 text-white text-sm font-mono border border-slate-600/50';
+    return '!px-1.5 !py-0.5 !rounded !bg-slate-800/90 dark:!bg-slate-700/90 !text-white !text-sm !font-mono !border !border-slate-600/50';
   }
   // assistant - 使用更柔和的灰色
-  return 'px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 text-sm font-mono border border-gray-300 dark:border-gray-600';
+  return '!px-1.5 !py-0.5 !rounded !bg-gray-100 dark:!bg-gray-800 !text-gray-900 dark:!text-gray-100 !text-sm !font-mono !border !border-gray-300 dark:!border-gray-600';
 };
 
 /**
  * 获取代码块容器样式
+ * 不设置 padding 和背景，这些由 CodeBlock 组件处理
  */
 export const getCodeBlockClass = (theme: MessageTheme): string => {
-  if (theme === 'user') {
-    return 'bg-slate-600/70 dark:bg-slate-500/70 px-4 py-3 rounded-md overflow-x-auto text-sm not-prose text-white border border-slate-400/30 max-w-full';
-  }
-  // assistant
-  return 'bg-gray-100 dark:bg-gray-800/80 px-4 py-3 rounded-md overflow-x-auto text-sm not-prose text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 max-w-full';
+  return '';
 };
 
 /**
@@ -84,7 +82,7 @@ export const getMentionTagClass = (theme: MessageTheme): string => {
  */
 export const getTableHeadClass = (theme: MessageTheme): string => {
   if (theme === 'user') {
-    return 'bg-white/20 dark:bg-white/10';
+    return 'bg-gray-700/50 dark:bg-gray-800/50';
   }
   return 'bg-gray-50 dark:bg-gray-800/50';
 };
@@ -94,7 +92,7 @@ export const getTableHeadClass = (theme: MessageTheme): string => {
  */
 export const getTableBodyClass = (theme: MessageTheme): string => {
   if (theme === 'user') {
-    return 'bg-white/10 dark:bg-white/5 divide-y divide-white/20 dark:divide-white/10';
+    return 'bg-gray-700/30 dark:bg-gray-800/30 divide-y divide-gray-600/30 dark:divide-gray-700/30';
   }
   return 'bg-white dark:bg-gray-900/30 divide-y divide-gray-200 dark:divide-gray-700';
 };
@@ -104,7 +102,7 @@ export const getTableBodyClass = (theme: MessageTheme): string => {
  */
 export const getTableRowHoverClass = (theme: MessageTheme): string => {
   if (theme === 'user') {
-    return 'hover:bg-white/20 dark:hover:bg-white/10 transition-colors';
+    return 'hover:bg-gray-600/40 dark:hover:bg-gray-700/40 transition-colors';
   }
   return 'hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors';
 };
@@ -120,32 +118,43 @@ export const getTableCellTextClass = (theme: MessageTheme): string => {
 };
 
 /**
+ * 获取表格表头单元格文字样式
+ */
+export const getTableCellHeaderClass = (theme: MessageTheme): string => {
+  if (theme === 'user') {
+    return 'text-white dark:text-white';
+  }
+  return 'text-gray-500 dark:text-gray-400';
+};
+
+/**
  * 获取引用块样式
  */
 export const getBlockquoteClass = (theme: MessageTheme): string => {
   if (theme === 'user') {
-    return 'border-l-4 border-white/40 dark:border-white/30 pl-4 py-1 my-4 italic text-white/90 dark:text-white/80 bg-white/10 dark:bg-white/5';
+    return 'border-l-4 border-gray-400 dark:border-gray-500 pl-4 py-1 my-4 italic text-white dark:text-white bg-gray-700/40 dark:bg-gray-800/40';
   }
   return 'border-l-4 border-gray-300 dark:border-gray-600 pl-4 py-1 my-4 italic text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50';
 };
 
 /**
  * 获取标题样式
+ * 缩小标题字号，使其更适合聊天界面
  */
 export const getHeadingClass = (level: number, theme: MessageTheme): string => {
   const baseSizes = [
-    'text-2xl font-bold', // h1
-    'text-xl font-bold', // h2
-    'text-lg font-bold', // h3
-    'text-base font-semibold', // h4
-    'text-sm font-semibold', // h5
-    'text-xs font-semibold', // h6
+    'text-lg font-bold', // h1 - 从 2xl 降到 lg
+    'text-base font-bold', // h2 - 从 xl 降到 base
+    'text-sm font-bold', // h3 - 从 lg 降到 sm
+    'text-sm font-semibold', // h4 - 保持不变
+    'text-xs font-semibold', // h5 - 保持不变
+    'text-xs font-semibold', // h6 - 保持不变
   ];
 
   if (theme === 'user') {
-    return `${baseSizes[level - 1]} text-white dark:text-gray-100 mt-6 mb-3`;
+    return `${baseSizes[level - 1]} text-white dark:text-gray-100 mt-4 mb-2`;
   }
-  return `${baseSizes[level - 1]} text-gray-900 dark:text-gray-100 mt-6 mb-3`;
+  return `${baseSizes[level - 1]} text-gray-900 dark:text-gray-100 mt-4 mb-2`;
 };
 
 /**

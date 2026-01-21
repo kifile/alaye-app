@@ -177,7 +177,7 @@ function SessionPageContent() {
       </div>
 
       {/* 主体内容 */}
-      <div className='mx-auto p-2'>
+      <div className='mx-auto p-4'>
         <div className='bg-white rounded-xl border border-gray-200 shadow-sm h-[calc(100vh-90px)] overflow-hidden'>
           <div className='flex h-full'>
             {/* 左侧 Session 列表 */}

@@ -12,9 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
 
 import aiofiles
-
 import orjson
-
 
 from src.utils.time_utils import parse_iso_timestamp
 
@@ -818,6 +816,10 @@ class ClaudeSessionOperations:
 
             # 跳过空消息
             if not message:
+                # 如果已经被标记为 _dropped，跳过后续处理
+                if message_data.get("_dropped"):
+                    continue
+
                 message_type = message_data.get("type")
                 subtype = message_data.get("subtype", "")
 
@@ -1091,6 +1093,11 @@ class ClaudeSessionOperations:
         for session_file in self.session_path.glob("*.jsonl"):
             session_id = session_file.stem
             is_agent_session = session_file.name.startswith("agent-")
+
+            # 跳过 agent session 文件（这些是 subagent 的执行记录）
+            if is_agent_session:
+                logger.debug(f"Skipping agent session file: {session_file.name}")
+                continue
 
             # 获取文件最后修改时间并转换为 datetime
             try:

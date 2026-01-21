@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { MessageSquare, Loader2, Calendar } from 'lucide-react';
+import { MessageSquare, RefreshCw, Calendar, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { scanSessions } from '@/api/api';
 import type { ClaudeSessionInfo } from '@/api/types';
@@ -61,10 +61,11 @@ export function SessionList({
           <h3 className='font-semibold text-sm text-gray-900'>Sessions</h3>
           <button
             onClick={loadSessions}
-            className='p-1 hover:bg-gray-100 rounded transition-colors'
+            disabled={loading}
+            className='p-1 hover:bg-gray-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
             title='Refresh'
           >
-            <Loader2
+            <RefreshCw
               className={`h-4 w-4 text-gray-600 ${loading ? 'animate-spin' : ''}`}
             />
           </button>

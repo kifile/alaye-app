@@ -148,8 +148,9 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
             <ArrowLeft className='h-4 w-4 text-gray-600' />
           </button>
 
-          {/* 标题和徽章 */}
-          <div className='flex flex-col gap-0.5 shrink-0 min-w-0'>
+          {/* 标题和下方信息 - 限制最大宽度，确保刷新按钮可见 */}
+          <div className='flex flex-col gap-0.5 min-w-0 flex-1 max-w-[calc(100%-8rem)]'>
+            {/* 标题和徽章 */}
             <div className='flex items-center gap-2'>
               <h2 className='text-base font-semibold text-gray-900 truncate'>
                 {session.is_agent_session && '🤖 '}
@@ -161,44 +162,53 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
                 </span>
               )}
             </div>
-            <div className='flex items-center gap-1.5 text-xs text-gray-500 font-mono'>
-              <span className='truncate'>{session.session_id}</span>
-              <button
-                type='button'
-                onClick={e => {
-                  e.stopPropagation();
-                  navigator.clipboard
-                    .writeText(session.session_id)
-                    .then(() => toast.success('Session ID copied to clipboard'))
-                    .catch(() => toast.error('Failed to copy'));
-                }}
-                className='shrink-0 p-0.5 hover:bg-gray-100 rounded transition-colors text-gray-400 hover:text-gray-600'
-                title='Copy session ID'
-              >
-                <Copy className='h-3 w-3' />
-              </button>
-            </div>
-          </div>
 
-          {/* 关键元数据 */}
-          <div className='flex items-center gap-3 text-xs text-gray-500 min-w-0 flex-1'>
-            <div className='flex items-center gap-1 shrink-0 px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded-md'>
-              <MessageSquare className='h-3 w-3' />
-              <span className='font-medium'>{session.message_count}</span>
-            </div>
-            {session.last_modified_str && (
-              <div className='flex items-center gap-1 shrink-0 text-gray-500'>
-                <Calendar className='h-3 w-3' />
-                <span className='truncate'>{session.last_modified_str}</span>
+            {/* 消息数、时间、Session ID */}
+            <div className='flex items-center gap-1.5 text-xs text-gray-500'>
+              {/* 消息数量 */}
+              <div className='flex items-center gap-1 shrink-0'>
+                <MessageSquare className='h-3 w-3' />
+                <span className='font-medium'>{session.message_count}</span>
               </div>
-            )}
+
+              {/* 时间 */}
+              {session.last_modified_str && (
+                <>
+                  <span className='text-gray-300'>•</span>
+                  <div className='flex items-center gap-1 shrink-0'>
+                    <Calendar className='h-3 w-3' />
+                    <span className='truncate'>{session.last_modified_str}</span>
+                  </div>
+                </>
+              )}
+
+              {/* Session ID */}
+              <span className='text-gray-300'>•</span>
+              <div className='flex items-center gap-1 min-w-0'>
+                <span className='truncate font-mono'>{session.session_id}</span>
+                <button
+                  type='button'
+                  onClick={e => {
+                    e.stopPropagation();
+                    navigator.clipboard
+                      .writeText(session.session_id)
+                      .then(() => toast.success('Session ID copied to clipboard'))
+                      .catch(() => toast.error('Failed to copy'));
+                  }}
+                  className='shrink-0 p-0.5 hover:bg-gray-100 rounded transition-colors text-gray-400 hover:text-gray-600'
+                  title='Copy session ID'
+                >
+                  <Copy className='h-3 w-3' />
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* 刷新按钮 */}
           <button
             onClick={() => loadSessionContent(true)}
             disabled={loading}
-            className='p-1.5 hover:bg-gray-100 rounded-lg transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed'
+            className='p-1 hover:bg-gray-100 rounded transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed'
             title='Refresh session'
           >
             <RefreshCw

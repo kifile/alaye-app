@@ -10,6 +10,7 @@ interface CodeBlockProps {
   language: string;
   copiedId: string | null;
   onCopy: (code: string, id: string) => void;
+  theme?: 'user' | 'assistant';
 }
 
 /**
@@ -17,11 +18,17 @@ interface CodeBlockProps {
  * 支持语法高亮和一键复制功能
  */
 export const CodeBlock = memo(
-  ({ code, language, copiedId, onCopy }: CodeBlockProps) => {
+  ({ code, language, copiedId, onCopy, theme = 'assistant' }: CodeBlockProps) => {
     const codeId = `code-${Math.random().toString(36).substr(2, 9)}`;
 
+    // 根据主题确定背景色
+    const containerBgClass =
+      theme === 'user'
+        ? 'bg-slate-600/70 dark:bg-slate-500/70'
+        : 'bg-gray-100 dark:bg-gray-800/80';
+
     return (
-      <div className='relative group not-prose'>
+      <div className={`relative group not-prose rounded-md ${containerBgClass}`}>
         {/* 复制按钮 */}
         <button
           onClick={() => onCopy(code, codeId)}
@@ -46,7 +53,6 @@ export const CodeBlock = memo(
           style={oneDark}
           language={language}
           PreTag='div'
-          className='rounded-md'
           codeTagProps={{
             style: {
               display: 'block',

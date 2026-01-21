@@ -18,6 +18,7 @@ interface AgentBlockProps {
     };
     tool_use_id: string;
   };
+  theme?: 'user' | 'assistant';
 }
 
 /**

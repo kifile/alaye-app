@@ -14,6 +14,7 @@ import {
   getTableBodyClass,
   getTableRowHoverClass,
   getTableCellTextClass,
+  getTableCellHeaderClass,
   getBlockquoteClass,
   getHeadingClass,
   getHrClass,
@@ -36,142 +37,252 @@ export const createRenderers = ({ theme, copiedId, onCopy }: RenderersProps) => 
     const match = /language-(\w+)/.exec(className || '');
     const code = String(children).replace(/\n$/, '');
 
-    return !inline && match ? (
-      <CodeBlock code={code} language={match[1]} copiedId={copiedId} onCopy={onCopy} />
-    ) : !inline ? (
+    // 判断是否为内联代码：通过检查 node 的父节点或位置
+    // 如果有 language-xxx className，则一定是代码块
+    // 否则，检查 node 的父节点是否为 pre
+    const isCodeBlock = match !== null || node?.parent?.tagName === 'pre';
+    const isInline = !isCodeBlock;
+
+    const inlineCodeClass = getInlineCodeClass(theme);
+    const finalClassName = className
+      ? `${inlineCodeClass} ${className}`
+      : inlineCodeClass;
+
+    // 从 props 中移除 className 和 style，避免覆盖我们的自定义样式
+    const { className: _, style: __, ...propsWithoutClassNameAndStyle } = props;
+
+    return !isInline && match ? (
+      <CodeBlock
+        code={code}
+        language={match[1]}
+        copiedId={copiedId}
+        onCopy={onCopy}
+        theme={theme}
+      />
+    ) : !isInline ? (
       // 代码块（没有语言标识）
-      <code className={getPlainCodeClass(theme)} {...props}>
+      <code className={getPlainCodeClass(theme)} {...propsWithoutClassNameAndStyle}>
         {children}
       </code>
     ) : (
-      <code className={getInlineCodeClass(theme)} {...props}>
+      // 内联代码 - 所有样式通过 Tailwind 类或全局 CSS
+      <code {...propsWithoutClassNameAndStyle} className={finalClassName}>
         {children}
       </code>
     );
   },
 
-  pre({ children }) {
-    return <pre className={getCodeBlockClass(theme)}>{children}</pre>;
-  },
-
-  p({ children }) {
-    return <p className='mb-2 last:mb-0 leading-6'>{children}</p>;
-  },
-
-  ul({ children }) {
+  pre({ children, ...props }: any) {
     return (
-      <ul className={`list-disc pl-6 space-y-1.5 my-3 ${getListMarkerClass(theme)}`}>
+      <pre className={getCodeBlockClass(theme)} {...props}>
+        {children}
+      </pre>
+    );
+  },
+
+  p({ children, ...props }: any) {
+    return (
+      <p className='mb-2 last:mb-0 leading-6' {...props}>
+        {children}
+      </p>
+    );
+  },
+
+  ul({ children, ...props }: any) {
+    return (
+      <ul
+        className={`list-disc pl-6 space-y-1.5 my-3 ${getListMarkerClass(theme)}`}
+        {...props}
+      >
         {children}
       </ul>
     );
   },
 
-  ol({ children }) {
+  ol({ children, ...props }: any) {
     return (
-      <ol className={`list-decimal pl-6 space-y-1.5 my-3 ${getListMarkerClass(theme)}`}>
+      <ol
+        className={`list-decimal pl-6 space-y-1.5 my-3 ${getListMarkerClass(theme)}`}
+        {...props}
+      >
         {children}
       </ol>
     );
   },
 
-  li({ children }) {
-    return <li className={getListItemClass(theme)}>{children}</li>;
+  li({ children, ...props }: any) {
+    return (
+      <li className={getListItemClass(theme)} {...props}>
+        {children}
+      </li>
+    );
   },
 
-  strong({ children }) {
-    return <strong className='font-semibold'>{children}</strong>;
+  strong({ children, ...props }: any) {
+    return (
+      <strong className='font-semibold' {...props}>
+        {children}
+      </strong>
+    );
   },
 
-  em({ children }) {
-    return <em className='italic'>{children}</em>;
+  em({ children, ...props }: any) {
+    return (
+      <em className='italic' {...props}>
+        {children}
+      </em>
+    );
   },
 
-  a({ children, href }) {
+  del({ children, ...props }: any) {
+    return (
+      <del
+        className={`line-through ${
+          theme === 'user'
+            ? 'text-white/70 dark:text-white/70'
+            : 'text-gray-500 dark:text-gray-400'
+        }`}
+        {...props}
+      >
+        {children}
+      </del>
+    );
+  },
+
+  a({ children, href, ...props }: any) {
     return (
       <a
         href={href}
         target='_blank'
         rel='noopener noreferrer'
         className={getLinkClass(theme)}
+        {...props}
       >
         {children}
       </a>
     );
   },
 
-  table({ children }) {
+  table({ children, ...props }: any) {
     return (
       <div className='overflow-x-auto my-3'>
-        <table className='min-w-full divide-y divide-gray-200 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden'>
+        <table
+          className='min-w-full divide-y divide-gray-200 dark:divide-gray-700 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden'
+          {...props}
+        >
           {children}
         </table>
       </div>
     );
   },
 
-  thead({ children }) {
-    return <thead className={getTableHeadClass(theme)}>{children}</thead>;
-  },
-
-  tbody({ children }) {
-    return <tbody className={getTableBodyClass(theme)}>{children}</tbody>;
-  },
-
-  tr({ children }) {
-    return <tr className={getTableRowHoverClass(theme)}>{children}</tr>;
-  },
-
-  th({ children }) {
+  thead({ children, ...props }: any) {
     return (
-      <th className='px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider'>
+      <thead className={getTableHeadClass(theme)} {...props}>
+        {children}
+      </thead>
+    );
+  },
+
+  tbody({ children, ...props }: any) {
+    return (
+      <tbody className={getTableBodyClass(theme)} {...props}>
+        {children}
+      </tbody>
+    );
+  },
+
+  tr({ children, ...props }: any) {
+    return (
+      <tr className={getTableRowHoverClass(theme)} {...props}>
+        {children}
+      </tr>
+    );
+  },
+
+  th({ children, ...props }: any) {
+    return (
+      <th
+        className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${getTableCellHeaderClass(theme)}`}
+        {...props}
+      >
         {children}
       </th>
     );
   },
 
-  td({ children }) {
+  td({ children, ...props }: any) {
     return (
       <td
         className={`px-4 py-3 whitespace-nowrap text-sm ${getTableCellTextClass(theme)}`}
+        {...props}
       >
         {children}
       </td>
     );
   },
 
-  blockquote({ children }) {
-    return <blockquote className={getBlockquoteClass(theme)}>{children}</blockquote>;
+  blockquote({ children, ...props }: any) {
+    return (
+      <blockquote className={getBlockquoteClass(theme)} {...props}>
+        {children}
+      </blockquote>
+    );
   },
 
-  h1({ children }) {
-    return <h1 className={getHeadingClass(1, theme)}>{children}</h1>;
+  h1({ children, ...props }: any) {
+    return (
+      <h1 className={getHeadingClass(1, theme)} {...props}>
+        {children}
+      </h1>
+    );
   },
 
-  h2({ children }) {
-    return <h2 className={getHeadingClass(2, theme)}>{children}</h2>;
+  h2({ children, ...props }: any) {
+    return (
+      <h2 className={getHeadingClass(2, theme)} {...props}>
+        {children}
+      </h2>
+    );
   },
 
-  h3({ children }) {
-    return <h3 className={getHeadingClass(3, theme)}>{children}</h3>;
+  h3({ children, ...props }: any) {
+    return (
+      <h3 className={getHeadingClass(3, theme)} {...props}>
+        {children}
+      </h3>
+    );
   },
 
-  h4({ children }) {
-    return <h4 className={getHeadingClass(4, theme)}>{children}</h4>;
+  h4({ children, ...props }: any) {
+    return (
+      <h4 className={getHeadingClass(4, theme)} {...props}>
+        {children}
+      </h4>
+    );
   },
 
-  h5({ children }) {
-    return <h5 className={getHeadingClass(5, theme)}>{children}</h5>;
+  h5({ children, ...props }: any) {
+    return (
+      <h5 className={getHeadingClass(5, theme)} {...props}>
+        {children}
+      </h5>
+    );
   },
 
-  h6({ children }) {
-    return <h6 className={getHeadingClass(6, theme)}>{children}</h6>;
+  h6({ children, ...props }: any) {
+    return (
+      <h6 className={getHeadingClass(6, theme)} {...props}>
+        {children}
+      </h6>
+    );
   },
 
-  hr() {
-    return <hr className={getHrClass(theme)} />;
+  hr({ ...props }: any) {
+    return <hr className={getHrClass(theme)} {...props} />;
   },
 
-  img({ src, alt, ...props }) {
+  img({ src, alt, ...props }: any) {
     return <img src={src} alt={alt} className={getImgClass(theme)} {...props} />;
   },
 
