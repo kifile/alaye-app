@@ -553,7 +553,8 @@ class ProjectService:
             projects = await ai_project_crud.read_all(
                 db,
                 order_by=[
-                    AIProject.favorited.desc(),  # 收藏的在前
+                    # 使用 coalesce 将 null 转换为 False，确保 favorited=null 的项目不会排在最后
+                    func.coalesce(AIProject.favorited, False).desc(),  # 收藏的在前
                     # 使用 case 表达式：
                     # - 如果 favorited=True，按 favorited_at DESC
                     # - 如果 favorited=False/None，按 last_active_at DESC

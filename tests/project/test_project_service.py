@@ -1073,6 +1073,75 @@ class TestListProjectsFavorited:
         assert result[1].project_name == "normal-project-1"
         assert result[2].project_name == "normal-project-2"
 
+    @pytest.mark.asyncio
+    async def test_list_projects_with_null_last_active_at(self, mock_get_db):
+        """测试没有 last_active_at 的未收藏项目排在最后"""
+        # 创建三个项目：一个收藏，两个未收藏（其中一个没有 last_active_at）
+        await ai_project_crud.create(
+            mock_get_db,
+            obj_in=AIProjectCreate(
+                project_name="normal-project-with-date",
+                project_path="/path/to/project1",
+                claude_session_path=None,
+                git_worktree_project=False,
+                git_main_project_path=None,
+                removed=False,
+                favorited=False,
+                favorited_at=None,
+                ai_tools=[AiToolType.CLAUDE],
+                first_active_at=datetime(2024, 1, 1, 10, 0, 0),
+                last_active_at=datetime(2024, 1, 3, 10, 0, 0),  # 有时间
+            ),
+        )
+
+        await ai_project_crud.create(
+            mock_get_db,
+            obj_in=AIProjectCreate(
+                project_name="favorited-project",
+                project_path="/path/to/project2",
+                claude_session_path=None,
+                git_worktree_project=False,
+                git_main_project_path=None,
+                removed=False,
+                favorited=True,
+                favorited_at=datetime(2024, 1, 2, 10, 0, 0),
+                ai_tools=[AiToolType.CLAUDE],
+                first_active_at=datetime(2024, 1, 1, 10, 0, 0),
+                last_active_at=datetime(2024, 1, 1, 10, 0, 0),
+            ),
+        )
+
+        await ai_project_crud.create(
+            mock_get_db,
+            obj_in=AIProjectCreate(
+                project_name="normal-project-no-date",
+                project_path="/path/to/project3",
+                claude_session_path=None,
+                git_worktree_project=False,
+                git_main_project_path=None,
+                removed=False,
+                favorited=False,
+                favorited_at=None,
+                ai_tools=[AiToolType.CLAUDE],
+                first_active_at=datetime(2024, 1, 1, 10, 0, 0),
+                last_active_at=None,  # 没有 last_active_at
+            ),
+        )
+        await mock_get_db.commit()
+
+        service = ProjectService()
+        result = await service.list_projects()
+
+        assert len(result) == 3
+        # 收藏项目应该排在第一位
+        assert result[0].project_name == "favorited-project"
+        assert result[0].favorited is True
+        # 有 last_active_at 的未收藏项目排在第二位
+        assert result[1].project_name == "normal-project-with-date"
+        # 没有 last_active_at 的未收藏项目排在最后
+        assert result[2].project_name == "normal-project-no-date"
+        assert result[2].last_active_at is None
+
 
 class TestScanSessions:
     """测试 scan_sessions 方法"""
