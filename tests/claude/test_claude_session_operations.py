@@ -992,11 +992,11 @@ This is the actual title that should be extracted"""
     @pytest.mark.asyncio
     async def test_scan_sessions_success(self, temp_session_dir, session_ops):
         """测试成功扫描 session 列表"""
-        # 创建多个 session 文件
+        # 创建多个 session 文件（agent session 会被跳过）
         sessions_to_create = [
             "session-1.jsonl",
             "session-2.jsonl",
-            "agent-session-3.jsonl",
+            "agent-session-3.jsonl",  # 这个会被跳过
         ]
 
         for session_name in sessions_to_create:
@@ -1014,18 +1014,16 @@ This is the actual title that should be extracted"""
 
         sessions = await session_ops.scan_sessions()
 
-        assert len(sessions) == 3
+        # agent session 会被跳过，所以只返回2个
+        assert len(sessions) == 2
 
         # 验证 session 信息
         session_ids = [s.session_id for s in sessions]
         assert "session-1" in session_ids
         assert "session-2" in session_ids
-        assert "agent-session-3" in session_ids
+        assert "agent-session-3" not in session_ids  # agent session 被跳过
 
         # 验证 is_agent_session 标记
-        agent_session = next(s for s in sessions if s.session_id == "agent-session-3")
-        assert agent_session.is_agent_session is True
-
         normal_session = next(s for s in sessions if s.session_id == "session-1")
         assert normal_session.is_agent_session is False
 
@@ -1076,7 +1074,7 @@ This is the actual title that should be extracted"""
         sessions_to_create = [
             ("session-with-title.jsonl", "This session has a title"),
             ("session-without-title.jsonl", None),  # 会创建空文件或只有 meta 消息的文件
-            ("agent-session.jsonl", "Agent session title"),
+            ("agent-session.jsonl", "Agent session title"),  # agent session 会被跳过
         ]
 
         for session_name, content in sessions_to_create:
@@ -1108,11 +1106,11 @@ This is the actual title that should be extracted"""
 
         sessions = await session_ops.scan_sessions()
 
-        # 应该只返回有标题的 session（过滤掉了 session-without-title）
-        assert len(sessions) == 2
+        # agent session 被跳过，没有标题的 session 也被过滤，只返回1个
+        assert len(sessions) == 1
         session_ids = [s.session_id for s in sessions]
         assert "session-with-title" in session_ids
-        assert "agent-session" in session_ids
+        assert "agent-session" not in session_ids  # agent session 被跳过
         assert "session-without-title" not in session_ids
 
     @pytest.mark.asyncio
