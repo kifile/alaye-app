@@ -432,7 +432,7 @@ export function PluginDetail({ projectId }: PluginDetailProps) {
                   <h3 className='text-sm font-medium text-muted-foreground'>
                     {t('plugins.pluginList', { count: filteredPlugins.length })}
                   </h3>
-                  <MasonryGrid gutter='1rem'>
+                  <MasonryGrid>
                     {filteredPlugins.map(plugin => (
                       <PluginItem
                         key={`${plugin.marketplace || 'unknown'}-${plugin.config.name}`}

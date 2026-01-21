@@ -370,6 +370,10 @@ class ClaudeSessionOperations:
         """
         subagent_items_to_insert = {}
 
+        logger.debug(
+            f"Collecting subagent items | subagent_messages_map keys: {list(subagent_messages_map.keys())}"
+        )
+
         for message_data in merged_messages:
             content = message_data.get("message", {}).get("content", [])
             if not isinstance(content, list):
@@ -379,11 +383,20 @@ class ClaudeSessionOperations:
                 if self._is_tool_use_item(item):
                     tool_use_id = item.get("id")
                     if tool_use_id and tool_use_id in subagent_messages_map:
+                        subagent_msgs = subagent_messages_map[tool_use_id]
+                        logger.debug(
+                            f"Found tool_use with subagent messages | tool_use_id: {tool_use_id} | "
+                            f"subagent_msgs_count: {len(subagent_msgs)}"
+                        )
                         subagent_item = self._create_subagent_item(
-                            item, subagent_messages_map[tool_use_id], tool_use_id
+                            item, subagent_msgs, tool_use_id
                         )
                         if subagent_item:
                             subagent_items_to_insert[tool_use_id] = subagent_item
+                        else:
+                            logger.debug(
+                                f"Failed to create subagent item for {tool_use_id} (returned None)"
+                            )
 
         return subagent_items_to_insert
 
@@ -426,11 +439,38 @@ class ClaudeSessionOperations:
                 self._convert_to_raw_message_format(msg) for msg in subagent_msgs
             ]
 
+            logger.debug(
+                f"Creating subagent item: tool_use_id={tool_use_id}, "
+                f"agent_type={agent_type}, "
+                f"subagent_msgs_count={len(subagent_msgs)}, "
+                f"raw_subagent_msgs_count={len(raw_subagent_msgs)}"
+            )
+
             # 使用统一的消息处理流程
-            _, claude_messages = self._process_session_messages(raw_subagent_msgs)
+            merged_messages, claude_messages = self._process_session_messages(
+                raw_subagent_msgs
+            )
 
             if not claude_messages:
-                logger.warning(f"No valid messages in subagent {tool_use_id}")
+                # 如果没有有效消息，记录 debug 级别日志（这可能是正常情况）
+                # 某些 tool_use 可能不产生对话历史，比如简单的工具调用
+                logger.debug(
+                    f"No valid messages in subagent {tool_use_id} | "
+                    f"agent_type={agent_type} | "
+                    f"input_msgs_count={len(subagent_msgs)} | "
+                    f"raw_msgs_count={len(raw_subagent_msgs)} | "
+                    f"merged_msgs_count={len(merged_messages)} | "
+                    f"Skipping subagent item creation"
+                )
+
+                # 记录前几条原始消息以便调试
+                for i, msg in enumerate(raw_subagent_msgs[:3]):
+                    logger.debug(
+                        f"  Raw message {i}: type={msg.get('type')}, "
+                        f"has_message={'message' in msg}, "
+                        f"timestamp={msg.get('timestamp')}"
+                    )
+
                 return None
 
             # 创建 ClaudeSession 对象
@@ -590,13 +630,19 @@ class ClaudeSessionOperations:
             Dict[str, List[dict]]: parentToolUseID -> subagent 消息列表的映射
         """
         progress_map: Dict[str, List[dict]] = {}
+        total_progress_messages = 0
 
         for message_data in raw_messages:
             if message_data.get("type") != "progress":
                 continue
 
+            total_progress_messages += 1
             parent_tool_use_id = message_data.get("parentToolUseID")
             if not parent_tool_use_id:
+                logger.debug(
+                    "Progress message missing parentToolUseID | "
+                    f"timestamp: {message_data.get('timestamp')}"
+                )
                 continue
 
             # 初始化该 tool_use 的 subagent 消息列表
@@ -604,15 +650,48 @@ class ClaudeSessionOperations:
                 progress_map[parent_tool_use_id] = []
 
             # 从 data.normalizedMessages 中提取消息
-            normalized_messages = message_data.get("data", {}).get(
-                "normalizedMessages", []
+            data = message_data.get("data", {})
+
+            # 检查 data 是否为空
+            if not data:
+                logger.debug(
+                    f"Progress message has empty data field | parentToolUseID: {parent_tool_use_id} | "
+                    f"timestamp: {message_data.get('timestamp')}"
+                )
+                continue
+
+            normalized_messages = data.get("normalizedMessages", [])
+
+            # 检查 normalizedMessages 是否存在且为列表
+            if not normalized_messages:
+                logger.debug(
+                    f"Progress message has no normalizedMessages | parentToolUseID: {parent_tool_use_id} | "
+                    f"data keys: {list(data.keys())} | "
+                    f"timestamp: {message_data.get('timestamp')}"
+                )
+                continue
+
+            if not isinstance(normalized_messages, list):
+                logger.debug(
+                    f"Progress message normalizedMessages is not a list | parentToolUseID: {parent_tool_use_id} | "
+                    f"type: {type(normalized_messages).__name__} | "
+                    f"timestamp: {message_data.get('timestamp')}"
+                )
+                continue
+
+            converted_count = 0
+            for msg in normalized_messages:
+                # 转换为标准消息格式
+                converted_msg = self._convert_progress_message_to_standard(msg)
+                if converted_msg:
+                    progress_map[parent_tool_use_id].append(converted_msg)
+                    converted_count += 1
+
+            logger.debug(
+                f"Extracted progress message | parentToolUseID: {parent_tool_use_id} | "
+                f"normalized_messages_count: {len(normalized_messages)} | "
+                f"converted_count: {converted_count}"
             )
-            if isinstance(normalized_messages, list):
-                for msg in normalized_messages:
-                    # 转换为标准消息格式
-                    converted_msg = self._convert_progress_message_to_standard(msg)
-                    if converted_msg:
-                        progress_map[parent_tool_use_id].append(converted_msg)
 
         # 去重并保持顺序（基于 timestamp）
         for tool_use_id in progress_map:
@@ -648,15 +727,26 @@ class ClaudeSessionOperations:
             Optional[dict]: 转换后的标准消息，如果转换失败则返回 None
         """
         if not isinstance(progress_msg, dict):
+            logger.debug(
+                f"Progress message is not a dict: {type(progress_msg).__name__}"
+            )
             return None
 
         msg_type = progress_msg.get("type")
         if msg_type not in ("user", "assistant", "system"):
+            logger.debug(
+                f"Progress message has invalid type: {msg_type} "
+                f"(expected one of: user, assistant, system)"
+            )
             return None
 
         # 提取标准字段
         message = progress_msg.get("message", {})
         if not message:
+            logger.debug(
+                f"Progress message has empty message field | type: {msg_type} | "
+                f"timestamp: {progress_msg.get('timestamp')}"
+            )
             return None
 
         # 创建标准格式的消息
@@ -669,6 +759,12 @@ class ClaudeSessionOperations:
             "_from_subagent": True,
             "_subagent": True,
         }
+
+        logger.debug(
+            f"Converted progress message to standard format | type: {msg_type} | "
+            f"timestamp: {progress_msg.get('timestamp')} | "
+            f"uuid: {progress_msg.get('uuid')}"
+        )
 
         return standard_msg
 
@@ -838,12 +934,21 @@ class ClaudeSessionOperations:
                 # 对于某些特殊类型的空消息，也是预期内的
                 # 1. type=system, subtype=turn_duration
                 # 2. type=system, subtype=local_command
-                # 3. type=process (MCP 执行过程)
+                # 3. type=system, subtype=api_error
+                # 4. type=system, subtype=compact_boundary
+                # 5. type=process (MCP 执行过程)
+                # 6. type=queue-operation (队列操作)
                 # 注意：type=progress 已经被提前处理并提取 subagent 对话
                 is_expected_empty = (
                     message_type == "system"
-                    and subtype in ("turn_duration", "local_command")
-                    or message_type == "process"
+                    and subtype
+                    in (
+                        "turn_duration",
+                        "local_command",
+                        "api_error",
+                        "compact_boundary",
+                    )
+                    or message_type in ("process", "queue-operation")
                 )
 
                 if is_expected_empty:
