@@ -130,12 +130,12 @@ export interface ListProjectsRequest {
   // 获取项目列表请求无需参数
 }
 
-export interface ScanAllProjectsRequest {
-  force_refresh?: boolean;
+export interface DeleteProjectRequest {
+  id: number;
 }
 
-export interface ScanSingleProjectRequest {
-  project_id: string;
+export interface ScanAllProjectsRequest {
+  force_refresh?: boolean;
 }
 
 export interface ScanClaudeMemoryRequest {
@@ -408,6 +408,12 @@ export interface AIProjectInDB {
   id: number;
   project_name: string;
   project_path?: string;
+  claude_session_path?: string;
+  git_worktree_project?: boolean;
+  git_main_project_path?: string;
+  removed?: boolean;
+  favorited?: boolean;
+  favorited_at_str?: string; // Formatted datetime string
   ai_tools: AiToolType[];
   first_active_at_str?: string; // Formatted datetime string
   last_active_at_str?: string; // Formatted datetime string
@@ -556,12 +562,12 @@ export type UpdateClaudeSettingsScopeResponse = ApiResponse<boolean>;
 export type ShowFileDialogResponse = ApiResponse<ShowFileDialogData>;
 export type ListProjectsResponse = ApiResponse<AIProjectInDB[]>;
 export type ScanAllProjectsResponse = ApiResponse<boolean>;
-export type ScanSingleProjectResponse = ApiResponse<boolean>;
 export type ScanClaudeMemoryResponse = ApiResponse<ClaudeMemoryInfo>;
 export type ScanClaudeAgentsResponse = ApiResponse<AgentInfo[]>;
 export type ScanClaudeCommandsResponse = ApiResponse<CommandInfo[]>;
 export type ScanClaudeSkillsResponse = ApiResponse<SkillInfo[]>;
 export type GetProjectResponse = ApiResponse<AIProjectInDB>;
+export type DeleteProjectResponse = ApiResponse<boolean>;
 export type LoadMarkdownContentResponse = ApiResponse<MarkdownContentDTO>;
 export type UpdateMarkdownContentResponse = ApiResponse<boolean>;
 export type RenameMarkdownContentResponse = ApiResponse<boolean>;
@@ -711,8 +717,11 @@ export interface ClaudeMessage {
 
 export interface ClaudeSession {
   session_id: string;
+  title?: string;
   session_file: string;
-  session_file_md5?: string;
+  session_file_md5?: string; // 已弃用，保留兼容
+  file_mtime_str?: string; // Formatted datetime string
+  file_size?: number;
   is_agent_session: boolean;
   messages: ClaudeMessage[];
   project_path?: string;
@@ -720,13 +729,14 @@ export interface ClaudeSession {
   message_count: number;
   last_modified_str?: string; // Formatted datetime string
   first_active_at_str?: string; // Formatted datetime string
+  removed?: boolean;
 }
 
 export interface ClaudeSessionInfo {
   session_id: string;
   session_file: string;
-  last_modified: string; // ISO datetime string
-  last_modified_str?: string; // Formatted datetime string
+  title?: string; // Session title
+  file_mtime_str?: string; // Formatted datetime string
   is_agent_session: boolean;
 }
 

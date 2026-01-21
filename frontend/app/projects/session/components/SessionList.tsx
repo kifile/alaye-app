@@ -1,17 +1,12 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { MessageSquare, Loader2, Calendar } from 'lucide-react';
+import { MessageSquare, RefreshCw, Calendar, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { scanSessions } from '@/api/api';
 import type { ClaudeSessionInfo } from '@/api/types';
 import { useTranslation } from 'react-i18next';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+import { formatTime } from '@/lib/utils';
 
 interface SessionListProps {
   projectId: number;
@@ -41,14 +36,7 @@ export function SessionList({
         return;
       }
 
-      // 按 last_modified 降序排序
-      const sortedSessions = (response.data || []).sort((a, b) => {
-        const dateA = a.last_modified ? new Date(a.last_modified).getTime() : 0;
-        const dateB = b.last_modified ? new Date(b.last_modified).getTime() : 0;
-        return dateB - dateA;
-      });
-
-      setSessions(sortedSessions);
+      setSessions(response.data || []);
     } catch (error) {
       console.error('Failed to load sessions:', error);
       toast.error('Failed to load sessions', {
@@ -65,23 +53,6 @@ export function SessionList({
     }
   }, [projectId]);
 
-  // 格式化时间
-  const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-
-    return date.toLocaleDateString();
-  };
-
   return (
     <div className='h-full flex flex-col bg-white'>
       {/* 标题 */}
@@ -90,10 +61,11 @@ export function SessionList({
           <h3 className='font-semibold text-sm text-gray-900'>Sessions</h3>
           <button
             onClick={loadSessions}
-            className='p-1 hover:bg-gray-100 rounded transition-colors'
+            disabled={loading}
+            className='p-1 hover:bg-gray-100 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed'
             title='Refresh'
           >
-            <Loader2
+            <RefreshCw
               className={`h-4 w-4 text-gray-600 ${loading ? 'animate-spin' : ''}`}
             />
           </button>
@@ -123,10 +95,10 @@ export function SessionList({
               <button
                 key={session.session_id}
                 onClick={() => onSessionSelect(session.session_id)}
-                className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
+                className={`w-full p-4 text-left hover:bg-gray-50 transition-colors border-l-4 ${
                   selectedSessionId === session.session_id
-                    ? 'bg-blue-50 border-l-4 border-blue-500'
-                    : 'border-l-4 border-transparent'
+                    ? 'bg-blue-50 border-blue-500'
+                    : 'border-transparent'
                 }`}
               >
                 <div className='flex items-start gap-3'>
@@ -139,31 +111,28 @@ export function SessionList({
                   />
                   <div className='flex-1 min-w-0'>
                     <div className='flex items-center gap-2 mb-1'>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <p className='text-sm font-medium text-gray-900 truncate cursor-help'>
-                              {session.is_agent_session && '🤖 '}
-                              {session.session_id}
-                            </p>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className='text-xs'>{session.session_id}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <p className='text-sm font-medium text-gray-900 truncate'>
+                        {session.is_agent_session && '🤖 '}
+                        {session.title || session.session_id}
+                      </p>
                       {session.is_agent_session && (
                         <span className='px-1.5 py-0.5 text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded border border-purple-300 dark:border-purple-700'>
                           Agent
                         </span>
                       )}
                     </div>
-                    <div className='flex items-center gap-1 text-xs text-gray-500'>
-                      <Calendar className='h-3 w-3' />
-                      <span>
-                        {session.last_modified_str
-                          ? formatTime(session.last_modified_str)
-                          : 'Unknown'}
+                    <div className='flex items-center gap-2 text-xs text-gray-500'>
+                      <div className='flex items-center gap-1'>
+                        <Calendar className='h-3 w-3' />
+                        <span>
+                          {session.file_mtime_str
+                            ? formatTime(session.file_mtime_str)
+                            : 'Unknown'}
+                        </span>
+                      </div>
+                      <span className='text-gray-300'>•</span>
+                      <span className='truncate font-mono text-xs'>
+                        {session.session_id.slice(0, 8)}
                       </span>
                     </div>
                   </div>

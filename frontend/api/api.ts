@@ -28,7 +28,6 @@ import type {
   ShowFileDialogRequest,
   ListProjectsRequest,
   ScanAllProjectsRequest,
-  ScanSingleProjectRequest,
   ScanClaudeMemoryRequest,
   ScanClaudeAgentsRequest,
   ScanClaudeCommandsRequest,
@@ -88,7 +87,6 @@ import type {
   ShowFileDialogResponse,
   ListProjectsResponse,
   ScanAllProjectsResponse,
-  ScanSingleProjectResponse,
   ScanClaudeMemoryResponse,
   ScanClaudeAgentsResponse,
   ScanClaudeCommandsResponse,
@@ -294,17 +292,6 @@ export const scanAllProjects = async (
 };
 
 /**
- * 扫描单个 Claude 项目API
- * @param request 扫描单个项目请求参数
- * @returns Promise<ScanSingleProjectResponse>
- */
-export const scanSingleProject = async (
-  request: ScanSingleProjectRequest
-): Promise<ScanSingleProjectResponse> => {
-  return await callAPI<boolean>('scan_single_project', request);
-};
-
-/**
  * 扫描指定项目的Claude Memory API
  * @param request 扫描Claude Memory请求参数
  * @returns Promise<ScanClaudeMemoryResponse>
@@ -355,6 +342,47 @@ export const scanClaudeSkills = async (
  */
 export const getProject = async (request: IDRequest): Promise<GetProjectResponse> => {
   return await callAPI<AIProjectInDB>('get_project', request);
+};
+
+/**
+ * 收藏项目API
+ * @param request 收藏项目请求参数
+ * @returns Promise<ApiResponse<AIProjectInDB>>
+ */
+export const favoriteProject = async (
+  request: IDRequest
+): Promise<ApiResponse<AIProjectInDB>> => {
+  return await callAPI<AIProjectInDB>('favorite_project', request);
+};
+
+/**
+ * 取消收藏项目API
+ * @param request 取消收藏项目请求参数
+ * @returns Promise<ApiResponse<AIProjectInDB>>
+ */
+export const unfavoriteProject = async (
+  request: IDRequest
+): Promise<ApiResponse<AIProjectInDB>> => {
+  return await callAPI<AIProjectInDB>('unfavorite_project', request);
+};
+
+/**
+ * 永久删除项目API
+ * @param request 删除项目请求参数
+ * @returns Promise<ApiResponse<boolean>>
+ */
+export const deleteProject = async (
+  request: IDRequest
+): Promise<ApiResponse<boolean>> => {
+  return await callAPI<boolean>('delete_project', request);
+};
+
+/**
+ * 清理所有已移除项目API
+ * @returns Promise<ApiResponse<boolean>>
+ */
+export const clearRemovedProjects = async (): Promise<ApiResponse<boolean>> => {
+  return await callAPI<boolean>('clear_removed_projects', {});
 };
 
 /**

@@ -39,6 +39,7 @@ from .api_models import (
     AddClaudeHookRequest,
     AddMCPServerRequest,
     ApiResponse,
+    ClearRemovedProjectsRequest,
     CloseTerminalRequest,
     DeleteMarkdownContentRequest,
     DeleteMCPServerRequest,
@@ -77,7 +78,6 @@ from .api_models import (
     ScanLSPServersRequest,
     ScanMCPServersRequest,
     ScanSessionsRequest,
-    ScanSingleProjectRequest,
     SetTerminalSizeRequest,
     UninstallClaudePluginRequest,
     UpdateClaudeHookRequest,
@@ -243,6 +243,8 @@ class APICore:
             project_path, claude_session_path=project.claude_session_path
         )
 
+    # ==================== 基础日志 API ====================
+
     @expose_api(LogRequest, LogData, "前端日志输出API")
     @api_exception_handler
     async def log(self, input_data: LogRequest) -> ApiResponse[LogData]:
@@ -281,6 +283,8 @@ class APICore:
                 record_info=f"Frontend log recorded: {input_data.level.value} - {input_data.message}"
             )
         )
+
+    # ==================== 终端管理 API ====================
 
     @expose_api(NewTerminalRequest, TerminalDTO, "创建新终端API")
     @api_logging
@@ -407,6 +411,8 @@ class APICore:
         )
         return ApiResponse.success_response(True)
 
+    # ==================== 应用配置管理 API ====================
+
     @expose_api(LoadSettingsRequest, LoadSettingsData, "加载配置API")
     @api_logging
     async def load_settings(
@@ -478,7 +484,7 @@ class APICore:
         await config_service.set_setting(input_data.key, input_data.value)
         return ApiResponse.success_response(True)
 
-    # ==================== 扫描相关方法 ====================
+    # ==================== 项目管理 API ====================
 
     @expose_api(ScanAllProjectsRequest, bool, "扫描所有 Claude 项目API")
     @api_logging
@@ -500,33 +506,139 @@ class APICore:
         await project_service.scan_and_save_all_projects()
         return ApiResponse.success_response(True)
 
-    @expose_api(ScanSingleProjectRequest, bool, "扫描单个 Claude 项目API")
+    @expose_api(ListProjectsRequest, List[AIProjectInDB], "获取所有 Claude 项目列表API")
     @api_logging
     @api_exception_handler
-    async def scan_single_project(
-        self, input_data: ScanSingleProjectRequest
-    ) -> ApiResponse[bool]:
+    async def list_projects(
+        self, input_data: ListProjectsRequest
+    ) -> ApiResponse[List[AIProjectInDB]]:
         """
-        扫描单个 Claude 项目的核心业务逻辑
+        获取所有 Claude 项目列表的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据（此请求无需参数）
+
+        Returns:
+            包含所有项目列表的响应，按照 last_active_at 逆序排序
+        """
+        # 通过 project_service 获取项目列表
+        projects = await project_service.list_projects()
+        return ApiResponse.success_response(projects)
+
+    @expose_api(IDRequest, AIProjectInDB, "根据 ID 获取单个 Claude 项目API")
+    @api_logging
+    @api_exception_handler
+    async def get_project(self, input_data: IDRequest) -> ApiResponse[AIProjectInDB]:
+        """
+        根据 ID 获取单个 Claude 项目的核心业务逻辑
 
         Args:
             input_data: 经过验证的输入数据，包含：
-                - project_id: 项目ID
+                - id: 项目ID
+
+        Returns:
+            包含指定项目信息的响应
+        """
+        # 通过 project_service 获取单个项目
+        project = await project_service.get_project_by_id(input_data.id)
+
+        if project:
+            return ApiResponse.success_response(project)
+        else:
+            return ApiResponse.error_response(404, f"项目 '{input_data.id}' 不存在")
+
+    @expose_api(IDRequest, AIProjectInDB, "收藏项目API")
+    @api_logging
+    @api_exception_handler
+    async def favorite_project(
+        self, input_data: IDRequest
+    ) -> ApiResponse[AIProjectInDB]:
+        """
+        收藏项目的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - id: 项目ID
+
+        Returns:
+            包含更新后项目信息的响应
+        """
+        # 通过 project_service 收藏项目
+        project = await project_service.favorite_project(input_data.id)
+
+        if project:
+            return ApiResponse.success_response(project)
+        else:
+            return ApiResponse.error_response(404, f"项目 '{input_data.id}' 不存在")
+
+    @expose_api(IDRequest, AIProjectInDB, "取消收藏项目API")
+    @api_logging
+    @api_exception_handler
+    async def unfavorite_project(
+        self, input_data: IDRequest
+    ) -> ApiResponse[AIProjectInDB]:
+        """
+        取消收藏项目的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - id: 项目ID
+
+        Returns:
+            包含更新后项目信息的响应
+        """
+        # 通过 project_service 取消收藏项目
+        project = await project_service.unfavorite_project(input_data.id)
+
+        if project:
+            return ApiResponse.success_response(project)
+        else:
+            return ApiResponse.error_response(404, f"项目 '{input_data.id}' 不存在")
+
+    @expose_api(IDRequest, bool, "永久删除项目API")
+    @api_logging
+    @api_exception_handler
+    async def delete_project(self, input_data: IDRequest) -> ApiResponse[bool]:
+        """
+        永久删除项目的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - id: 项目ID
 
         Returns:
             操作是否成功完成
         """
-        # 执行扫描
-        success = await project_service.scan_and_save_single_project(
-            input_data.project_id
-        )
+        # 通过 project_service 删除项目
+        success = await project_service.delete_project(input_data.id)
 
         if success:
             return ApiResponse.success_response(True)
         else:
             return ApiResponse.error_response(
-                404, f"项目 '{input_data.project_id}' 不存在或扫描失败"
+                404, f"项目 '{input_data.id}' 不存在或删除失败"
             )
+
+    @expose_api(ClearRemovedProjectsRequest, bool, "清理所有已移除项目API")
+    @api_logging
+    @api_exception_handler
+    async def clear_removed_projects(
+        self, input_data: ClearRemovedProjectsRequest
+    ) -> ApiResponse[bool]:
+        """
+        清理所有已移除项目的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据（此请求无需参数）
+
+        Returns:
+            是否全部成功删除（只要有一个失败就返回 False）
+        """
+        # 通过 project_service 清理已移除项目
+        result = await project_service.clear_removed_projects()
+        return ApiResponse.success_response(result)
+
+    # ==================== Claude 配置扫描 API ====================
 
     @expose_api(
         ScanClaudeMemoryRequest, ClaudeMemoryInfo, "扫描指定项目的Claude Memory API"
@@ -623,46 +735,30 @@ class APICore:
         skills_info = await config_manager.scan_skills(input_data.scope)
         return ApiResponse.success_response(skills_info)
 
-    @expose_api(ListProjectsRequest, List[AIProjectInDB], "获取所有 Claude 项目列表API")
+    @expose_api(
+        ScanClaudeSettingsRequest, ClaudeSettingsInfoDTO, "扫描指定项目的Claude设置API"
+    )
     @api_logging
     @api_exception_handler
-    async def list_projects(
-        self, input_data: ListProjectsRequest
-    ) -> ApiResponse[List[AIProjectInDB]]:
+    async def scan_claude_settings(
+        self, input_data: ScanClaudeSettingsRequest
+    ) -> ApiResponse[ClaudeSettingsInfoDTO]:
         """
-        获取所有 Claude 项目列表的核心业务逻辑
-
-        Args:
-            input_data: 经过验证的输入数据（此请求无需参数）
-
-        Returns:
-            包含所有项目列表的响应，按照 last_active_at 逆序排序
-        """
-        # 通过 project_service 获取项目列表
-        projects = await project_service.list_projects()
-        return ApiResponse.success_response(projects)
-
-    @expose_api(IDRequest, AIProjectInDB, "根据 ID 获取单个 Claude 项目API")
-    @api_logging
-    @api_exception_handler
-    async def get_project(self, input_data: IDRequest) -> ApiResponse[AIProjectInDB]:
-        """
-        根据 ID 获取单个 Claude 项目的核心业务逻辑
+        扫描指定项目Claude设置的核心业务逻辑
 
         Args:
             input_data: 经过验证的输入数据，包含：
-                - id: 项目ID
+                - project_id: 项目ID
+                - scope: 配置作用域，可选值: user, project, local（可选，不传入时扫描所有作用域并合并）
 
         Returns:
-            包含指定项目信息的响应
+            包含Claude设置配置信息（扁平化，包含作用域）的响应
         """
-        # 通过 project_service 获取单个项目
-        project = await project_service.get_project_by_id(input_data.id)
+        config_manager = await self._get_config_manager(input_data.project_id)
+        settings_info = config_manager.scan_settings(input_data.scope)
+        return ApiResponse.success_response(settings_info)
 
-        if project:
-            return ApiResponse.success_response(project)
-        else:
-            return ApiResponse.error_response(404, f"项目 '{input_data.id}' 不存在")
+    # ==================== Markdown 内容管理 API ====================
 
     @expose_api(
         LoadMarkdownContentRequest, MarkdownContentDTO, "加载指定项目Markdown内容API"
@@ -891,7 +987,66 @@ class APICore:
         )
         return ApiResponse.success_response(True)
 
-    # ==================== MCP 服务器管理方法 ====================
+    # ==================== Claude 设置更新 API ====================
+
+    @expose_api(UpdateClaudeSettingsValueRequest, bool, "更新指定项目的Claude设置值API")
+    @api_logging
+    @api_exception_handler
+    async def update_claude_settings_value(
+        self, input_data: UpdateClaudeSettingsValueRequest
+    ) -> ApiResponse[bool]:
+        """
+        更新指定项目Claude设置值的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - project_id: 项目ID
+                - scope: 配置作用域，可选值: user, project, local
+                - key: 配置项的键，支持点号分隔的嵌套键
+                - value: 配置项的值（字符串格式）
+
+        Returns:
+            操作是否成功完成
+        """
+        config_manager = await self._get_config_manager(input_data.project_id)
+        config_manager.update_settings_values(
+            input_data.scope,
+            input_data.key,
+            input_data.value,
+            input_data.value_type,
+        )
+        return ApiResponse.success_response(True)
+
+    @expose_api(
+        UpdateClaudeSettingsScopeRequest, bool, "更新指定项目的Claude设置作用域API"
+    )
+    @api_logging
+    @api_exception_handler
+    async def update_claude_settings_scope(
+        self, input_data: UpdateClaudeSettingsScopeRequest
+    ) -> ApiResponse[bool]:
+        """
+        更新指定项目Claude设置作用域的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - project_id: 项目ID
+                - old_scope: 原配置作用域
+                - new_scope: 新配置作用域
+                - key: 配置项的键
+
+        Returns:
+            操作是否成功完成
+        """
+        config_manager = await self._get_config_manager(input_data.project_id)
+        config_manager.update_settings_scope(
+            input_data.old_scope,
+            input_data.new_scope,
+            input_data.key,
+        )
+        return ApiResponse.success_response(True)
+
+    # ==================== MCP 服务器管理 API ====================
 
     @expose_api(ScanMCPServersRequest, MCPInfo, "扫描指定项目的MCP服务器配置API")
     @api_logging
@@ -1098,7 +1253,7 @@ class APICore:
         config_manager.update_enable_all_project_mcp_servers(input_data.value)
         return ApiResponse.success_response(True)
 
-    # ==================== LSP 服务器管理方法 ====================
+    # ==================== LSP 服务器管理 API ====================
 
     @expose_api(
         ScanLSPServersRequest, List[LSPServerInfo], "扫描指定项目的LSP服务器配置API"
@@ -1123,7 +1278,7 @@ class APICore:
         lsp_servers = await config_manager.scan_lsp_servers(input_data.scope)
         return ApiResponse.success_response(lsp_servers)
 
-    # ==================== Hooks 管理方法 ====================
+    # ==================== Hooks 管理 API ====================
 
     @expose_api(ScanClaudeHooksRequest, HooksInfo, "扫描指定项目的Hooks配置API")
     @api_logging
@@ -1252,7 +1407,7 @@ class APICore:
         config_manager.update_disable_all_hooks(input_data.value)
         return ApiResponse.success_response(True)
 
-    # ==================== Plugin Marketplace 管理方法 ====================
+    # ==================== Plugin Marketplace 管理 API ====================
 
     @expose_api(
         ScanClaudePluginMarketplacesRequest,
@@ -1300,6 +1455,8 @@ class APICore:
         config_manager = await self._get_config_manager(input_data.project_id)
         result = await config_manager.install_marketplace(input_data.source)
         return ApiResponse.success_response(result)
+
+    # ==================== Plugin 管理 API ====================
 
     @expose_api(ScanClaudePluginsRequest, List[PluginInfo], "扫描Claude插件列表API")
     @api_logging
@@ -1472,7 +1629,7 @@ class APICore:
 
         return ApiResponse.success_response(readme_content)
 
-    # ==================== Session 管理方法 ====================
+    # ==================== Session 管理 API ====================
 
     @expose_api(
         ScanSessionsRequest,
@@ -1494,8 +1651,9 @@ class APICore:
         Returns:
             包含Sessions简要信息列表的响应（不包含 messages）
         """
-        config_manager = await self._get_config_manager(input_data.project_id)
-        sessions = await config_manager.scan_sessions()
+        # 调用 project_service 的 scan_sessions 方法
+        # 该方法会优先使用数据库中的 title，减少文件读取
+        sessions = await project_service.scan_sessions(input_data.project_id)
         return ApiResponse.success_response(sessions)
 
     @expose_api(

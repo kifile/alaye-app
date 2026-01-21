@@ -21,6 +21,15 @@ class AIProjectCreate(BaseModel):
     claude_session_path: Optional[str] = Field(
         None, description="Claude session 存储路径"
     )
+    git_worktree_project: Optional[bool] = Field(
+        False, description="是否为 git worktree 项目"
+    )
+    git_main_project_path: Optional[str] = Field(
+        None, description="git worktree 项目的主项目路径"
+    )
+    removed: Optional[bool] = Field(False, description="项目路径是否已被移除")
+    favorited: Optional[bool] = Field(False, description="是否已收藏")
+    favorited_at: Optional[datetime] = Field(None, description="收藏时间")
     ai_tools: List[AiToolType] = Field(default=[], description="AI工具列表")
     first_active_at: Optional[datetime] = Field(None, description="首次执行时间")
     last_active_at: Optional[datetime] = Field(None, description="最后执行时间")
@@ -35,9 +44,18 @@ class AIProjectUpdate(BaseModel):
     claude_session_path: Optional[str] = Field(
         None, description="Claude session 存储路径"
     )
+    git_worktree_project: Optional[bool] = Field(
+        None, description="是否为 git worktree 项目"
+    )
+    git_main_project_path: Optional[str] = Field(
+        None, description="git worktree 项目的主项目路径"
+    )
+    removed: Optional[bool] = Field(None, description="项目路径是否已被移除")
     ai_tools: Optional[List[AiToolType]] = Field(None, description="AI工具列表")
     first_active_at: Optional[datetime] = Field(None, description="首次执行时间")
     last_active_at: Optional[datetime] = Field(None, description="最后执行时间")
+    favorited: Optional[bool] = Field(None, description="是否已收藏")
+    favorited_at: Optional[datetime] = Field(None, description="收藏时间")
 
 
 class AIProjectInDB(BaseModel):
@@ -49,6 +67,13 @@ class AIProjectInDB(BaseModel):
     claude_session_path: Optional[str] = Field(
         None, description="Claude session 存储路径"
     )
+    git_worktree_project: Optional[bool] = Field(
+        None, description="是否为 git worktree 项目"
+    )
+    git_main_project_path: Optional[str] = Field(
+        None, description="git worktree 项目的主项目路径"
+    )
+    removed: Optional[bool] = Field(None, description="项目路径是否已被移除")
     ai_tools: List[AiToolType] = Field(..., description="AI工具列表")
     first_active_at: Optional[datetime] = Field(
         None, description="首次执行时间", exclude=True
@@ -56,6 +81,8 @@ class AIProjectInDB(BaseModel):
     last_active_at: Optional[datetime] = Field(
         None, description="最后执行时间", exclude=True
     )
+    favorited: Optional[bool] = Field(None, description="是否已收藏")
+    favorited_at: Optional[datetime] = Field(None, description="收藏时间", exclude=True)
     created_at: datetime = Field(..., description="创建时间", exclude=True)
     updated_at: datetime = Field(..., description="更新时间", exclude=True)
 
@@ -72,6 +99,14 @@ class AIProjectInDB(BaseModel):
         return (
             self.last_active_at.strftime("%Y-%m-%d %H:%M:%S")
             if self.last_active_at
+            else None
+        )
+
+    @computed_field
+    def favorited_at_str(self) -> Optional[str]:
+        return (
+            self.favorited_at.strftime("%Y-%m-%d %H:%M:%S")
+            if self.favorited_at
             else None
         )
 

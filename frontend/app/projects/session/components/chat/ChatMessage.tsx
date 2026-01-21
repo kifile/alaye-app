@@ -3,9 +3,14 @@
 import React, { useState, memo, useMemo } from 'react';
 import { Bot, User } from 'lucide-react';
 import type { ClaudeMessage } from '@/api/types';
+import { formatChatTime } from '@/lib/utils';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ThinkingBlock } from './ThinkingBlock';
 import { ToolUseBlock } from './ToolUseBlock';
+import { SystemBlock } from './SystemBlock';
+import { InterruptedBlock } from './InterruptedBlock';
+import { CommandBlock } from './CommandBlock';
+import { AgentBlock } from './AgentBlock';
 import type { ContentItem } from './ContentItem';
 
 interface ChatMessageProps {
@@ -15,13 +20,14 @@ interface ChatMessageProps {
 
 export function ChatMessage({ message, isLoading }: ChatMessageProps) {
   const isUser = message.message?.role === 'user' || !message.message?.role;
+  const isSystem = message.message?.role === 'system';
 
   // 根据用户类型调整圆角样式
   const getBubbleClass = () => {
     if (isUser) {
-      return 'bg-blue-500 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm';
+      return 'bg-blue-500 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-md';
     }
-    return 'bg-gray-100 dark:bg-gray-800 px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-sm overflow-x-auto';
+    return 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-4 py-2.5 rounded-2xl rounded-tl-sm shadow-md border border-gray-200 dark:border-gray-700 overflow-x-hidden';
   };
 
   // 缓存 content 解析结果，避免每次渲染都重新处理
@@ -50,23 +56,79 @@ export function ChatMessage({ message, isLoading }: ChatMessageProps) {
 
   // 渲染 text 内容（Markdown）
   const renderTextContent = (text: string, index: number) => {
-    return <MarkdownRenderer key={`text-${index}`} text={text} />;
+    return (
+      <MarkdownRenderer key={`text-${index}`} text={text} isUserMessage={isUser} />
+    );
   };
 
   // 渲染内容
   const renderContent = () => {
     if (!parsedContent) return null;
 
-    // 处理数组类型的 content（Assistant 消息）
+    // 处理数组类型的 content（Assistant 消息和 System 消息）
     if (Array.isArray(parsedContent)) {
+      // System 消息使用 SystemBlock 组件
+      if (isSystem) {
+        return (
+          <div className='space-y-4'>
+            {parsedContent.map((item: ContentItem, index: number) => {
+              if (item.type === 'text' && item.text) {
+                return <SystemBlock key={`system-${index}`} item={item} />;
+              }
+              return null;
+            })}
+          </div>
+        );
+      }
+
+      // Assistant 消息使用原有的渲染逻辑
       return (
         <div className='space-y-1'>
           {parsedContent.map((item: ContentItem, index: number) => {
             switch (item.type) {
               case 'tool_use':
-                return <ToolUseBlock key={`tool-use-${index}`} item={item} />;
+              case 'server_tool_use':
+                return (
+                  <ToolUseBlock
+                    key={`tool-use-${index}`}
+                    item={item}
+                    isUserMessage={isUser}
+                  />
+                );
               case 'thinking':
                 return <ThinkingBlock key={`thinking-${index}`} item={item} />;
+              case 'interrupted':
+                // 后端已识别为 interrupt 消息，直接使用 InterruptedBlock 渲染
+                return (
+                  <InterruptedBlock
+                    key={`interrupted-${index}`}
+                    text={item.text || ''}
+                  />
+                );
+              case 'command':
+                // 后端已识别为 command 消息，使用 CommandBlock 渲染
+                return (
+                  <CommandBlock
+                    key={`command-${index}`}
+                    command={item.command || ''}
+                    args={item.args}
+                    content={
+                      typeof item.content === 'string'
+                        ? item.content
+                        : Array.isArray(item.content)
+                          ? JSON.stringify(item.content, null, 2)
+                          : undefined
+                    }
+                  />
+                );
+              case 'subagent':
+                // Subagent 调用，使用 AgentBlock 渲染
+                return (
+                  <AgentBlock
+                    key={`subagent-${index}`}
+                    item={item as Extract<ContentItem, { type: 'subagent' }>}
+                  />
+                );
               case 'text':
                 return item.text ? renderTextContent(item.text, index) : null;
               default:
@@ -77,32 +139,44 @@ export function ChatMessage({ message, isLoading }: ChatMessageProps) {
       );
     }
 
-    if (!parsedContent) return null;
-
-    // 对 user 消息使用 pre-wrap 保留换行和空格
-    return (
-      <div className='whitespace-pre-wrap break-words text-sm'>{parsedContent}</div>
-    );
+    // 对 user 消息也使用 MarkdownRenderer 渲染，并传递 isUserMessage 标记
+    return <MarkdownRenderer text={parsedContent} isUserMessage={true} />;
   };
 
   return (
     <div
-      className={`flex gap-3 mb-6 ${isUser ? 'justify-end' : 'justify-start'}`}
+      className={`flex gap-3 mb-3 ${
+        isSystem ? 'justify-center' : isUser ? 'justify-end' : 'justify-start'
+      }`}
       data-testid='chat-message'
     >
-      {isUser ? (
+      {isSystem ? (
+        <div className='w-full'>
+          {renderContent()}
+          {message.timestamp && (
+            <div className='flex justify-center'>
+              <span className='text-xs text-gray-500 mt-2'>
+                {formatChatTime(message.timestamp)}
+              </span>
+            </div>
+          )}
+        </div>
+      ) : isUser ? (
         <>
           <div className='max-w-[80%] flex flex-col items-end'>
             <div className='flex items-center gap-2 mb-1'>
               <span className='text-sm text-gray-600 dark:text-gray-400'>You</span>
               <User className='h-4 w-4 text-gray-600 dark:text-gray-400' />
             </div>
-            <div className='bg-blue-500 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm shadow-sm'>
+            <div className={`${getBubbleClass()} text-sm max-w-full`}>
               {renderContent()}
             </div>
             {message.timestamp && (
-              <span className='text-xs text-gray-500 mt-1'>
-                {new Date(message.timestamp).toLocaleTimeString()}
+              <span
+                className='text-xs text-gray-500 mt-1'
+                title={new Date(message.timestamp).toLocaleString()}
+              >
+                {formatChatTime(message.timestamp)}
               </span>
             )}
           </div>
@@ -117,19 +191,24 @@ export function ChatMessage({ message, isLoading }: ChatMessageProps) {
               </span>
             </div>
             {isLoading ? (
-              <div className='bg-gray-100 dark:bg-gray-800 px-4 py-2.5 rounded-2xl rounded-tl-sm'>
+              <div className='bg-gray-100 dark:bg-gray-800 px-4 py-2.5 rounded-2xl rounded-tl-sm text-sm'>
                 <div className='flex space-x-1'>
-                  <div className='w-2 h-2 bg-gray-400 rounded-full animate-bounce'></div>
-                  <div className='w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100'></div>
-                  <div className='w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200'></div>
+                  <div className='w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce'></div>
+                  <div className='w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce delay-100'></div>
+                  <div className='w-2 h-2 bg-gray-400 dark:bg-gray-500 rounded-full animate-bounce delay-200'></div>
                 </div>
               </div>
             ) : (
-              <div className={getBubbleClass()}>{renderContent()}</div>
+              <div className={`${getBubbleClass()} text-sm max-w-full`}>
+                {renderContent()}
+              </div>
             )}
             {message.timestamp && (
-              <span className='text-xs text-gray-500 mt-1'>
-                {new Date(message.timestamp).toLocaleTimeString()}
+              <span
+                className='text-xs text-gray-500 mt-1'
+                title={new Date(message.timestamp).toLocaleString()}
+              >
+                {formatChatTime(message.timestamp)}
               </span>
             )}
           </div>

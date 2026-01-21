@@ -277,10 +277,8 @@ class ScanAllProjectsRequest(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
-class ScanSingleProjectRequest(BaseModel):
-    """扫描单个项目请求模型"""
-
-    project_id: int = Field(..., description="项目ID")
+class ClearRemovedProjectsRequest(BaseModel):
+    """清理已移除项目请求模型"""
 
     model_config = ConfigDict(extra="allow")
 

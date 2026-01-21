@@ -4,8 +4,8 @@ Database connection management
 
 import logging
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -132,9 +132,10 @@ engine = create_async_engine(
 _SessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+@asynccontextmanager
+async def get_db():
     """
-    获取数据库会话
+    获取数据库会话的异步上下文管理器
 
     Yields:
         AsyncSession: 数据库会话

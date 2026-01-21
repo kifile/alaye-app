@@ -1,6 +1,50 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
+/* 强制内联代码使用等宽字体，覆盖 prose 的默认样式 */
+@layer components {
+  .prose code {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+      'Courier New', monospace !important;
+  }
+
+  .prose-sm code {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+      'Courier New', monospace !important;
+  }
+
+  /* 更高特异性的选择器 */
+  .prose > p > code {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+      'Courier New', monospace !important;
+  }
+
+  .prose-sm > p > code {
+    font-family:
+      ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+      'Courier New', monospace !important;
+  }
+
+  /* react-masonry-css 瀑布流样式 */
+  .my-masonry-grid {
+    display: flex;
+    margin-left: -1rem;
+  }
+
+  .masonry-grid_column {
+    padding-left: 1rem;
+    background-clip: padding-box;
+  }
+
+  /* 确保瀑布流中的子元素不会被拉伸 */
+  .masonry-grid_column > * {
+    margin-bottom: 1rem;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -118,5 +162,10 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+  /* 修复列表项中段落的显示，避免不必要的换行 */
+  li[data-list-item] > p {
+    display: inline;
+    margin-bottom: 0;
   }
 }
