@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { Plus, Store, Tag, Filter, Package } from 'lucide-react';
 import { PluginItem } from './PluginItem';
+import { MasonryGrid } from '@/components/masonry/MasonryGrid';
 import {
   scanClaudePluginMarketplaces,
   scanClaudePlugins,
@@ -431,7 +432,7 @@ export function PluginDetail({ projectId }: PluginDetailProps) {
                   <h3 className='text-sm font-medium text-muted-foreground'>
                     {t('plugins.pluginList', { count: filteredPlugins.length })}
                   </h3>
-                  <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start'>
+                  <MasonryGrid gutter='1rem'>
                     {filteredPlugins.map(plugin => (
                       <PluginItem
                         key={`${plugin.marketplace || 'unknown'}-${plugin.config.name}`}
@@ -440,7 +441,7 @@ export function PluginDetail({ projectId }: PluginDetailProps) {
                         onPluginChange={loadPlugins}
                       />
                     ))}
-                  </div>
+                  </MasonryGrid>
                 </div>
               ) : (
                 /* 无插件时的空状态 */

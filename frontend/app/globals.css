@@ -27,6 +27,22 @@
       ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
       'Courier New', monospace !important;
   }
+
+  /* react-masonry-css 瀑布流样式 */
+  .my-masonry-grid {
+    display: flex;
+    margin-left: -1rem;
+  }
+
+  .masonry-grid_column {
+    padding-left: 1rem;
+    background-clip: padding-box;
+  }
+
+  /* 确保瀑布流中的子元素不会被拉伸 */
+  .masonry-grid_column > * {
+    margin-bottom: 1rem;
+  }
 }
 
 @custom-variant dark (&:is(.dark *));

@@ -120,16 +120,16 @@ export function ProjectCard({
   return (
     <>
       <Card
-        className={`group relative overflow-hidden transition-all duration-200 ${
+        className={`group relative overflow-hidden transition-all duration-200 py-4 px-2 ${
           isRemoved
             ? 'opacity-60 bg-muted/30'
             : 'hover:shadow-lg hover:border-primary/20'
         }`}
       >
-        <CardHeader className='pb-3'>
+        <CardHeader className='px-2 pb-2'>
           {/* 顶部区域：标题、收藏按钮、更多菜单 */}
-          <div className='flex items-start gap-3'>
-            {/* 主内容区域 */}
+          <div className='flex items-center w-full overflow-hidden'>
+            {/* 主内容区域 - 自动占据所有剩余空间 */}
             <div className='flex-1 min-w-0 space-y-1.5'>
               {/* 标题和状态标签 */}
               <div className='flex items-center gap-2'>
@@ -150,7 +150,7 @@ export function ProjectCard({
                   </TooltipProvider>
                 )}
                 <CardTitle
-                  className={`text-base font-semibold line-clamp-1 transition-colors ${
+                  className={`text-base font-semibold truncate transition-colors ${
                     isRemoved
                       ? 'line-through text-muted-foreground'
                       : 'group-hover:text-primary'
@@ -169,7 +169,7 @@ export function ProjectCard({
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <CardDescription className='text-xs line-clamp-1 font-mono cursor-help opacity-70'>
+                    <CardDescription className='text-xs truncate font-mono cursor-help opacity-70'>
                       {project.project_path || t('card.noPathInfo')}
                     </CardDescription>
                   </TooltipTrigger>
@@ -182,7 +182,7 @@ export function ProjectCard({
               </TooltipProvider>
             </div>
 
-            {/* 操作按钮组 */}
+            {/* 操作按钮组 - 始终显示完整 */}
             <div className='flex items-center gap-1 shrink-0'>
               {/* 收藏按钮 - 只在非 removed 状态显示 */}
               {!isRemoved && (
@@ -265,7 +265,7 @@ export function ProjectCard({
           </div>
         </CardHeader>
 
-        <CardContent className='space-y-4 pt-0'>
+        <CardContent className='px-2 space-y-3 pt-1'>
           {/* AI 工具标签 */}
           <div className='flex items-center gap-2 flex-wrap'>
             {project.ai_tools.map(tool => (

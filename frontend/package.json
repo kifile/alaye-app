@@ -46,6 +46,7 @@
     "react-hook-form": "^7.70.0",
     "react-i18next": "^16.5.2",
     "react-markdown": "^10.1.0",
+    "react-masonry-css": "^1.0.16",
     "react-syntax-highlighter": "^16.1.0",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
