@@ -3,11 +3,9 @@
 import React, { memo, useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import rehypeRaw from 'rehype-raw';
 import type { MessageTheme } from './styles/markdown-styles';
-import { remarkMentions } from './plugins/remarkMentions';
 import { remarkFixUrlBoundaries } from './plugins/remarkFixUrlBoundaries';
-import { rehypeSanitizeCustomTags } from './plugins/rehypeSanitizeCustomTags';
+import { rehypeMention } from './plugins/rehypeMention';
 import { createRenderers } from './renderers/markdown-renderers';
 
 interface MarkdownRendererProps {
@@ -52,8 +50,8 @@ export const MarkdownRenderer = memo(
     return (
       <div className='prose prose-sm dark:prose-invert max-w-none'>
         <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkFixUrlBoundaries, remarkMentions]}
-          rehypePlugins={[rehypeRaw, rehypeSanitizeCustomTags]}
+          remarkPlugins={[remarkGfm, remarkFixUrlBoundaries]}
+          rehypePlugins={[rehypeMention]}
           components={renderers}
         >
           {text}

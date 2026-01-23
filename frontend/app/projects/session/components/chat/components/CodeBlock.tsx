@@ -1,9 +1,9 @@
 'use client';
 
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Copy, Check } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface CodeBlockProps {
   code: string;
@@ -15,49 +15,62 @@ interface CodeBlockProps {
 
 /**
  * 代码块组件
- * 支持语法高亮和一键复制功能
+ * 支持语法高亮、一键复制、行号显示和自动换行功能
+ * 使用 Figma 风格的简约设计
  */
 export const CodeBlock = memo(
   ({ code, language, copiedId, onCopy, theme = 'assistant' }: CodeBlockProps) => {
-    const codeId = `code-${Math.random().toString(36).substr(2, 9)}`;
+    const codeId = `code-${Math.random().toString(36).substring(2, 11)}`;
 
-    // 根据主题确定背景色
-    const containerBgClass =
-      theme === 'user'
-        ? 'bg-slate-600/70 dark:bg-slate-500/70'
-        : 'bg-gray-100 dark:bg-gray-800/80';
+    // Figma 风格的代码块容器样式
+    const containerClass = theme === 'user'
+      ? 'relative group not-prose rounded-lg bg-slate-50/90 border border-slate-200/50 dark:bg-slate-900/50 dark:border-slate-700/50 shadow-sm'
+      : 'relative group not-prose rounded-lg bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700/50 shadow-sm';
+
+    // 按钮基础样式
+    const iconButtonClass =
+      'absolute top-2 p-1.5 bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded text-xs opacity-0 group-hover:opacity-100 transition-all duration-200 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 shadow-sm border border-slate-200 dark:border-slate-600';
+
+    // 语言标签样式
+    const languageTagClass =
+      'absolute top-2 left-2 px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-medium rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 border border-slate-200 dark:border-slate-700';
 
     return (
-      <div className={`relative group not-prose rounded-md ${containerBgClass}`}>
+      <div className={containerClass}>
+        {/* 语言标签 */}
+        <div className={languageTagClass}>{language}</div>
+
         {/* 复制按钮 */}
         <button
           onClick={() => onCopy(code, codeId)}
-          className='absolute top-2 right-2 p-2 bg-gray-700/90 hover:bg-gray-600 dark:bg-gray-600/90 dark:hover:bg-gray-500 text-white rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 backdrop-blur-sm'
+          className={`${iconButtonClass} right-2`}
           title='Copy code'
           aria-label='Copy code to clipboard'
         >
           {copiedId === codeId ? (
-            <Check className='h-4 w-4' />
+            <Check className='h-3.5 w-3.5' />
           ) : (
-            <Copy className='h-4 w-4' />
+            <Copy className='h-3.5 w-3.5' />
           )}
         </button>
 
-        {/* 语言标签 */}
-        <div className='absolute top-2 left-2 px-2 py-0.5 bg-gray-700/90 dark:bg-gray-600/90 text-white dark:text-gray-100 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10 backdrop-blur-sm'>
-          {language}
-        </div>
-
         {/* 代码高亮 */}
         <SyntaxHighlighter
-          style={oneDark}
+          style={oneLight}
           language={language}
           PreTag='div'
+          showLineNumbers={true}
+          wrapLines={false}
+          customStyle={{
+            margin: 0,
+            borderRadius: '0.5rem',
+            background: 'transparent',
+            fontSize: '0.875rem',
+            paddingLeft: '0.75rem',
+          }}
           codeTagProps={{
             style: {
               display: 'block',
-              overflowX: 'auto',
-              whiteSpace: 'pre',
             },
           }}
         >

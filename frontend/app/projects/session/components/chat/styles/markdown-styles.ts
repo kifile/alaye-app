@@ -7,32 +7,24 @@ export type MessageTheme = 'user' | 'assistant';
 
 /**
  * 获取内联代码样式
+ * 使用 Figma 风格的简约设计
  * 使用 ! 前缀确保 prose 样式不会覆盖这些样式
  */
 export const getInlineCodeClass = (theme: MessageTheme): string => {
   if (theme === 'user') {
-    return '!px-1.5 !py-0.5 !rounded !bg-slate-800/90 dark:!bg-slate-700/90 !text-white !text-sm !font-mono !border !border-slate-600/50';
+    // 用户消息：使用浅色背景与蓝色消息背景协调
+    return '!px-1.5 !py-0.5 !rounded !bg-slate-100/80 dark:!bg-slate-800/60 !text-slate-700 dark:!text-slate-300 !text-sm !font-mono !border !border-slate-200/50 dark:!border-slate-700/50';
   }
-  // assistant - 使用更柔和的灰色
-  return '!px-1.5 !py-0.5 !rounded !bg-gray-100 dark:!bg-gray-800 !text-gray-900 dark:!text-gray-100 !text-sm !font-mono !border !border-gray-300 dark:!border-gray-600';
+  // assistant 消息：使用浅灰色背景
+  return '!px-1.5 !py-0.5 !rounded !bg-slate-100 dark:!bg-slate-800/50 !text-slate-700 dark:!text-slate-300 !text-sm !font-mono !border !border-slate-200 dark:!border-slate-700/50';
 };
 
 /**
  * 获取代码块容器样式
  * 不设置 padding 和背景，这些由 CodeBlock 组件处理
  */
-export const getCodeBlockClass = (theme: MessageTheme): string => {
+export const getCodeBlockClass = (_theme: MessageTheme): string => {
   return '';
-};
-
-/**
- * 获取纯代码块（无语言标识）样式
- */
-export const getPlainCodeClass = (theme: MessageTheme): string => {
-  if (theme === 'user') {
-    return 'text-white font-mono';
-  }
-  return 'font-mono';
 };
 
 /**
