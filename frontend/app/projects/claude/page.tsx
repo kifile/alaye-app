@@ -227,7 +227,7 @@ function ProjectDetailPageContent() {
           <div
             className='absolute top-8 bg-white border border-gray-300 rounded-full shadow-md hover:shadow-lg transition-all duration-200 z-30'
             style={{
-              left: sidebarCollapsed ? '8px' : '182px',
+              left: sidebarCollapsed ? '16px' : '190px',
               transform: sidebarCollapsed ? 'translateX(-50%)' : 'translateX(-50%)', // 始终使按钮中心对准边线
             }}
           >
