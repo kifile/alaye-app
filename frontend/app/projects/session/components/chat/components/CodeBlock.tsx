@@ -23,9 +23,10 @@ export const CodeBlock = memo(
     const codeId = `code-${Math.random().toString(36).substring(2, 11)}`;
 
     // Figma 风格的代码块容器样式
-    const containerClass = theme === 'user'
-      ? 'relative group not-prose rounded-lg bg-slate-50/90 border border-slate-200/50 dark:bg-slate-900/50 dark:border-slate-700/50 shadow-sm'
-      : 'relative group not-prose rounded-lg bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700/50 shadow-sm';
+    const containerClass =
+      theme === 'user'
+        ? 'relative group not-prose rounded-lg bg-slate-50/90 border border-slate-200/50 dark:bg-slate-900/50 dark:border-slate-700/50 shadow-sm'
+        : 'relative group not-prose rounded-lg bg-slate-50 border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700/50 shadow-sm';
 
     // 按钮基础样式
     const iconButtonClass =

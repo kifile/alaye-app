@@ -548,6 +548,8 @@
     "disableAllSuccess": "Disabled all project MCP servers",
     "toggleAllFailed": "Failed to toggle all project MCP servers",
     "enableAllLabel": "Enable all project MCP servers",
+    "scopeChangeSuccess": "MCP server scope changed successfully",
+    "scopeChangeFailed": "Failed to change MCP server scope",
     "loading": "Loading MCP server configuration...",
     "addServer": "Add MCP Server",
     "noServers": "No MCP Server Configuration",

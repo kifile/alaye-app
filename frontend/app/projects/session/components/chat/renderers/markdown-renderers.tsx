@@ -338,6 +338,10 @@ export const createRenderers = ({ theme, copiedId, onCopy }: RenderersProps) => 
         </span>
       );
     }
-    return <span className={className} {...props}>{children}</span>;
+    return (
+      <span className={className} {...props}>
+        {children}
+      </span>
+    );
   },
 });
