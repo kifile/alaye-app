@@ -6,10 +6,9 @@
 
 import asyncio
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Set
-
-from datetime import datetime
 
 from sqlalchemy import case, func
 from sqlalchemy.ext.asyncio import AsyncSession

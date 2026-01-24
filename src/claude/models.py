@@ -550,12 +550,6 @@ class ClaudeSession(BaseModel):
     file_size: Optional[int] = Field(None, exclude=True)  # 文件大小
     is_agent_session: bool = False
     messages: List[ClaudeMessage] = Field(default_factory=list)
-    first_active_at: Optional[datetime] = Field(
-        default=None, exclude=True
-    )  # Exclude from serialization
-    last_active_at: Optional[datetime] = Field(
-        default=None, exclude=True
-    )  # Exclude from serialization
     project_path: Optional[str] = Field(
         None, deprecated=True, description="已弃用：不再从 session 中提取"
     )
@@ -563,6 +557,13 @@ class ClaudeSession(BaseModel):
         None, deprecated=True, description="已弃用：不再从 session 中提取"
     )
     message_count: int = 0
+
+    @computed_field
+    @property
+    def file_mtime_str(self) -> Optional[str]:
+        return (
+            self.file_mtime.strftime("%Y-%m-%d %H:%M:%S") if self.file_mtime else None
+        )
 
 
 class ClaudeSessionInfo(BaseModel):

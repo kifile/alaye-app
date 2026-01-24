@@ -14,8 +14,6 @@ from typing import Any, Dict, List, Optional, Set
 import aiofiles
 import orjson
 
-from src.utils.time_utils import parse_iso_timestamp
-
 from .models import ClaudeMessage, ClaudeSession, ClaudeSessionInfo
 
 # Configure logger
@@ -478,11 +476,13 @@ class ClaudeSessionOperations:
                 session_id=tool_use_id,
                 session_file="",  # subagent session 没有独立文件
                 title=agent_description or f"{agent_type} execution",
+                file_mtime=None,
+                file_size=None,
                 is_agent_session=True,
                 messages=claude_messages,
+                project_path=None,
+                git_branch=None,
                 message_count=len(claude_messages),
-                first_active_at=None,
-                last_active_at=None,
             )
 
             logger.info(
@@ -490,14 +490,8 @@ class ClaudeSessionOperations:
                 f"message_count={len(claude_messages)}, tool_use_id={tool_use_id}"
             )
 
-            # 创建 subagent content item，包含完整的 session
-            return {
-                "type": "subagent",
-                "agent_type": agent_type,
-                "description": agent_description,
-                "session": subagent_session.model_dump(),
-                "tool_use_id": tool_use_id,
-            }
+            # 返回 session 数据（会被合并到 tool_use 中）
+            return subagent_session.model_dump()
 
         except Exception as e:
             logger.error(f"Failed to create subagent item for {tool_use_id}: {e}")
@@ -529,42 +523,70 @@ class ClaudeSessionOperations:
         self, merged_messages: List[dict], subagent_items_to_insert: Dict[str, dict]
     ) -> List[dict]:
         """
-        将 subagent items 插入到消息列表的对应位置
+        将 subagent session 合并到对应的 tool_use 中
+
+        不再创建新的独立消息，而是直接修改 tool_use item 的类型为 "subagent"，
+        并保留原有的 input、output 等字段。
 
         Args:
             merged_messages: 已合并的消息列表
-            subagent_items_to_insert: tool_use_id -> subagent content item 的映射
+            subagent_items_to_insert: tool_use_id -> subagent session 数据的映射
 
         Returns:
-            List[dict]: 插入 subagent items 后的消息列表
+            List[dict]: 合并 subagent 后的消息列表
         """
         result_messages = []
         for message_data in merged_messages:
-            result_messages.append(message_data)
+            # 深拷贝消息以避免修改原始数据
+            result_message = copy.deepcopy(message_data)
+            content = result_message.get("message", {}).get("content", [])
 
-            content = message_data.get("message", {}).get("content", [])
-            if not isinstance(content, list):
-                continue
+            if isinstance(content, list):
+                # 遍历 content 中的所有 items
+                for item in content:
+                    if self._is_tool_use_item(item):
+                        tool_use_id = item.get("id")
+                        if tool_use_id in subagent_items_to_insert:
+                            subagent_data = subagent_items_to_insert[tool_use_id]
 
-            # 找到所有 tool_use，在它们后面插入对应的 subagent item
-            for item in content:
-                if self._is_tool_use_item(item):
-                    tool_use_id = item.get("id")
-                    if tool_use_id in subagent_items_to_insert:
-                        # 创建一个新的消息，包含 subagent content item
-                        subagent_item = subagent_items_to_insert[tool_use_id]
-                        subagent_message = {
-                            "type": "assistant",
-                            "timestamp": message_data.get(
-                                "timestamp"
-                            ),  # 使用父消息时间戳以保持消息顺序
-                            "message": {
-                                "role": "assistant",
-                                "content": [subagent_item],
-                            },
-                            "_is_subagent_wrapper": True,
-                        }
-                        result_messages.append(subagent_message)
+                            # 检查是否是 subagent 类型的 tool_use（name=Task 且有 subagent_type）
+                            tool_use_name = item.get("name", "")
+                            tool_use_input = item.get("input", {})
+
+                            # 判断是否是 subagent tool_use
+                            is_subagent_tool_use = (
+                                tool_use_name == "Task"
+                                and isinstance(tool_use_input, dict)
+                                and "subagent_type" in tool_use_input
+                            )
+
+                            if is_subagent_tool_use:
+                                # 将 tool_use 转换为 subagent 类型
+                                # 保留原有字段，添加 subagent session
+                                item["type"] = "subagent"
+                                item["agent_type"] = tool_use_input.get(
+                                    "subagent_type", ""
+                                )
+                                item["description"] = tool_use_input.get(
+                                    "description", ""
+                                )
+                                item["session"] = subagent_data
+                                item["id"] = tool_use_id
+                                item["status"] = "complete"  # 标记为完成状态
+                                item["name"] = item.get(
+                                    "agent_type", ""
+                                )  # 添加 name 字段
+                                # 保留原有的 input 和 output 字段
+                                # input 已经在 item 中存在
+                                # output 由 tool_result 合并时添加
+
+                                logger.debug(
+                                    f"Merged subagent into tool_use | tool_use_id: {tool_use_id} | "
+                                    f"agent_type: {item.get('agent_type')} | "
+                                    f"session_message_count: {subagent_data.get('message_count', 0)}"
+                                )
+
+            result_messages.append(result_message)
 
         return result_messages
 
@@ -649,7 +671,10 @@ class ClaudeSessionOperations:
             if parent_tool_use_id not in progress_map:
                 progress_map[parent_tool_use_id] = []
 
-            # 从 data.normalizedMessages 中提取消息
+            # 从 progress 消息中提取内容
+            # 兼容两种格式：
+            # 1. data.normalizedMessages (标准格式，包含完整对话历史)
+            # 2. data.message (单条消息格式，当 normalizedMessages 为空时使用)
             data = message_data.get("data", {})
 
             # 检查 data 是否为空
@@ -660,32 +685,45 @@ class ClaudeSessionOperations:
                 )
                 continue
 
+            converted_count = 0
+
+            # 优先尝试从 normalizedMessages 中提取
             normalized_messages = data.get("normalizedMessages", [])
 
-            # 检查 normalizedMessages 是否存在且为列表
-            if not normalized_messages:
-                logger.debug(
-                    f"Progress message has no normalizedMessages | parentToolUseID: {parent_tool_use_id} | "
-                    f"data keys: {list(data.keys())} | "
-                    f"timestamp: {message_data.get('timestamp')}"
-                )
-                continue
+            if normalized_messages and isinstance(normalized_messages, list):
+                # 标准格式：从 normalizedMessages 中提取
+                for msg in normalized_messages:
+                    converted_msg = self._convert_progress_message_to_standard(msg)
+                    if converted_msg:
+                        progress_map[parent_tool_use_id].append(converted_msg)
+                        converted_count += 1
 
-            if not isinstance(normalized_messages, list):
                 logger.debug(
-                    f"Progress message normalizedMessages is not a list | parentToolUseID: {parent_tool_use_id} | "
-                    f"type: {type(normalized_messages).__name__} | "
-                    f"timestamp: {message_data.get('timestamp')}"
+                    f"Extracted from normalizedMessages | parentToolUseID: {parent_tool_use_id} | "
+                    f"normalized_messages_count: {len(normalized_messages)} | "
+                    f"converted_count: {converted_count}"
                 )
-                continue
+            else:
+                # 兼容格式：从 data.message 中提取单条消息
+                message_obj = data.get("message")
+                if not message_obj:
+                    logger.debug(
+                        f"Progress message has no message field | parentToolUseID: {parent_tool_use_id} | "
+                        f"data keys: {list(data.keys())} | "
+                        f"timestamp: {message_data.get('timestamp')}"
+                    )
+                    continue
 
-            converted_count = 0
-            for msg in normalized_messages:
                 # 转换为标准消息格式
-                converted_msg = self._convert_progress_message_to_standard(msg)
+                converted_msg = self._convert_progress_message_to_standard(message_obj)
                 if converted_msg:
                     progress_map[parent_tool_use_id].append(converted_msg)
                     converted_count += 1
+
+                logger.debug(
+                    f"Extracted from data.message | parentToolUseID: {parent_tool_use_id} | "
+                    f"converted_count: {converted_count}"
+                )
 
             logger.debug(
                 f"Extracted progress message | parentToolUseID: {parent_tool_use_id} | "
@@ -1638,8 +1676,6 @@ class ClaudeSessionOperations:
             # 对于大文件（如 199MB），流式读取可以显著减少内存使用
             # orjson 比标准 json 快 2-3 倍
             raw_messages = []
-            first_active_at = None
-            last_active_at = None
             total_lines = 0
             empty_lines = 0
             invalid_json_lines = 0
@@ -1660,18 +1696,6 @@ class ClaudeSessionOperations:
                         # 使用 orjson 或标准 json 解析
                         message_data = _json_loads(line)
                         raw_messages.append(message_data)
-
-                        # 提取时间信息
-                        if "timestamp" in message_data:
-                            timestamp_str = message_data["timestamp"]
-                            timestamp = parse_iso_timestamp(timestamp_str)
-
-                            if timestamp:
-                                if first_active_at is None:
-                                    first_active_at = timestamp
-                                last_active_at = max(
-                                    last_active_at or timestamp, timestamp
-                                )
 
                         # 在 debug 模式下同时统计原始消息
                         if debug:
@@ -1812,8 +1836,6 @@ class ClaudeSessionOperations:
                 file_size=file_size,
                 is_agent_session=is_agent_session,
                 messages=messages,
-                first_active_at=first_active_at,
-                last_active_at=last_active_at,
                 project_path=None,  # 不再提取
                 git_branch=None,  # 不再提取
                 message_count=message_count,

@@ -34,7 +34,10 @@ export function ScopeBadge({
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant='outline' className={`gap-1 border-0 bg-transparent ${className}`}>
+          <Badge
+            variant='outline'
+            className={`gap-1 border-0 bg-transparent ${className}`}
+          >
             <Icon className='w-3 h-3' />
             {showLabel && <span>{t(`detail.scopeBadge.${scope}.label`)}</span>}
           </Badge>

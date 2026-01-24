@@ -10,11 +10,31 @@ import {
   Calendar,
   RefreshCw,
   Copy,
+  ChevronDown,
+  Timer,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { readSessionContents } from '@/api/api';
 import type { ClaudeSession } from '@/api/types';
 import ChatMessage from './chat/ChatMessage';
+
+// 自动刷新相关常量
+const REFRESH_INTERVALS = {
+  OFF: null,
+  FAST: 1000, // 1s
+  MEDIUM: 2000, // 2s (default)
+  SLOW: 5000, // 5s
+} as const;
+
+const AUTO_REFRESH_TIME_THRESHOLD_MINUTES = 2; // 2分钟内自动开启刷新
+const NEAR_BOTTOM_THRESHOLD = 100; // 距离底部 100px 以内视为"在底部"
+const SCROLL_DELAY = 100; // 滚动延迟（ms）
 
 interface SessionDetailProps {
   projectId: number;
@@ -25,7 +45,10 @@ interface SessionDetailProps {
 export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailProps) {
   const [session, setSession] = useState<ClaudeSession | null>(null);
   const [loading, setLoading] = useState(false);
+  const [refreshInterval, setRefreshInterval] = useState<number | null>(null); // null = 手动, 1000 = 1s, 2000 = 2s, 5000 = 5s
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const autoRefreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const requestIdRef = useRef<number>(0); // 用于追踪最新的请求，避免竞态条件
 
   // 滚动到顶部
   const scrollToTop = useCallback(() => {
@@ -41,10 +64,45 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
     container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
   }, []);
 
+  // 检查用户是否已经在底部（允许一定误差）
+  const isNearBottom = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return true;
+    return (
+      container.scrollHeight - container.scrollTop - container.clientHeight <=
+      NEAR_BOTTOM_THRESHOLD
+    );
+  }, []);
+
+  // 判断是否应该自动开启自动刷新（文件修改时间在阈值时间内，默认使用 MEDIUM）
+  const getAutoRefreshInterval = useCallback((sessionData: ClaudeSession | null) => {
+    if (!sessionData?.file_mtime_str) return null;
+
+    // 解析日期字符串 "YYYY-MM-DD HH:MM:SS"
+    // 将空格替换为 'T' 以确保兼容性，但不改变整体格式
+    const dateStr = sessionData.file_mtime_str.replace(' ', 'T');
+    const fileTime = new Date(dateStr);
+
+    if (isNaN(fileTime.getTime())) {
+      console.warn('Invalid file_mtime_str format:', sessionData.file_mtime_str);
+      return null;
+    }
+
+    const now = new Date();
+    const diffInMinutes = (now.getTime() - fileTime.getTime()) / (1000 * 60);
+
+    return diffInMinutes <= AUTO_REFRESH_TIME_THRESHOLD_MINUTES
+      ? REFRESH_INTERVALS.MEDIUM
+      : null;
+  }, []);
+
   // 使用 useCallback 避免函数重新创建
   const loadSessionContent = useCallback(
-    async (skipLoading = false) => {
-      if (!sessionId) return;
+    async (
+      skipLoading = false,
+      scrollToBottomAfterLoad = false
+    ): Promise<ClaudeSession | null> => {
+      if (!sessionId) return null;
 
       // 只在首次加载或明确需要时显示 loading
       if (!skipLoading) {
@@ -61,30 +119,102 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
           toast.error('Failed to load session', {
             description: response.error || 'Unknown error',
           });
-          return;
+          return null;
         }
 
-        setSession(response.data || null);
+        const sessionData = response.data || null;
+        setSession(sessionData);
+
+        // 自动滚动到底部（仅在自动刷新模式下，且用户已经在底部时）
+        if (scrollToBottomAfterLoad && isNearBottom()) {
+          // 使用 setTimeout 等待 DOM 更新后再滚动
+          setTimeout(() => scrollToBottom(), SCROLL_DELAY);
+        }
+
+        return sessionData;
       } catch (error) {
         console.error('Failed to load session content:', error);
         toast.error('Failed to load session', {
           description: error instanceof Error ? error.message : 'Unknown error',
         });
+        return null;
       } finally {
         setLoading(false);
       }
     },
-    [sessionId, projectId]
+    [sessionId, projectId, scrollToBottom, isNearBottom]
   );
+
+  // 使用 ref 保持 loadSessionContent 的稳定引用，避免 useEffect 依赖循环
+  const loadSessionContentRef = useRef(loadSessionContent);
+  loadSessionContentRef.current = loadSessionContent;
 
   useEffect(() => {
     if (sessionId && projectId > 0) {
-      // 首次加载时显示 loading
-      loadSessionContent(false);
+      // 生成新的请求 ID
+      const requestId = ++requestIdRef.current;
+
+      // 首次加载时显示 loading，并获取 session 数据
+      loadSessionContent(false).then(sessionData => {
+        // 只处理最新的请求，忽略过期的响应
+        if (requestId !== requestIdRef.current) return;
+
+        if (sessionData) {
+          // 根据 session 的文件修改时间判断刷新间隔
+          const interval = getAutoRefreshInterval(sessionData);
+          setRefreshInterval(interval);
+
+          // 如果开启了自动刷新（1s、2s、5s），自动滚动到底部
+          if (interval !== null) {
+            setTimeout(() => scrollToBottom(), SCROLL_DELAY);
+          }
+        }
+      });
     } else {
       setSession(null);
+      setRefreshInterval(null);
     }
-  }, [sessionId, projectId, loadSessionContent]);
+
+    // 清理函数：组件卸载时清理定时器
+    return () => {
+      if (autoRefreshTimerRef.current) {
+        clearInterval(autoRefreshTimerRef.current);
+        autoRefreshTimerRef.current = null;
+      }
+    };
+  }, [
+    sessionId,
+    projectId,
+    loadSessionContent,
+    getAutoRefreshInterval,
+    scrollToBottom,
+  ]);
+
+  // 处理自动刷新定时器
+  useEffect(() => {
+    // 清理之前的定时器
+    if (autoRefreshTimerRef.current) {
+      clearInterval(autoRefreshTimerRef.current);
+      autoRefreshTimerRef.current = null;
+    }
+
+    // 如果设置了刷新间隔，启动定时器
+    if (refreshInterval && sessionId) {
+      autoRefreshTimerRef.current = setInterval(() => {
+        // 跳过 loading 状态，并自动滚动到底部
+        // 使用 ref 来避免依赖 loadSessionContent
+        loadSessionContentRef.current(true, true);
+      }, refreshInterval);
+    }
+
+    // 清理函数
+    return () => {
+      if (autoRefreshTimerRef.current) {
+        clearInterval(autoRefreshTimerRef.current);
+        autoRefreshTimerRef.current = null;
+      }
+    };
+  }, [refreshInterval, sessionId]); // 移除 loadSessionContent 依赖
 
   if (!sessionId) {
     return (
@@ -204,17 +334,75 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
             </div>
           </div>
 
-          {/* 刷新按钮 */}
+          {/* 手动刷新按钮 */}
           <button
             onClick={() => loadSessionContent(true)}
             disabled={loading}
-            className='p-1 hover:bg-gray-100 rounded transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed'
-            title='Refresh session'
+            className='p-1.5 hover:bg-gray-100 rounded transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed'
+            title='Refresh session now'
           >
             <RefreshCw
               className={`h-4 w-4 text-gray-600 ${loading ? 'animate-spin' : ''}`}
             />
           </button>
+
+          {/* 刷新间隔选择下拉菜单 */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                disabled={loading}
+                className='px-2 py-1 text-xs font-medium border border-gray-300 rounded hover:bg-gray-50 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1'
+              >
+                <Timer
+                  className={`h-3 w-3 text-gray-600 ${refreshInterval ? 'animate-pulse' : ''}`}
+                />
+                <span>
+                  {refreshInterval === null
+                    ? 'Off'
+                    : refreshInterval === REFRESH_INTERVALS.FAST
+                      ? '1s'
+                      : refreshInterval === REFRESH_INTERVALS.MEDIUM
+                        ? '2s'
+                        : '5s'}
+                </span>
+                <ChevronDown className='h-3 w-3 text-gray-500' />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end'>
+              <DropdownMenuItem
+                onClick={() => setRefreshInterval(REFRESH_INTERVALS.OFF)}
+                className={
+                  refreshInterval === REFRESH_INTERVALS.OFF ? 'bg-gray-100' : ''
+                }
+              >
+                Off
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setRefreshInterval(REFRESH_INTERVALS.FAST)}
+                className={
+                  refreshInterval === REFRESH_INTERVALS.FAST ? 'bg-gray-100' : ''
+                }
+              >
+                1s
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setRefreshInterval(REFRESH_INTERVALS.MEDIUM)}
+                className={
+                  refreshInterval === REFRESH_INTERVALS.MEDIUM ? 'bg-gray-100' : ''
+                }
+              >
+                2s
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setRefreshInterval(REFRESH_INTERVALS.SLOW)}
+                className={
+                  refreshInterval === REFRESH_INTERVALS.SLOW ? 'bg-gray-100' : ''
+                }
+              >
+                5s
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

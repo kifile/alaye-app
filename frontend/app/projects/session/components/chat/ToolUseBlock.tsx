@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, memo } from 'react';
-import { Bot, ChevronDown, ChevronRight, Settings, Server } from 'lucide-react';
+import { ChevronDown, ChevronRight, Server, Wrench } from 'lucide-react';
 import type { ContentItem } from './ContentItem';
 import { useTranslation } from 'react-i18next';
 
@@ -64,7 +64,7 @@ const TOOL_PARAM_CONFIGS: Record<string, ToolParamConfig> = {
   Glob: { key: 'pattern', truncate: 20, method: 'end' },
   WebSearch: { key: 'query', truncate: 20, method: 'start' },
   Skill: { key: 'skill', truncate: 20, method: 'start' },
-  Task: { key: 'description', truncate: 20, method: 'start' },
+  TaskCreate: { key: 'subject', truncate: 30, method: 'start' },
 };
 
 /**
@@ -143,7 +143,7 @@ export const ToolUseBlock = memo(
             {isMCP ? (
               <Server className='h-3 w-3 text-white' />
             ) : (
-              <Bot className='h-3 w-3 text-white' />
+              <Wrench className='h-3 w-3 text-white' />
             )}
           </div>
 
