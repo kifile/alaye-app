@@ -572,10 +572,13 @@ class ClaudeSessionOperations:
                                 )
                                 item["session"] = subagent_data
                                 item["id"] = tool_use_id
-                                item["status"] = "complete"  # 标记为完成状态
                                 item["name"] = item.get(
                                     "agent_type", ""
                                 )  # 添加 name 字段
+                                # 只有在 tool_result 已经合并到 tool_use 中时（即有 output 字段），
+                                # 才标记为 complete 状态
+                                if "output" in item:
+                                    item["status"] = "complete"
                                 # 保留原有的 input 和 output 字段
                                 # input 已经在 item 中存在
                                 # output 由 tool_result 合并时添加
@@ -583,7 +586,8 @@ class ClaudeSessionOperations:
                                 logger.debug(
                                     f"Merged subagent into tool_use | tool_use_id: {tool_use_id} | "
                                     f"agent_type: {item.get('agent_type')} | "
-                                    f"session_message_count: {subagent_data.get('message_count', 0)}"
+                                    f"session_message_count: {subagent_data.get('message_count', 0)} | "
+                                    f"status: {item.get('status', 'incomplete')}"
                                 )
 
             result_messages.append(result_message)
