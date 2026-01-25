@@ -124,19 +124,7 @@ export const AgentBlock = memo(({ item }: AgentBlockProps) => {
 
   // 获取友好的 agent 类型名称
   const getAgentDisplayName = (agentType: string): string => {
-    const agentNames: Record<string, string> = {
-      uiux_reviewer: 'UI/UX Reviewer',
-      general_purpose: 'General Purpose',
-      explore: 'Explorer',
-      feature_dev_code_architect: 'Code Architect',
-      statusline_setup: 'Statusline Setup',
-      claude_code_guide: 'Claude Code Guide',
-      rust_minimal_developer: 'Rust Developer',
-    };
-    return (
-      agentNames[agentType] ||
-      agentType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-    );
+    return agentType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   // 安全地将值转换为字符串

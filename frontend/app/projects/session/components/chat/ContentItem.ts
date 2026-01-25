@@ -15,6 +15,7 @@ export interface ContentItem {
   type: ContentItemType;
   text?: string;
   name?: string;
+  thinking?: string;
   input?: Record<string, any>;
   output?: any; // 合并后的 tool_use 包含 output
   status?: 'complete' | 'incomplete'; // tool_use 状态

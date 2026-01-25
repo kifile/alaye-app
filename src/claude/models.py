@@ -582,3 +582,146 @@ class ClaudeSessionInfo(BaseModel):
         return (
             self.file_mtime.strftime("%Y-%m-%d %H:%M:%S") if self.file_mtime else None
         )
+
+
+# ==================== 消息解析标准化模型 ====================
+
+
+class StandardMessageContent(BaseModel):
+    """
+    标准 message content 模型
+    """
+
+    role: str = Field(default="", description="消息角色 (user, assistant, system)")
+    content: List[Dict[str, Any]] = Field(
+        default_factory=list, description="Content 数组"
+    )
+
+
+class MessageMeta(BaseModel):
+    """
+    消息元数据模型
+
+    包含 drop 信息、统计信息等
+    """
+
+    # 丢弃标记
+    drop: bool = Field(False, description="是否被丢弃")
+    drop_reason: Optional[str] = Field(None, description="丢弃原因")
+    expected_drop: bool = Field(False, description="是否预期内的丢弃")
+
+    # 统计信息
+    has_tool_use: bool = Field(False, description="是否包含 tool_use")
+    has_tool_result: bool = Field(False, description="是否包含 tool_result")
+    has_thinking: bool = Field(False, description="是否包含 thinking")
+    has_command: bool = Field(False, description="是否包含 command")
+
+    # UUID 追踪
+    uuid: Optional[str] = Field(None, description="主 uuid")
+    uuids: List[str] = Field(default_factory=list, description="所有 uuid 列表")
+
+    # 其他元数据
+    extra: Dict[str, Any] = Field(default_factory=dict, description="其他元数据")
+
+    class Config:
+        extra = "allow"
+
+
+class StandardMessage(BaseModel):
+    """
+    标准消息模型
+
+    替代原来的 dict 格式，提供类型安全和结构化
+    """
+
+    # 基础字段
+    type: str = Field(description="消息类型 (user, assistant, system, progress 等)")
+    subtype: Optional[str] = Field(None, description="消息二级类型")
+
+    # UUID 追踪
+    uuid: Optional[str] = Field(None, description="主 uuid")
+    uuids: List[str] = Field(default_factory=list, description="所有 uuid 列表")
+
+    # 原始消息（用于 debug）
+    raw_message: dict = Field(default_factory=dict, description="原始消息数据")
+
+    # 元数据
+    meta: MessageMeta = Field(
+        default_factory=lambda: MessageMeta(),
+        description="消息元数据（drop 信息、统计信息等）",
+    )
+
+    # 标准 message 格式
+    message: StandardMessageContent = Field(
+        default_factory=lambda: StandardMessageContent(role="", content=[]),
+        description="标准化的 message 内容",
+    )
+
+    # 时间戳
+    timestamp: Optional[str] = Field(None, description="消息时间戳")
+
+    parentToolUseID: Optional[str] = Field(None, description="Parent tool use ID")
+
+    class Config:
+        # 允许额外字段
+        extra = "allow"
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "StandardMessage":
+        """
+        从字典创建 StandardMessage
+
+        Args:
+            data: 字典格式的消息数据
+
+        Returns:
+            StandardMessage: 标准消息对象
+        """
+        # 提取基础字段
+        msg_type = data.get("type", "user")
+
+        # 优先使用 uuid，如果没有则使用 messageId
+        uuid = data.get("uuid") or data.get("messageId")
+        uuids = data.get("uuids", [])
+        timestamp = data.get("timestamp")
+
+        # 提取 meta 信息
+        meta_data = {
+            "drop": data.get("_drop", False),
+            "drop_reason": data.get("_drop_reason"),
+            "expected_drop": data.get("_expected_drop", False),
+        }
+
+        # 提取 extra 字段（isMeta, sourceToolUseID 等）
+        extra_data = {}
+        if "isMeta" in data:
+            extra_data["isMeta"] = data["isMeta"]
+        if "sourceToolUseID" in data:
+            extra_data["sourceToolUseID"] = data["sourceToolUseID"]
+
+        meta_data["extra"] = extra_data
+        meta = MessageMeta(**meta_data)
+
+        # 提取 message 字段
+        message_data = data.get("message", {})
+        if isinstance(message_data, dict):
+            role = message_data.get("role", "user")
+            content = message_data.get("content", [])
+        else:
+            role = "user"
+            content = []
+
+        message = StandardMessageContent(role=role, content=content)
+
+        # 创建 StandardMessage（默认不保存 raw_message）
+        return cls(
+            type=msg_type,
+            subtype=data.get("subtype"),
+            uuid=uuid,
+            uuids=uuids,
+            raw_message={},  # 默认为空，由调用方根据需要设置
+            meta=meta,
+            message=message,
+            timestamp=timestamp,
+            parentToolUseID=data.get("parentToolUseID"),
+        )
