@@ -120,8 +120,7 @@ async def verify_all_session_titles():
 
         for result in results:
             if result["line_number"] == 0 or result["title"] == "无标题":
-                relative_path = result["file"].relative_to(claude_path)
-                print(f"📄 {relative_path}")
+                print(f"📄 {result['file']}")
                 print(f"   Session ID: {result['session_id']}")
                 print(f"   状态: 无标题")
                 print()
@@ -133,8 +132,7 @@ async def verify_all_session_titles():
 
         for result in results:
             if result["line_number"] > 1:
-                relative_path = result["file"].relative_to(claude_path)
-                print(f"📄 {relative_path}")
+                print(f"📄 {result['file']}")
                 print(f"   Session ID: {result['session_id']}")
                 print(f"   提取的标题: {result['title']}")
                 print(f"   提取行号: {result['line_number']} ⚠️ (应该是第 1 行)")
@@ -150,8 +148,7 @@ async def verify_all_session_titles():
         count = 0
         for result in results:
             if result["line_number"] == 1:
-                relative_path = result["file"].relative_to(claude_path)
-                print(f"  ✓ {relative_path}: {result['title']}")
+                print(f"  ✓ {result['file']}: {result['title']}")
                 count += 1
                 if count >= 10:
                     break

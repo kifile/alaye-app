@@ -103,9 +103,7 @@ export function ScopeBadgeUpdater({
           }}
         >
           <ScopeBadge scope={currentScope || ConfigScope.LOCAL} showLabel={false} />
-          {!isDisabled && (
-            <ChevronsUpDown className='w-3 h-3 text-gray-500' />
-          )}
+          {!isDisabled && <ChevronsUpDown className='w-3 h-3 text-gray-500' />}
         </div>
       </DropdownMenuTrigger>
       {!isDisabled && (

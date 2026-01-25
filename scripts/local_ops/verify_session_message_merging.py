@@ -34,7 +34,7 @@ def find_claude_projects_path() -> Path:
     return claude_path
 
 
-def analyze_and_check_warnings(
+async def analyze_and_check_warnings(
     session_file: Path, session_ops: ClaudeSessionOperations
 ) -> tuple[Dict[str, int], List[str]]:
     """
@@ -48,7 +48,7 @@ def analyze_and_check_warnings(
         tuple[Dict, List[str]]: (分析结果, 警告列表)
     """
     # 使用 _load_session_data 方法获取详细统计（启用 debug 模式）
-    _, analysis = session_ops._load_session_data(session_file, debug=True)
+    _, analysis = await session_ops._load_session_data(session_file, debug=True)
 
     # 生成警告
     warnings = []
@@ -101,11 +101,56 @@ def analyze_and_check_warnings(
             )
 
     if analysis["raw_tool_result"] > 0:
-        if analysis["merged_tool_use_incomplete"] > 0:
-            warnings.append(
-                f"⚠️  存在未完成的 tool_use: {analysis['merged_tool_use_incomplete']} 个 "
-                f"(可能有 {analysis['merged_tool_use_incomplete']} 个 tool_result 丢失)"
-            )
+        incomplete_count = analysis["merged_tool_use_incomplete"]
+        if incomplete_count > 0:
+            # 检查未完成的 tool_use 是否符合预期（用户手动中断）
+            # 需要获取完整的 session 数据来检查
+            session, _ = await session_ops._load_session_data(session_file, debug=False)
+
+            # 标记：未完成但符合预期的 tool_use 数量
+            incomplete_but_expected = 0
+
+            if session and session.messages:
+                # 遍历所有消息，检查未完成的 tool_use 是否与 interrupted 相关
+                for msg in session.messages:
+                    # msg.message 现在是 StandardMessageContent 对象
+                    if not msg.message:
+                        continue
+
+                    content = msg.message.content
+
+                    if not isinstance(content, list):
+                        continue
+
+                    # 检查该消息是否包含未完成的 tool_use
+                    has_incomplete_tool_use = False
+                    for item in content:
+                        if isinstance(item, dict):
+                            if item.get("type") in ("tool_use", "server_tool_use"):
+                                if item.get("status") == "incomplete":
+                                    has_incomplete_tool_use = True
+                                    break
+
+                    # 如果有未完成的 tool_use，检查该消息的最后一条是否是 interrupted
+                    if has_incomplete_tool_use:
+                        # 获取最后一条 content item
+                        if len(content) > 0:
+                            last_item = content[-1]
+                            if (
+                                isinstance(last_item, dict)
+                                and last_item.get("type") == "interrupted"
+                            ):
+                                # 符合预期：用户手动中断
+                                incomplete_but_expected += 1
+
+            # 计算真正不符合预期的未完成 tool_use 数量
+            unexpected_incomplete = incomplete_count - incomplete_but_expected
+
+            if unexpected_incomplete > 0:
+                warnings.append(
+                    f"⚠️  存在未完成的 tool_use: {unexpected_incomplete} 个 "
+                    f"(可能有 {unexpected_incomplete} 个 tool_result 丢失)"
+                )
 
     # 检查 thinking 消息
     if analysis["raw_thinking"] > 0 and analysis["merged_thinking"] == 0:
@@ -123,7 +168,7 @@ def analyze_and_check_warnings(
     return analysis, warnings
 
 
-def verify_all_session_merging():
+async def verify_all_session_merging():
     """
     验证所有 session 的消息合并逻辑
     """
@@ -169,8 +214,8 @@ def verify_all_session_merging():
         # 创建 ClaudeSessionOperations 实例
         session_ops = ClaudeSessionOperations(session_file.parent)
 
-        # 分析文件
-        analysis, warnings = analyze_and_check_warnings(session_file, session_ops)
+        # 分析文件（使用 await）
+        analysis, warnings = await analyze_and_check_warnings(session_file, session_ops)
 
         result = {
             "file": session_file,
@@ -217,8 +262,7 @@ def verify_all_session_merging():
                     print(
                         f"   原始: {analysis['raw_total']} 行 "
                         f"(meta:{analysis['raw_meta']}, user:{analysis['raw_user']}, "
-                        f"assistant:{analysis['raw_assistant']}, system:{analysis['raw_system']}, "
-                        f"summary:{analysis['raw_summary']})"
+                        f"assistant:{analysis['raw_assistant']}, system:{analysis['raw_system']})"
                     )
                     print(
                         f"         有效消息: {analysis['raw_effective']} | "
@@ -237,8 +281,7 @@ def verify_all_session_merging():
                     )
                     print(
                         f"         text:{analysis['merged_text']}, "
-                        f"thinking:{analysis['merged_thinking']}, "
-                        f"system:{analysis['merged_system']}"
+                        f"thinking:{analysis['merged_thinking']}"
                     )
                     if analysis["dropped_messages"] > 0:
                         unexpected_dropped = analysis.get("dropped_samples_shown", [])
@@ -296,7 +339,7 @@ def verify_all_session_merging():
         if not r["analysis"].get("error")
     )
     total_summary = sum(
-        r["analysis"].get("raw_summary", 0)
+        r["analysis"].get("raw_meta", 0)
         for r in results
         if not r["analysis"].get("error")
     )
@@ -330,11 +373,6 @@ def verify_all_session_merging():
         for r in results
         if not r["analysis"].get("error")
     )
-    total_system_merged = sum(
-        r["analysis"].get("merged_system", 0)
-        for r in results
-        if not r["analysis"].get("error")
-    )
     total_dropped = sum(
         r["analysis"].get("dropped_messages", 0)
         for r in results
@@ -345,9 +383,8 @@ def verify_all_session_merging():
     print(f"  - 有效消息总数: {total_effective}")
     print(f"  - 合并后消息总数: {total_merged}")
     print(f"  - 丢弃消息总数: {total_dropped}")
-    print(f"  - 原始 summary: {total_summary} 个")
+    print(f"  - 原始 meta: {total_summary} 个")
     print(f"  - 原始 system: {total_system} 个（转换后）")
-    print(f"  - 合并后 system: {total_system_merged} 个")
     print(f"  - 原始 tool_use: {total_tool_use} 个")
     print(f"  - 原始 tool_result: {total_tool_result} 个")
     print(f"  - 合并后 tool_use: {total_tool_use_merged} 个")
@@ -379,4 +416,6 @@ def verify_all_session_merging():
 
 
 if __name__ == "__main__":
-    verify_all_session_merging()
+    import asyncio
+
+    asyncio.run(verify_all_session_merging())

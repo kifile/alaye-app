@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, memo } from 'react';
-import { Bot, ChevronDown, ChevronRight, Settings, Server } from 'lucide-react';
+import { ChevronDown, ChevronRight, Server, Wrench } from 'lucide-react';
 import type { ContentItem } from './ContentItem';
 import { useTranslation } from 'react-i18next';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 interface ToolUseBlockProps {
   item: ContentItem;
@@ -64,7 +65,7 @@ const TOOL_PARAM_CONFIGS: Record<string, ToolParamConfig> = {
   Glob: { key: 'pattern', truncate: 20, method: 'end' },
   WebSearch: { key: 'query', truncate: 20, method: 'start' },
   Skill: { key: 'skill', truncate: 20, method: 'start' },
-  Task: { key: 'description', truncate: 20, method: 'start' },
+  TaskCreate: { key: 'subject', truncate: 30, method: 'start' },
 };
 
 /**
@@ -93,6 +94,24 @@ const renderToolParameter = (
       {displayValue}
     </span>
   );
+};
+
+/**
+ * 检查 extra 是否是可渲染的文本格式
+ * 如果是数组且只有一条记录，且包含 text 字段，则返回该文本
+ */
+const extractTextFromExtra = (extra: any): string | null => {
+  if (Array.isArray(extra) && extra.length === 1) {
+    const firstItem = extra[0];
+    if (
+      firstItem &&
+      typeof firstItem === 'object' &&
+      typeof firstItem.text === 'string'
+    ) {
+      return firstItem.text;
+    }
+  }
+  return null;
 };
 
 /**
@@ -143,7 +162,7 @@ export const ToolUseBlock = memo(
             {isMCP ? (
               <Server className='h-3 w-3 text-white' />
             ) : (
-              <Bot className='h-3 w-3 text-white' />
+              <Wrench className='h-3 w-3 text-white' />
             )}
           </div>
 
@@ -278,17 +297,44 @@ export const ToolUseBlock = memo(
                 >
                   Extra:
                 </div>
-                <div
-                  className={`p-2 rounded border max-h-48 overflow-auto font-mono text-[10px] whitespace-pre-wrap break-all ${
-                    isUserMessage
-                      ? 'bg-gray-100 dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100'
-                      : isComplete
-                        ? 'bg-white dark:bg-gray-900 border-green-200 dark:border-green-800'
-                        : 'bg-white dark:bg-gray-900 border-blue-200 dark:border-blue-800'
-                  }`}
-                >
-                  {item.extra}
-                </div>
+                {(() => {
+                  const textFromExtra = extractTextFromExtra(item.extra);
+                  if (textFromExtra) {
+                    // 使用 MarkdownRenderer 渲染文本
+                    return (
+                      <div
+                        className={`p-2 rounded border max-h-48 overflow-auto text-[10px] ${
+                          isUserMessage
+                            ? 'bg-gray-100 dark:bg-gray-900 border-gray-300 dark:border-gray-700'
+                            : isComplete
+                              ? 'bg-white dark:bg-gray-900 border-green-200 dark:border-green-800'
+                              : 'bg-white dark:bg-gray-900 border-blue-200 dark:border-blue-800'
+                        }`}
+                      >
+                        <MarkdownRenderer
+                          text={textFromExtra}
+                          isUserMessage={isUserMessage}
+                        />
+                      </div>
+                    );
+                  }
+                  // 否则渲染 JSON
+                  return (
+                    <div
+                      className={`p-2 rounded border max-h-48 overflow-auto font-mono text-[10px] whitespace-pre-wrap break-all ${
+                        isUserMessage
+                          ? 'bg-gray-100 dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100'
+                          : isComplete
+                            ? 'bg-white dark:bg-gray-900 border-green-200 dark:border-green-800'
+                            : 'bg-white dark:bg-gray-900 border-blue-200 dark:border-blue-800'
+                      }`}
+                    >
+                      {typeof item.extra === 'string'
+                        ? item.extra
+                        : JSON.stringify(item.extra, null, 2)}
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>

@@ -19,7 +19,7 @@ const PREVIEW_LENGTH = 80; // 预览字符数
 export const ThinkingBlock = memo(({ item }: ThinkingBlockProps) => {
   const { t } = useTranslation('projects');
   const [expanded, setExpanded] = useState(false);
-  const text = item.text || '';
+  const text = item.thinking || '';
   const isLongText = text.length > PREVIEW_LENGTH;
 
   // 显示的文字内容
