@@ -1,4 +1,3 @@
-import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -35,7 +34,7 @@ export function ScopeBadge({
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant='outline' className={`gap-1 ${className}`}>
+          <Badge variant='outline' className={`gap-1 border-0 bg-transparent ${className}`}>
             <Icon className='w-3 h-3' />
             {showLabel && <span>{t(`detail.scopeBadge.${scope}.label`)}</span>}
           </Badge>

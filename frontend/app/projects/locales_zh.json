@@ -548,6 +548,8 @@
     "disableAllSuccess": "已禁用所有项目 MCP 服务器",
     "toggleAllFailed": "切换所有项目 MCP 服务器状态失败",
     "enableAllLabel": "启用所有项目 MCP 服务器",
+    "scopeChangeSuccess": "MCP 服务器作用域更改成功",
+    "scopeChangeFailed": "更改 MCP 服务器作用域失败",
     "loading": "正在加载 MCP 服务器配置...",
     "addServer": "添加 MCP 服务器",
     "noServers": "暂无 MCP 服务器配置",

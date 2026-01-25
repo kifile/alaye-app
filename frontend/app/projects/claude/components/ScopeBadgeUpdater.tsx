@@ -33,17 +33,14 @@ export function ScopeBadgeUpdater({
       {
         value: ConfigScope.USER,
         label: t('detail.scopeBadge.user.label'),
-        description: t('detail.scopeBadge.user.path'),
       },
       {
         value: ConfigScope.PROJECT,
         label: t('detail.scopeBadge.project.label'),
-        description: t('detail.scopeBadge.project.path'),
       },
       {
         value: ConfigScope.LOCAL,
         label: t('detail.scopeBadge.local.label'),
-        description: t('detail.scopeBadge.local.path'),
       },
     ],
     [t]
@@ -91,7 +88,7 @@ export function ScopeBadgeUpdater({
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <div
-          className={`cursor-pointer ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''} ${isUpdating ? 'animate-pulse' : ''}`}
+          className={`cursor-pointer flex items-center gap-0 ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''} ${isUpdating ? 'animate-pulse' : ''}`}
           title={
             isDisabled
               ? t('detail.scopeBadge.cannotChangeScope')
@@ -107,7 +104,7 @@ export function ScopeBadgeUpdater({
         >
           <ScopeBadge scope={currentScope || ConfigScope.LOCAL} showLabel={false} />
           {!isDisabled && (
-            <ChevronsUpDown className='w-3 h-3 inline-block ml-1 text-gray-500' />
+            <ChevronsUpDown className='w-3 h-3 text-gray-500' />
           )}
         </div>
       </DropdownMenuTrigger>
@@ -119,20 +116,17 @@ export function ScopeBadgeUpdater({
           {SCOPE_OPTIONS.map(option => (
             <DropdownMenuItem
               key={option.value}
-              className='flex flex-col items-start py-2'
+              className='flex items-center gap-2 py-2'
               onClick={() => handleScopeChange(option.value)}
               disabled={option.value === currentScope || isUpdating}
             >
-              <div className='flex items-center gap-2 w-full'>
-                <ScopeBadge scope={option.value} showLabel={false} />
-                <span className='font-medium'>{option.label}</span>
-                {option.value === currentScope && (
-                  <span className='ml-auto text-xs text-gray-500'>
-                    ({t('detail.scopeBadge.current')})
-                  </span>
-                )}
-              </div>
-              <span className='text-xs text-gray-500 ml-6'>{option.description}</span>
+              <ScopeBadge scope={option.value} showLabel={false} />
+              <span className='font-medium'>{option.label}</span>
+              {option.value === currentScope && (
+                <span className='ml-auto text-xs text-gray-500'>
+                  ({t('detail.scopeBadge.current')})
+                </span>
+              )}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

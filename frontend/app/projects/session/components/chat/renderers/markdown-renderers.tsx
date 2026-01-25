@@ -1,11 +1,9 @@
-import React from 'react';
 import { AtSign } from 'lucide-react';
 import { toast } from 'sonner';
 import type { MessageTheme } from '../styles/markdown-styles';
 import {
   getInlineCodeClass,
   getCodeBlockClass,
-  getPlainCodeClass,
   getLinkClass,
   getListItemClass,
   getListMarkerClass,
@@ -37,10 +35,13 @@ export const createRenderers = ({ theme, copiedId, onCopy }: RenderersProps) => 
     const match = /language-(\w+)/.exec(className || '');
     const code = String(children).replace(/\n$/, '');
 
-    // 判断是否为内联代码：通过检查 node 的父节点或位置
+    // 判断是否为内联代码
     // 如果有 language-xxx className，则一定是代码块
-    // 否则，检查 node 的父节点是否为 pre
-    const isCodeBlock = match !== null || node?.parent?.tagName === 'pre';
+    // 否则，检查 code 内容是否包含换行符（代码块通常有多行）
+    const hasLanguage = match !== null;
+    const hasNewlines = code.includes('\n');
+    // 有语言标识 或者 有换行符 = 代码块
+    const isCodeBlock = hasLanguage || hasNewlines;
     const isInline = !isCodeBlock;
 
     const inlineCodeClass = getInlineCodeClass(theme);
@@ -51,22 +52,28 @@ export const createRenderers = ({ theme, copiedId, onCopy }: RenderersProps) => 
     // 从 props 中移除 className 和 style，避免覆盖我们的自定义样式
     const { className: _, style: __, ...propsWithoutClassNameAndStyle } = props;
 
-    return !isInline && match ? (
+    // 统一使用 CodeBlock 组件渲染代码块，无论是否有语言标识
+    return !isInline ? (
       <CodeBlock
         code={code}
-        language={match[1]}
+        language={match ? match[1] : 'plaintext'}
         copiedId={copiedId}
         onCopy={onCopy}
         theme={theme}
       />
-    ) : !isInline ? (
-      // 代码块（没有语言标识）
-      <code className={getPlainCodeClass(theme)} {...propsWithoutClassNameAndStyle}>
-        {children}
-      </code>
     ) : (
       // 内联代码 - 所有样式通过 Tailwind 类或全局 CSS
-      <code {...propsWithoutClassNameAndStyle} className={finalClassName}>
+      <code
+        {...propsWithoutClassNameAndStyle}
+        className={finalClassName}
+        style={{
+          display: 'inline-block',
+          overflowWrap: 'anywhere',
+          wordBreak: 'break-word',
+          whiteSpace: 'pre-wrap',
+          lineHeight: '1.5',
+        }}
+      >
         {children}
       </code>
     );
@@ -287,17 +294,17 @@ export const createRenderers = ({ theme, copiedId, onCopy }: RenderersProps) => 
   },
 
   // 自定义 span 渲染器，处理 @mentions 和路径引用
-  span({ node, className, ...props }: any) {
+  span({ node, className, children, ...props }: any) {
     if (className === 'mention-tag') {
       const username = props['data-username'];
       const path = props['data-path'];
       const isPath = path && path.includes('/');
       const fullText = isPath ? `@${path}` : `@${username}`;
 
-      // 对于路径，只显示最后20个字符（包括 @ 符号）
+      // 对于路径，只显示最后20个字符（不包含 @ 符号，因为已经有 AtSign 图标了）
       let displayText: string;
       if (isPath) {
-        const fullPath = '@' + path; // 完整路径包含 @ 符号
+        const fullPath = path; // 不包含 @ 符号
         if (fullPath.length > 20) {
           displayText = '...' + fullPath.slice(-20);
         } else {
@@ -326,11 +333,15 @@ export const createRenderers = ({ theme, copiedId, onCopy }: RenderersProps) => 
             }
           }}
         >
-          <AtSign className='h-3 w-3 flex-shrink-0' />
+          <AtSign className='h-3 w-3 shrink-0' />
           <span className='truncate'>{displayText}</span>
         </span>
       );
     }
-    return <span className={className} {...props} />;
+    return (
+      <span className={className} {...props}>
+        {children}
+      </span>
+    );
   },
 });

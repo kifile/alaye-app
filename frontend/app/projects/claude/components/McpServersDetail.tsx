@@ -11,6 +11,7 @@ import {
   addClaudeMCPServer,
   updateClaudeMCPServer,
   deleteClaudeMCPServer,
+  renameClaudeMCPServer,
   scanClaudeMCPServers,
   enableClaudeMCPServer,
   disableClaudeMCPServer,
@@ -326,6 +327,33 @@ export function McpServersDetail({ projectId }: McpServersDetailProps) {
     [projectId, currentScope, loadMcpServers, t, handleError]
   );
 
+  // 处理 MCP 服务器作用域变更
+  const handleScopeChange = useCallback(
+    async (oldScope: string, newScope: string) => {
+      const serverInfo = servers.find(s => s.scope === oldScope);
+      if (!serverInfo) return;
+
+      setIsProcessing(true);
+      try {
+        await renameClaudeMCPServer({
+          project_id: projectId,
+          old_name: serverInfo.name,
+          new_name: serverInfo.name,
+          old_scope: oldScope as ConfigScope,
+          new_scope: newScope as ConfigScope,
+        });
+
+        toast.success(t('mcpServers.scopeChangeSuccess'));
+        await loadMcpServers(currentScope, false);
+      } catch (error: any) {
+        handleError(error, t('mcpServers.scopeChangeFailed'));
+      } finally {
+        setIsProcessing(false);
+      }
+    },
+    [servers, projectId, currentScope, loadMcpServers, t, handleError]
+  );
+
   // 过滤服务器列表
   const filteredServers = useMemo(() => {
     if (!searchQuery) return servers;
@@ -364,6 +392,7 @@ export function McpServersDetail({ projectId }: McpServersDetailProps) {
                   onToggleEnable={enabled =>
                     handleToggleServerEnable(serverInfo.name, serverInfo.scope, enabled)
                   }
+                  onScopeChange={handleScopeChange}
                   isProcessing={isProcessing}
                 />
               ))
