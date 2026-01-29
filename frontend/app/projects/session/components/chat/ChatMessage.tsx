@@ -6,6 +6,8 @@ import type { ClaudeMessage } from '@/api/types';
 import { formatChatTime } from '@/lib/utils';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { ThinkingBlock } from './ThinkingBlock';
+import { SuggestionBlock } from './SuggestionBlock';
+import { CompactBlock } from './CompactBlock';
 import { ToolUseBlock } from './ToolUseBlock';
 import { SystemBlock } from './SystemBlock';
 import { InterruptedBlock } from './InterruptedBlock';
@@ -16,6 +18,28 @@ import type { ContentItem } from './ContentItem';
 interface ChatMessageProps {
   message: ClaudeMessage;
   isLoading?: boolean;
+}
+
+/**
+ * 运行时类型守卫：验证对象是否为有效的 ContentItem
+ */
+function isValidContentItem(item: unknown): item is ContentItem {
+  if (!item || typeof item !== 'object') {
+    return false;
+  }
+  const contentItem = item as Partial<ContentItem>;
+  // 检查必需的 type 字段
+  return typeof contentItem.type === 'string';
+}
+
+/**
+ * 运行时类型守卫：验证对象是否为有效的 ContentItem 数组
+ */
+function isValidContentArray(items: unknown): items is ContentItem[] {
+  if (!Array.isArray(items)) {
+    return false;
+  }
+  return items.every(isValidContentItem);
 }
 
 export function ChatMessage({ message, isLoading }: ChatMessageProps) {
@@ -67,6 +91,11 @@ export function ChatMessage({ message, isLoading }: ChatMessageProps) {
 
     // 处理数组类型的 content（Assistant 消息和 System 消息）
     if (Array.isArray(parsedContent)) {
+      // 运行时验证数组中的每个 item
+      if (!isValidContentArray(parsedContent)) {
+        console.warn('Invalid content array detected, skipping rendering');
+        return null;
+      }
       // System 消息使用 SystemBlock 组件
       if (isSystem) {
         return (
@@ -105,6 +134,10 @@ export function ChatMessage({ message, isLoading }: ChatMessageProps) {
                     text={item.text || ''}
                   />
                 );
+              case 'suggestion':
+                return <SuggestionBlock key={`suggestion-${index}`} item={item} />;
+              case 'compact':
+                return <CompactBlock key={`compact-${index}`} item={item} />;
               case 'command':
                 // 后端已识别为 command 消息，使用 CommandBlock 渲染
                 return (

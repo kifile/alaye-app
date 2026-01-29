@@ -863,6 +863,14 @@
     "thinkingBlock": {
       "title": "思考过程",
       "expandMore": "展开更多"
+    },
+    "suggestionBlock": {
+      "title": "系统建议",
+      "expandMore": "展开更多"
+    },
+    "compactBlock": {
+      "title": "会话继续",
+      "expandMore": "展开更多"
     }
   }
 }

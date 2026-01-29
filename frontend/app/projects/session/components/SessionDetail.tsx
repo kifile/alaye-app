@@ -44,6 +44,7 @@ interface SessionDetailProps {
 
 export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailProps) {
   const [session, setSession] = useState<ClaudeSession | null>(null);
+  const lastSessionRef = useRef<ClaudeSession | null>(null); // 用于引用比较
   const [loading, setLoading] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState<number | null>(null); // null = 手动, 1000 = 1s, 2000 = 2s, 5000 = 5s
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -123,6 +124,19 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
         }
 
         const sessionData = response.data || null;
+
+        // 轻量级比较：只比较 file_mtime_str
+        // 如果文件修改时间没变，说明文件内容没变，跳过更新
+        if (lastSessionRef.current && sessionData) {
+          const lastSession = lastSessionRef.current;
+          if (lastSession.file_mtime_str === sessionData.file_mtime_str) {
+            // 文件没修改，跳过更新
+            return sessionData;
+          }
+        }
+
+        // 更新 lastSessionRef 和 session
+        lastSessionRef.current = sessionData;
         setSession(sessionData);
 
         // 自动滚动到底部（仅在自动刷新模式下，且用户已经在底部时）
@@ -149,15 +163,23 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
   const loadSessionContentRef = useRef(loadSessionContent);
   loadSessionContentRef.current = loadSessionContent;
 
+  // 追踪组件是否已卸载
+  const isMountedRef = useRef(true);
+
   useEffect(() => {
     if (sessionId && projectId > 0) {
       // 生成新的请求 ID
       const requestId = ++requestIdRef.current;
+      isMountedRef.current = true;
+      lastSessionRef.current = null; // 重置引用比较
 
       // 首次加载时显示 loading，并获取 session 数据
       loadSessionContent(false).then(sessionData => {
         // 只处理最新的请求，忽略过期的响应
         if (requestId !== requestIdRef.current) return;
+
+        // 检查组件是否已卸载
+        if (!isMountedRef.current) return;
 
         if (sessionData) {
           // 根据 session 的文件修改时间判断刷新间隔
@@ -173,22 +195,18 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
     } else {
       setSession(null);
       setRefreshInterval(null);
+      lastSessionRef.current = null; // 重置引用比较
     }
 
     // 清理函数：组件卸载时清理定时器
     return () => {
+      isMountedRef.current = false;
       if (autoRefreshTimerRef.current) {
         clearInterval(autoRefreshTimerRef.current);
         autoRefreshTimerRef.current = null;
       }
     };
-  }, [
-    sessionId,
-    projectId,
-    loadSessionContent,
-    getAutoRefreshInterval,
-    scrollToBottom,
-  ]);
+  }, [sessionId, projectId, getAutoRefreshInterval, scrollToBottom]);
 
   // 处理自动刷新定时器
   useEffect(() => {
@@ -199,8 +217,11 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
     }
 
     // 如果设置了刷新间隔，启动定时器
-    if (refreshInterval && sessionId) {
+    if (refreshInterval && sessionId && isMountedRef.current) {
       autoRefreshTimerRef.current = setInterval(() => {
+        // 检查组件是否已卸载
+        if (!isMountedRef.current) return;
+
         // 跳过 loading 状态，并自动滚动到底部
         // 使用 ref 来避免依赖 loadSessionContent
         loadSessionContentRef.current(true, true);
@@ -214,7 +235,7 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
         autoRefreshTimerRef.current = null;
       }
     };
-  }, [refreshInterval, sessionId]); // 移除 loadSessionContent 依赖
+  }, [refreshInterval, sessionId]);
 
   if (!sessionId) {
     return (
@@ -415,12 +436,14 @@ export function SessionDetail({ projectId, sessionId, onBack }: SessionDetailPro
         ) : (
           <div className='max-w-4xl mx-auto'>
             <div className='w-full'>
-              {session.messages.map((message, index) => (
-                <ChatMessage
-                  key={`${message.message?.id || 'msg'}-${index}`}
-                  message={message}
-                />
-              ))}
+              {session.messages.map((message, index) => {
+                // 使用稳定的 id 作为 key，优先使用 message.message.id 或 timestamp + index
+                const messageId =
+                  message.message?.id ||
+                  message.message?.messageId ||
+                  `${message.timestamp}-${index}`;
+                return <ChatMessage key={messageId} message={message} />;
+              })}
             </div>
           </div>
         )}

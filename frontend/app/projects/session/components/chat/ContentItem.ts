@@ -9,7 +9,9 @@ export type ContentItemType =
   | 'thinking'
   | 'interrupted'
   | 'command'
-  | 'subagent';
+  | 'subagent'
+  | 'suggestion'
+  | 'compact';
 
 export interface ContentItem {
   type: ContentItemType;

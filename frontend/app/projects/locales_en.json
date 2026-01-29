@@ -863,6 +863,14 @@
     "thinkingBlock": {
       "title": "Thinking Process",
       "expandMore": "Show more"
+    },
+    "suggestionBlock": {
+      "title": "Suggestion",
+      "expandMore": "Show more"
+    },
+    "compactBlock": {
+      "title": "Session Continued",
+      "expandMore": "Show more"
     }
   }
 }

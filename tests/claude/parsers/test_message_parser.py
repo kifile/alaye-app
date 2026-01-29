@@ -407,7 +407,7 @@ Content"""
             },
         }
 
-        result = parser.convert_command_message(message_data, None)
+        result = parser.convert_command_message(message_data)
 
         assert result is not None
         assert isinstance(result, StandardMessage)
@@ -417,50 +417,6 @@ Content"""
         assert content[0]["type"] == "command"
         assert content[0]["command"] == "/test-command"
         assert content[0]["content"] == ""
-
-    def test_convert_command_message_with_meta(self, parser):
-        """测试带 isMeta 的 command 消息"""
-        message_data = {
-            "type": "user",
-            "timestamp": "2024-01-01T10:00:00Z",
-            "message": {
-                "role": "user",
-                "content": "<command-message>test</command-message>\n<command-name>/test</command-name>",
-            },
-        }
-
-        next_message_data = {
-            "type": "user",
-            "isMeta": True,
-            "timestamp": "2024-01-01T10:00:01Z",
-            "message": {
-                "role": "user",
-                "content": "Command content here",
-            },
-        }
-
-        result = parser.convert_command_message(message_data, next_message_data)
-
-        assert result is not None
-        content = result.message.content
-        assert len(content) == 1
-        assert content[0]["type"] == "command"
-        assert content[0]["content"] == "Command content here"
-        # 下一条消息应该被标记为跳过
-        assert next_message_data.get("_skipped_next") is True
-        assert next_message_data.get("_drop") is True
-
-    def test_convert_command_message_invalid_format(self, parser):
-        """测试非 command 消息"""
-        message_data = {
-            "type": "user",
-            "timestamp": "2024-01-01T10:00:00Z",
-            "message": {"role": "user", "content": "Normal message"},
-        }
-
-        result = parser.convert_command_message(message_data, None)
-
-        assert result is None
 
     def test_convert_command_message_with_args(self, parser):
         """测试带参数的 command 消息"""
@@ -473,7 +429,7 @@ Content"""
             },
         }
 
-        result = parser.convert_command_message(message_data, None)
+        result = parser.convert_command_message(message_data)
 
         assert result is not None
         content = result.message.content
@@ -546,6 +502,319 @@ Content"""
         result = parser.convert_interrupted_message(message_data)
 
         assert result is None
+
+    def test_convert_suggestion_message_string(self, parser):
+        """测试转换 suggestion 消息（字符串 content）"""
+        suggestion_prefix = "[SUGGESTION MODE: Suggest what the user might naturally type next into Claude Code.]"
+        message_data = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": f"{suggestion_prefix}\n\nTry running the tests",
+            },
+        }
+
+        result = parser.convert_suggestion_message(message_data)
+
+        assert result is not None
+        assert result.type == "assistant"
+        assert result.message.role == "assistant"
+        content = result.message.content
+        assert isinstance(content, list)
+        assert len(content) == 1
+        assert content[0]["type"] == "suggestion"
+        assert content[0]["text"] == "Try running the tests"
+
+    def test_convert_suggestion_message_list(self, parser):
+        """测试转换 suggestion 消息（列表 content）"""
+        suggestion_prefix = "[SUGGESTION MODE: Suggest what the user might naturally type next into Claude Code.]"
+        message_data = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": f"{suggestion_prefix}\n\ncommit this"}
+                ],
+            },
+        }
+
+        result = parser.convert_suggestion_message(message_data)
+
+        assert result is not None
+        assert result.type == "assistant"
+        assert result.message.role == "assistant"
+        content = result.message.content
+        assert isinstance(content, list)
+        assert len(content) == 1
+        assert content[0]["type"] == "suggestion"
+        assert content[0]["text"] == "commit this"
+
+    def test_convert_suggestion_message_not_suggestion(self, parser):
+        """测试非 suggestion 消息"""
+        message_data = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {"role": "user", "content": "Normal user message"},
+        }
+
+        result = parser.convert_suggestion_message(message_data)
+
+        assert result is None
+
+    def test_convert_compact_message_string(self, parser):
+        """测试转换 compact 消息（字符串 content）"""
+        compact_prefix = "This session is being continued from a previous conversation"
+        message_data = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": f"{compact_prefix}\n\nAdditional context here",
+            },
+        }
+
+        result = parser.convert_compact_message(message_data)
+
+        assert result is not None
+        assert result.type == "assistant"
+        assert result.message.role == "assistant"
+        content = result.message.content
+        assert isinstance(content, list)
+        assert len(content) == 1
+        assert content[0]["type"] == "compact"
+        # split("\n", 1) 只分割一次，保留后续所有内容（包括换行符）
+        assert content[0]["text"] == "\nAdditional context here"
+
+    def test_convert_compact_message_multiple_lines(self, parser):
+        """测试转换 compact 消息（多行内容）"""
+        compact_prefix = "This session is being continued from a previous conversation"
+        compact_content = f"{compact_prefix}\n\nLine 1\nLine 2\nLine 3"
+        message_data = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": compact_content,
+            },
+        }
+
+        result = parser.convert_compact_message(message_data)
+
+        assert result is not None
+        assert result.type == "assistant"
+        content = result.message.content
+        assert isinstance(content, list)
+        assert len(content) == 1
+        assert content[0]["type"] == "compact"
+        # split("\n", 1) 只分割一次
+        assert content[0]["text"] == "\nLine 1\nLine 2\nLine 3"
+
+    def test_convert_compact_message_list(self, parser):
+        """测试转换 compact 消息（列表 content）"""
+        compact_prefix = "This session is being continued from a previous conversation"
+        message_data = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"{compact_prefix}\n\nContext from previous session",
+                    }
+                ],
+            },
+        }
+
+        result = parser.convert_compact_message(message_data)
+
+        assert result is not None
+        assert result.type == "assistant"
+        content = result.message.content
+        assert isinstance(content, list)
+        assert len(content) == 1
+        assert content[0]["type"] == "compact"
+        # split("\n", 1) 只分割一次
+        assert content[0]["text"] == "\nContext from previous session"
+
+    def test_convert_compact_message_no_second_line(self, parser):
+        """测试转换 compact 消息（没有第二行）"""
+        compact_prefix = "This session is being continued from a previous conversation"
+        message_data = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {"role": "user", "content": compact_prefix},
+        }
+
+        result = parser.convert_compact_message(message_data)
+
+        assert result is not None
+        assert result.type == "assistant"
+        content = result.message.content
+        assert isinstance(content, list)
+        assert len(content) == 1
+        assert content[0]["type"] == "compact"
+        assert content[0]["text"] == ""
+
+    def test_convert_compact_message_not_compact(self, parser):
+        """测试非 compact 消息"""
+        message_data = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {"role": "user", "content": "Normal user message"},
+        }
+
+        result = parser.convert_compact_message(message_data)
+
+        assert result is None
+
+    def test_convert_compact_message_summary_mode(self, parser):
+        """测试转换 compact 消息（summary 模式 - 整个内容作为 compact text）"""
+        summary_prefix = (
+            "Your task is to create a detailed summary of the conversation so far"
+        )
+        compact_content = (
+            f"{summary_prefix}\n\nThis is a summary of previous conversation."
+        )
+        message_data = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {"role": "user", "content": compact_content},
+        }
+
+        result = parser.convert_compact_message(message_data)
+
+        assert result is not None
+        assert result.type == "assistant"
+        assert result.message.role == "assistant"
+        content = result.message.content
+        assert isinstance(content, list)
+        assert len(content) == 1
+        assert content[0]["type"] == "compact"
+        # summary 模式：整个内容作为 compact text（不提取第二行）
+        assert content[0]["text"] == compact_content
+
+    def test_convert_compact_message_summary_mode_list(self, parser):
+        """测试转换 compact 消息（summary 模式 - 列表 content）"""
+        summary_prefix = (
+            "Your task is to create a detailed summary of the conversation so far"
+        )
+        compact_text = f"{summary_prefix}\n\nDetailed summary content here."
+        message_data = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": [{"type": "text", "text": compact_text}],
+            },
+        }
+
+        result = parser.convert_compact_message(message_data)
+
+        assert result is not None
+        assert result.type == "assistant"
+        content = result.message.content
+        assert isinstance(content, list)
+        assert len(content) == 1
+        assert content[0]["type"] == "compact"
+        # summary 模式：整个内容作为 compact text
+        assert content[0]["text"] == compact_text
+
+    def test_clean_system_tags_fully_wrapped_string(self, parser):
+        """测试清理完全被系统标签包裹的消息（字符串 content）"""
+        caveat_text = "<local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>"
+        message_data = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {"role": "user", "content": caveat_text},
+        }
+
+        result = parser._parse_single_message_internal(message_data)
+
+        # 清理后应该为空，标记为预期内丢弃
+        assert result.meta.drop is True
+        assert result.meta.expected_drop is True
+        assert result.meta.drop_reason == "empty_after_clean_system_tags"
+
+    def test_clean_system_tags_fully_wrapped_list(self, parser):
+        """测试清理完全被系统标签包裹的消息（列表 content）"""
+        caveat_text = "<local-command-caveat>Caveat: DO NOT respond to these messages</local-command-caveat>"
+        message_data = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {
+                "role": "user",
+                "content": [{"type": "text", "text": caveat_text}],
+            },
+        }
+
+        result = parser._parse_single_message_internal(message_data)
+
+        # 清理后应该为空，标记为预期内丢弃
+        assert result.meta.drop is True
+        assert result.meta.expected_drop is True
+        assert result.meta.drop_reason == "empty_after_clean_system_tags"
+
+    def test_clean_system_tags_partial_wrapped_with_content(self, parser):
+        """测试部分被系统标签包裹的消息"""
+        # 这种情况不是完全包裹，所以不会被清理
+        # 只有完全被标签包裹的消息才会被清理
+        content_text = (
+            "<local-command-caveat>Caveat</local-command-caveat>\n\nActual content here"
+        )
+        message_data = {
+            "type": "user",
+            "timestamp": "2024-01-01T10:00:00Z",
+            "message": {"role": "user", "content": content_text},
+        }
+
+        result = parser._parse_single_message_internal(message_data)
+
+        # 不是完全包裹，不会触发清理，保留原内容
+        assert result.meta.drop is False
+        content = result.message.content
+        assert isinstance(content, list)
+        assert len(content) == 1
+        assert content[0]["type"] == "text"
+        # 标签会被保留（因为没有完全包裹）
+        assert content[0]["text"] == content_text
+
+    def test_is_fully_wrapped_by_system_tags_caveat(self, parser):
+        """测试检测完全被 caveat 标签包裹"""
+        # 完全包裹
+        text1 = "<local-command-caveat>Caveat message</local-command-caveat>"
+        assert parser._is_fully_wrapped_by_system_tags(text1) is True
+
+        # 不完全包裹（有额外内容）
+        text2 = "<local-command-caveat>Caveat</local-command-caveat>\n\nExtra content"
+        assert parser._is_fully_wrapped_by_system_tags(text2) is False
+
+        # 普通文本
+        text3 = "Normal message without tags"
+        assert parser._is_fully_wrapped_by_system_tags(text3) is False
+
+    def test_is_fully_wrapped_by_system_tags_command_message(self, parser):
+        """测试检测完全被 command-message 标签包裹"""
+        # 完全包裹
+        text1 = "<command-message>test</command-message>"
+        assert parser._is_fully_wrapped_by_system_tags(text1) is True
+
+        # 不完全包裹
+        text2 = "<command-message>test</command-message>\nextra"
+        assert parser._is_fully_wrapped_by_system_tags(text2) is False
+
+    def test_is_fully_wrapped_by_system_tags_mixed_tags(self, parser):
+        """测试检测混合标签"""
+        # 嵌套标签（不是完全包裹）
+        text1 = "<local-command-caveat><command-message>test</command-message></local-command-caveat>"
+        # 中间有其他标签对，移除后没有内容，所以是完全包裹
+        assert parser._is_fully_wrapped_by_system_tags(text1) is True
+
+        # 有实际内容
+        text2 = "<local-command-caveat>Caveat text here</local-command-caveat>"
+        assert parser._is_fully_wrapped_by_system_tags(text2) is True
 
     # ========== 测试 _extract_title_from_content ==========
 
@@ -728,6 +997,304 @@ Content"""
         assert ismeta_msg.type == "user"
         assert ismeta_msg.meta.extra.get("isMeta") is True
         assert ismeta_msg.meta.extra.get("sourceToolUseID") == "call_test123"
+
+    # ========== 测试多文件归并排序 ==========
+
+    @pytest.mark.asyncio
+    async def test_merge_subagent_files_basic(self, temp_session_dir, parser):
+        """测试基本的多文件归并排序"""
+        session_id = "test-session"
+
+        # 创建主文件
+        main_file = temp_session_dir / f"{session_id}.jsonl"
+        main_data = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-01T10:00:00Z",
+                "message": {"role": "user", "content": "Main message 1"},
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2024-01-01T10:00:05Z",
+                "message": {"role": "assistant", "content": "Main message 2"},
+            },
+        ]
+
+        with open(main_file, "w", encoding="utf-8") as f:
+            for data in main_data:
+                f.write(json.dumps(data) + "\n")
+
+        # 创建 subagent 目录和文件
+        subagent_dir = temp_session_dir / session_id / "subagents"
+        subagent_dir.mkdir(parents=True, exist_ok=True)
+
+        subagent_file = subagent_dir / "agent-test-001.jsonl"
+        subagent_data = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-01T10:00:02Z",
+                "message": {"role": "user", "content": "Subagent message 1"},
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2024-01-01T10:00:03Z",
+                "message": {"role": "assistant", "content": "Subagent message 2"},
+            },
+        ]
+
+        with open(subagent_file, "w", encoding="utf-8") as f:
+            for data in subagent_data:
+                f.write(json.dumps(data) + "\n")
+
+        # 解析文件
+        messages, stats = await parser.parse_session_file_with_stats(
+            str(main_file), collect_stats=True
+        )
+
+        # 验证消息按 timestamp 排序
+        assert len(messages) == 4
+        timestamps = [msg.timestamp for msg in messages]
+        expected_timestamps = [
+            "2024-01-01T10:00:00Z",  # Main message 1
+            "2024-01-01T10:00:02Z",  # Subagent message 1
+            "2024-01-01T10:00:03Z",  # Subagent message 2
+            "2024-01-01T10:00:05Z",  # Main message 2
+        ]
+        assert timestamps == expected_timestamps
+
+    @pytest.mark.asyncio
+    async def test_merge_subagent_files_same_timestamp(self, temp_session_dir, parser):
+        """测试相同 timestamp 时主文件优先"""
+        session_id = "test-session"
+
+        # 创建主文件
+        main_file = temp_session_dir / f"{session_id}.jsonl"
+        main_data = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-01T10:00:00Z",
+                "message": {"role": "user", "content": "Main message"},
+            },
+        ]
+
+        with open(main_file, "w", encoding="utf-8") as f:
+            for data in main_data:
+                f.write(json.dumps(data) + "\n")
+
+        # 创建 subagent 文件（相同 timestamp）
+        subagent_dir = temp_session_dir / session_id / "subagents"
+        subagent_dir.mkdir(parents=True, exist_ok=True)
+
+        subagent_file = subagent_dir / "agent-test-001.jsonl"
+        subagent_data = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-01T10:00:00Z",  # 相同 timestamp
+                "message": {"role": "user", "content": "Subagent message"},
+            },
+        ]
+
+        with open(subagent_file, "w", encoding="utf-8") as f:
+            for data in subagent_data:
+                f.write(json.dumps(data) + "\n")
+
+        # 解析文件
+        messages, stats = await parser.parse_session_file_with_stats(
+            str(main_file), collect_stats=True
+        )
+
+        # 验证主文件消息在前
+        assert len(messages) == 2
+        # 访问 content 数组中的第一个 text 元素
+        assert messages[0].message.content[0].get("text") == "Main message"
+        assert messages[1].message.content[0].get("text") == "Subagent message"
+
+    @pytest.mark.asyncio
+    async def test_merge_subagent_files_without_timestamp(
+        self, temp_session_dir, parser
+    ):
+        """测试单文件模式下没有 timestamp 的消息被保留（归并模式下才丢弃）"""
+        session_id = "test-session"
+
+        # 创建主文件
+        main_file = temp_session_dir / f"{session_id}.jsonl"
+        main_data = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-01T10:00:00Z",
+                "message": {"role": "user", "content": "Valid message"},
+            },
+            {
+                # 没有 timestamp 的消息
+                "type": "user",
+                "message": {"role": "user", "content": "Message without timestamp"},
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2024-01-01T10:00:02Z",
+                "message": {"role": "assistant", "content": "Another valid message"},
+            },
+        ]
+
+        with open(main_file, "w", encoding="utf-8") as f:
+            for data in main_data:
+                f.write(json.dumps(data) + "\n")
+
+        # 解析文件（单文件模式，没有 subagent 文件）
+        messages, stats = await parser.parse_session_file_with_stats(
+            str(main_file), collect_stats=True
+        )
+
+        # 单文件模式下，没有 timestamp 的消息会被保留
+        assert len(messages) == 3
+        assert messages[0].message.content[0].get("text") == "Valid message"
+        assert messages[1].message.content[0].get("text") == "Message without timestamp"
+        assert messages[2].message.content[0].get("text") == "Another valid message"
+
+    @pytest.mark.asyncio
+    async def test_merge_subagent_files_without_timestamp_in_merge_mode(
+        self, temp_session_dir, parser
+    ):
+        """测试归并模式下没有 timestamp 的消息被丢弃"""
+        session_id = "test-session"
+
+        # 创建主文件
+        main_file = temp_session_dir / f"{session_id}.jsonl"
+        main_data = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-01T10:00:00Z",
+                "message": {"role": "user", "content": "Valid message 1"},
+            },
+            {
+                # 没有 timestamp 的消息（应该在归并模式下被丢弃）
+                "type": "user",
+                "message": {"role": "user", "content": "Invalid message"},
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2024-01-01T10:00:02Z",
+                "message": {"role": "assistant", "content": "Valid message 2"},
+            },
+        ]
+
+        with open(main_file, "w", encoding="utf-8") as f:
+            for data in main_data:
+                f.write(json.dumps(data) + "\n")
+
+        # 创建一个 subagent 文件（触发归并模式）
+        subagent_dir = temp_session_dir / session_id / "subagents"
+        subagent_dir.mkdir(parents=True, exist_ok=True)
+
+        subagent_file = subagent_dir / "agent-test-001.jsonl"
+        subagent_data = [
+            {
+                "type": "assistant",
+                "timestamp": "2024-01-01T10:00:01Z",
+                "message": {"role": "assistant", "content": "Subagent message"},
+            },
+        ]
+
+        with open(subagent_file, "w", encoding="utf-8") as f:
+            for data in subagent_data:
+                f.write(json.dumps(data) + "\n")
+
+        # 解析文件（归并模式）
+        messages, stats = await parser.parse_session_file_with_stats(
+            str(main_file), collect_stats=True
+        )
+
+        # 归并模式下，没有 timestamp 的消息应该被丢弃
+        assert len(messages) == 3
+        assert messages[0].message.content[0].get("text") == "Valid message 1"
+        assert messages[1].message.content[0].get("text") == "Subagent message"
+        assert messages[2].message.content[0].get("text") == "Valid message 2"
+
+    @pytest.mark.asyncio
+    async def test_merge_subagent_files_multiple_subagents(
+        self, temp_session_dir, parser
+    ):
+        """测试多个 subagent 文件的归并"""
+        session_id = "test-session"
+
+        # 创建主文件
+        main_file = temp_session_dir / f"{session_id}.jsonl"
+        main_data = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-01T10:00:00Z",
+                "message": {"role": "user", "content": "Main 1"},
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2024-01-01T10:00:09Z",
+                "message": {"role": "assistant", "content": "Main 2"},
+            },
+        ]
+
+        with open(main_file, "w", encoding="utf-8") as f:
+            for data in main_data:
+                f.write(json.dumps(data) + "\n")
+
+        # 创建多个 subagent 文件
+        subagent_dir = temp_session_dir / session_id / "subagents"
+        subagent_dir.mkdir(parents=True, exist_ok=True)
+
+        # Subagent 1
+        subagent_file1 = subagent_dir / "agent-test-001.jsonl"
+        subagent_data1 = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-01T10:00:02Z",
+                "message": {"role": "user", "content": "Subagent 1 - msg 1"},
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2024-01-01T10:00:04Z",
+                "message": {"role": "assistant", "content": "Subagent 1 - msg 2"},
+            },
+        ]
+
+        with open(subagent_file1, "w", encoding="utf-8") as f:
+            for data in subagent_data1:
+                f.write(json.dumps(data) + "\n")
+
+        # Subagent 2
+        subagent_file2 = subagent_dir / "agent-test-002.jsonl"
+        subagent_data2 = [
+            {
+                "type": "user",
+                "timestamp": "2024-01-01T10:00:01Z",
+                "message": {"role": "user", "content": "Subagent 2 - msg 1"},
+            },
+            {
+                "type": "assistant",
+                "timestamp": "2024-01-01T10:00:06Z",
+                "message": {"role": "assistant", "content": "Subagent 2 - msg 2"},
+            },
+        ]
+
+        with open(subagent_file2, "w", encoding="utf-8") as f:
+            for data in subagent_data2:
+                f.write(json.dumps(data) + "\n")
+
+        # 解析文件
+        messages, stats = await parser.parse_session_file_with_stats(
+            str(main_file), collect_stats=True
+        )
+
+        # 验证消息按 timestamp 正确排序
+        assert len(messages) == 6
+        contents = [msg.message.content[0].get("text") for msg in messages]
+        expected_contents = [
+            "Main 1",  # 10:00:00
+            "Subagent 2 - msg 1",  # 10:00:01
+            "Subagent 1 - msg 1",  # 10:00:02
+            "Subagent 1 - msg 2",  # 10:00:04
+            "Subagent 2 - msg 2",  # 10:00:06
+            "Main 2",  # 10:00:09
+        ]
+        assert contents == expected_contents
 
 
 if __name__ == "__main__":
