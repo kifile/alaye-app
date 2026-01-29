@@ -40,9 +40,9 @@ export const CommandBlock = memo(({ command, content, args }: CommandBlockProps)
   const hasArgs = args && args.length > 0;
 
   return (
-    <div className='my-3 rounded-lg border border-purple-300 dark:border-purple-700 bg-gradient-to-r from-purple-50 to-violet-50 dark:from-purple-950/40 dark:to-violet-950/40 shadow-sm'>
+    <div className='my-3 rounded-lg border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/20 shadow-sm hover:bg-purple-50 dark:hover:bg-purple-950/20 transition-all duration-200'>
       <div
-        className={`flex items-center gap-2 px-3 py-2.5 ${hasContent ? 'cursor-pointer hover:from-purple-100 dark:hover:from-purple-900/50' : ''}`}
+        className={`flex items-center gap-2 px-3 py-2.5 ${hasContent ? 'cursor-pointer' : ''}`}
         onClick={() => hasContent && setExpanded(!expanded)}
         role='button'
         tabIndex={hasContent ? 0 : undefined}
@@ -66,7 +66,7 @@ export const CommandBlock = memo(({ command, content, args }: CommandBlockProps)
           </span>
           {hasArgs && (
             <span
-              className='text-xs text-purple-700 dark:text-purple-300 font-mono bg-white/80 dark:bg-purple-900/60 px-2.5 py-1 rounded-md border border-purple-200 dark:border-purple-700 truncate max-w-[300px]'
+              className='text-xs text-purple-700 dark:text-purple-300 font-mono bg-white/80 dark:bg-purple-900/60 px-2.5 py-1 rounded-md border border-purple-200 dark:border-purple-800 truncate max-w-[300px]'
               title={args}
             >
               {truncateText(args, 40, 'start')}
@@ -88,7 +88,7 @@ export const CommandBlock = memo(({ command, content, args }: CommandBlockProps)
 
       {/* 展开后显示具体内容 */}
       {hasContent && expanded && (
-        <div className='px-3 pb-3 pt-1 border-t border-purple-200 dark:border-purple-700'>
+        <div className='px-3 pb-3 pt-1 border-t border-purple-200 dark:border-purple-800'>
           <div className='pl-10 text-sm text-purple-900 dark:text-purple-100 max-h-96 overflow-y-auto'>
             <MarkdownRenderer text={content} />
           </div>

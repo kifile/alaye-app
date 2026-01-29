@@ -39,12 +39,12 @@ const getToolBadgeClass = (status: 'complete' | 'incomplete', isPrimary = false)
   const baseClass = 'px-2 py-0.5 text-xs rounded font-mono';
   if (isPrimary) {
     return status === 'complete'
-      ? `${baseClass} bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 font-medium`
-      : `${baseClass} bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-medium`;
+      ? `${baseClass} bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 font-medium`
+      : `${baseClass} bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300 font-medium`;
   }
   return status === 'complete'
-    ? `${baseClass} bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-400`
-    : `${baseClass} bg-amber-50 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400`;
+    ? `${baseClass} bg-emerald-50 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400`
+    : `${baseClass} bg-sky-50 dark:bg-sky-900/50 text-sky-600 dark:text-sky-400`;
 };
 
 /**
@@ -139,8 +139,8 @@ export const ToolUseBlock = memo(
       <div
         className={`my-2 rounded-lg border transition-all duration-200 ${
           isComplete
-            ? 'bg-green-50/50 dark:bg-green-950/20 border-green-200 dark:border-green-800 hover:bg-green-50 dark:hover:bg-green-950/30'
-            : 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800 hover:bg-blue-50 dark:hover:bg-blue-950/30'
+            ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+            : 'bg-sky-50/50 dark:bg-sky-950/20 border-sky-200 dark:border-sky-800 hover:bg-sky-50 dark:hover:bg-sky-950/30'
         }`}
       >
         {/* 默认显示的摘要行 */}
@@ -158,7 +158,9 @@ export const ToolUseBlock = memo(
           }}
         >
           {/* 图标 */}
-          <div className={`p-1 rounded ${isComplete ? 'bg-green-500' : 'bg-blue-500'}`}>
+          <div
+            className={`p-1 rounded ${isComplete ? 'bg-emerald-500' : 'bg-sky-500'}`}
+          >
             {isMCP ? (
               <Server className='h-3 w-3 text-white' />
             ) : (
@@ -175,8 +177,8 @@ export const ToolUseBlock = memo(
                   <span
                     className={`px-2 py-0.5 text-xs rounded font-mono font-medium ${
                       isComplete
-                        ? 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300'
-                        : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300'
+                        ? 'bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300'
+                        : 'bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300'
                     }`}
                   >
                     (MCP) {mcpInfo.serverName}
@@ -185,8 +187,8 @@ export const ToolUseBlock = memo(
                   <span
                     className={`px-2 py-0.5 text-xs rounded font-mono ${
                       isComplete
-                        ? 'bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
-                        : 'bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-400'
+                        ? 'bg-violet-50 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400'
+                        : 'bg-violet-50 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400'
                     }`}
                   >
                     {mcpInfo.methodName}
@@ -212,8 +214,8 @@ export const ToolUseBlock = memo(
           <span
             className={`ml-auto px-2 py-0.5 text-xs rounded-full font-medium ${
               isComplete
-                ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300'
-                : 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300'
+                ? 'bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300'
+                : 'bg-sky-100 dark:bg-sky-900 text-sky-700 dark:text-sky-300'
             }`}
           >
             {isComplete ? '✓ Done' : '⏳ Pending'}
@@ -239,8 +241,8 @@ export const ToolUseBlock = memo(
                 <div
                   className={`mb-1 font-medium ${
                     isComplete
-                      ? 'text-green-700 dark:text-green-300'
-                      : 'text-blue-700 dark:text-blue-300'
+                      ? 'text-emerald-700 dark:text-emerald-300'
+                      : 'text-sky-700 dark:text-sky-300'
                   }`}
                 >
                   Parameters:
@@ -250,8 +252,8 @@ export const ToolUseBlock = memo(
                     isUserMessage
                       ? 'bg-gray-100 dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100'
                       : isComplete
-                        ? 'bg-white dark:bg-gray-900 border-green-200 dark:border-green-800'
-                        : 'bg-white dark:bg-gray-900 border-blue-200 dark:border-blue-800'
+                        ? 'bg-white dark:bg-gray-900 border-emerald-200 dark:border-emerald-800'
+                        : 'bg-white dark:bg-gray-900 border-sky-200 dark:border-sky-800'
                   }`}
                 >
                   {JSON.stringify(item.input, null, 2)}
@@ -264,8 +266,8 @@ export const ToolUseBlock = memo(
                 <div
                   className={`mb-1 font-medium ${
                     isComplete
-                      ? 'text-green-700 dark:text-green-300'
-                      : 'text-blue-700 dark:text-blue-300'
+                      ? 'text-emerald-700 dark:text-emerald-300'
+                      : 'text-sky-700 dark:text-sky-300'
                   }`}
                 >
                   Output:
@@ -275,8 +277,8 @@ export const ToolUseBlock = memo(
                     isUserMessage
                       ? 'bg-gray-100 dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100'
                       : isComplete
-                        ? 'bg-white dark:bg-gray-900 border-green-200 dark:border-green-800'
-                        : 'bg-white dark:bg-gray-900 border-blue-200 dark:border-blue-800'
+                        ? 'bg-white dark:bg-gray-900 border-emerald-200 dark:border-emerald-800'
+                        : 'bg-white dark:bg-gray-900 border-sky-200 dark:border-sky-800'
                   }`}
                 >
                   {typeof item.output === 'string'
@@ -291,8 +293,8 @@ export const ToolUseBlock = memo(
                 <div
                   className={`mb-1 font-medium ${
                     isComplete
-                      ? 'text-green-700 dark:text-green-300'
-                      : 'text-blue-700 dark:text-blue-300'
+                      ? 'text-emerald-700 dark:text-emerald-300'
+                      : 'text-sky-700 dark:text-sky-300'
                   }`}
                 >
                   Extra:
@@ -307,8 +309,8 @@ export const ToolUseBlock = memo(
                           isUserMessage
                             ? 'bg-gray-100 dark:bg-gray-900 border-gray-300 dark:border-gray-700'
                             : isComplete
-                              ? 'bg-white dark:bg-gray-900 border-green-200 dark:border-green-800'
-                              : 'bg-white dark:bg-gray-900 border-blue-200 dark:border-blue-800'
+                              ? 'bg-white dark:bg-gray-900 border-emerald-200 dark:border-emerald-800'
+                              : 'bg-white dark:bg-gray-900 border-sky-200 dark:border-sky-800'
                         }`}
                       >
                         <MarkdownRenderer
@@ -325,8 +327,8 @@ export const ToolUseBlock = memo(
                         isUserMessage
                           ? 'bg-gray-100 dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100'
                           : isComplete
-                            ? 'bg-white dark:bg-gray-900 border-green-200 dark:border-green-800'
-                            : 'bg-white dark:bg-gray-900 border-blue-200 dark:border-blue-800'
+                            ? 'bg-white dark:bg-gray-900 border-emerald-200 dark:border-emerald-800'
+                            : 'bg-white dark:bg-gray-900 border-sky-200 dark:border-sky-800'
                       }`}
                     >
                       {typeof item.extra === 'string'

@@ -189,8 +189,8 @@ export const AgentBlock = memo(({ item }: AgentBlockProps) => {
     <div
       className={`my-2 rounded-lg border transition-all duration-200 ${
         isComplete
-          ? 'bg-orange-50/50 dark:bg-orange-950/20 border-orange-200 dark:border-orange-800 hover:bg-orange-50 dark:hover:bg-orange-950/30'
-          : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/30'
+          ? 'bg-orange-50/50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800 hover:bg-orange-50 dark:hover:bg-orange-950/40'
+          : 'bg-amber-50/50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/40'
       }`}
     >
       {/* Header - 与 ToolUseBlock 统一样式 */}

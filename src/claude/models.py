@@ -692,12 +692,14 @@ class StandardMessage(BaseModel):
             "expected_drop": data.get("_expected_drop", False),
         }
 
-        # 提取 extra 字段（isMeta, sourceToolUseID 等）
+        # 提取 extra 字段（isMeta, sourceToolUseID, isCommand 等）
         extra_data = {}
         if "isMeta" in data:
             extra_data["isMeta"] = data["isMeta"]
         if "sourceToolUseID" in data:
             extra_data["sourceToolUseID"] = data["sourceToolUseID"]
+        if "isCommand" in data:
+            extra_data["isCommand"] = data["isCommand"]
 
         meta_data["extra"] = extra_data
         meta = MessageMeta(**meta_data)

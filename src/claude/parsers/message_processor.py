@@ -42,11 +42,12 @@ class MessageProcessor:
         处理消息列表，执行完整的处理流程
 
         处理顺序：
-        1. 合并 tool_use 和 tool_result（跳过已 drop 的消息，处理时标记 tool_result 为 drop）
-        2. 根据 parentToolUseID 合并 subagent 消息（跳过已 drop 的消息，处理时标记被合并的为 drop）
-        3. 将 subagent 合并到对应的 tool_use 中（跳过已 drop 的消息，处理时标记 subagent 为 drop）
-        4. 过滤掉所有被标记为 drop 的消息
-        5. 合并连续的同 role 消息
+        1. 合并 isMeta 消息到 command（跳过已 drop 的消息，处理时标记 isMeta 为 drop）
+        2. 合并 tool_use 和 tool_result（跳过已 drop 的消息，处理时标记 tool_result 为 drop）
+        3. 根据 parentToolUseID 合并 subagent 消息（跳过已 drop 的消息，处理时标记被合并的为 drop）
+        4. 将 subagent 合并到对应的 tool_use 中（跳过已 drop 的消息，处理时标记 subagent 为 drop）
+        5. 过滤掉所有被标记为 drop 的消息
+        6. 合并连续的同 role 消息
 
         Args:
             messages: 标准化的消息列表
@@ -56,25 +57,31 @@ class MessageProcessor:
         """
         logger.debug(f"=== process_messages: Start with {len(messages)} messages ===")
 
-        # 1. 合并 tool_use 和 tool_result（处理过程中会跳过已 drop 的消息）
-        processed_messages = self._merge_tool_use_and_result(messages)
+        # 1. 合并 isMeta 消息到 command（处理过程中会跳过已 drop 的消息）
+        processed_messages = self._merge_meta_to_command(messages)
+        logger.debug(
+            f"After merging meta to command: {len(processed_messages)} messages"
+        )
+
+        # 2. 合并 tool_use 和 tool_result（处理过程中会跳过已 drop 的消息）
+        processed_messages = self._merge_tool_use_and_result(processed_messages)
         logger.debug(
             f"After merging tool_use/result: {len(processed_messages)} messages"
         )
 
-        # 2. 根据 parentToolUseID 合并 subagent 消息（处理过程中会跳过已 drop 的消息）
+        # 3. 根据 parentToolUseID 合并 subagent 消息（处理过程中会跳过已 drop 的消息）
         processed_messages = self._merge_subagent_messages_inline(processed_messages)
         logger.debug(
             f"After merging subagent messages: {len(processed_messages)} messages"
         )
 
-        # 3. 将 subagent 合并到对应的 tool_use 中（处理过程中会跳过已 drop 的消息）
+        # 4. 将 subagent 合并到对应的 tool_use 中（处理过程中会跳过已 drop 的消息）
         processed_messages = self._merge_subagent_to_tool_use(processed_messages)
         logger.debug(
             f"After merging subagent to tool_use: {len(processed_messages)} messages"
         )
 
-        # 4. 合并连续的同 role 消息（内部会过滤 drop 消息）
+        # 5. 合并连续的同 role 消息（内部会过滤 drop 消息）
         final_messages = self._merge_consecutive_messages(processed_messages)
         logger.debug(
             f"=== process_messages: End with {len(final_messages)} messages ==="
@@ -301,6 +308,130 @@ class MessageProcessor:
 
         logger.debug(
             f"=== After merging subagent messages inline: {len(result_messages)} messages ==="
+        )
+        return result_messages
+
+    def _merge_meta_to_command(
+        self, messages: List[StandardMessage]
+    ) -> List[StandardMessage]:
+        """
+        合并 isMeta 消息到 command 消息
+
+        处理逻辑：
+        - 跳过已被标记为 drop 的消息
+        - 当遇到 command 消息时，检查下一条消息是否是 isMeta 消息
+        - 如果是，将 isMeta 消息的内容合并到 command 的 content 字段
+        - 标记 isMeta 消息为 drop，但仍然保留在结果中
+
+        Args:
+            messages: 消息列表
+
+        Returns:
+            List[StandardMessage]: 合并后的消息列表
+        """
+        result_messages: List[StandardMessage] = []
+
+        logger.debug(
+            f"=== _merge_meta_to_command: Processing {len(messages)} messages ==="
+        )
+
+        idx = 0
+        while idx < len(messages):
+            message = messages[idx]
+
+            # 跳过已被标记为 drop 的消息（直接物理过滤）
+            if message.meta.drop:
+                logger.debug(f"  [{idx}] Skipping dropped message")
+                idx += 1
+                continue
+
+            # 检查是否是 command 消息
+            is_command = (
+                message.meta.extra.get("isCommand", False)
+                if message.meta.extra
+                else False
+            )
+
+            if is_command:
+                # 检查下一条消息是否存在且是 isMeta 消息
+                if idx + 1 < len(messages):
+                    next_message = messages[idx + 1]
+                    if not next_message.meta.drop:
+                        is_next_meta = (
+                            next_message.meta.extra.get("isMeta", False)
+                            if next_message.meta.extra
+                            else False
+                        )
+
+                        if is_next_meta:
+                            # 合并 isMeta 消息的内容到 command
+                            content_to_merge = (
+                                next_message.message.content
+                                if next_message.message
+                                else []
+                            )
+
+                            # 提取文本内容
+                            merged_text = ""
+                            for item in content_to_merge:
+                                if isinstance(item, dict):
+                                    if item.get("type") == "text":
+                                        text_content = item.get("text", "")
+                                        if text_content:
+                                            merged_text = text_content
+                                            break
+                                elif isinstance(item, str):
+                                    merged_text = item
+                                    break
+
+                            # 更新 command 消息的 content
+                            if message.message and message.message.content:
+                                for content_item in message.message.content:
+                                    if (
+                                        isinstance(content_item, dict)
+                                        and content_item.get("type") == "command"
+                                    ):
+                                        content_item["content"] = merged_text
+                                        logger.debug(
+                                            f"  [{idx}] Merged isMeta to command: {len(merged_text)} chars"
+                                        )
+                                        break
+
+                            # 标记 isMeta 消息为 drop
+                            next_message.meta.drop = True
+                            next_message.meta.drop_reason = "merged_into_command"
+                            next_message.meta.expected_drop = True
+
+                            # 准备包含 drop 字段的字典
+                            drop_dict = next_message.model_dump()
+                            # 确保 raw_message 中也包含 drop 相关字段
+                            if drop_dict.get("raw_message"):
+                                drop_dict["raw_message"]["_drop"] = True
+                                drop_dict["raw_message"][
+                                    "_drop_reason"
+                                ] = "merged_into_command"
+                                drop_dict["raw_message"]["_expected_drop"] = True
+
+                            # 然后调用 record_drop
+                            if self.drop_registry:
+                                self.drop_registry.record_drop(
+                                    drop_dict["raw_message"],
+                                    reason="merged_into_command",
+                                    expected=True,
+                                )
+
+                            # 添加 command 消息和被标记为 drop 的 isMeta 消息
+                            result_messages.append(message)
+                            result_messages.append(next_message)
+                            idx += 2  # 跳过 command 和 isMeta 两条消息
+                            continue
+
+            # 不是 command 消息，或者没有后续 isMeta 消息，直接添加
+            result_messages.append(message)
+            idx += 1
+
+        logger.debug(
+            f"=== After merging meta to command: {len(result_messages)} messages ==="
         )
         return result_messages
 

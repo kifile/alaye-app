@@ -20,7 +20,7 @@ export const SystemBlock = memo(({ item }: SystemBlockProps) => {
 
   return (
     <div className='w-full my-3 flex justify-center'>
-      <div className='w-auto max-w-full bg-gray-50 dark:bg-gray-900 text-gray-600 dark:text-gray-400 px-4 py-1.5 rounded-full shadow-sm border border-gray-200 dark:border-gray-800'>
+      <div className='w-auto max-w-full bg-zinc-50 dark:bg-zinc-950/30 text-zinc-600 dark:text-zinc-400 px-4 py-1.5 rounded-full shadow-sm border border-zinc-200 dark:border-zinc-800'>
         <div className='text-xs whitespace-pre-wrap break-words'>
           <MarkdownRenderer text={text} />
         </div>

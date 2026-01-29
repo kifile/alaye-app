@@ -1287,12 +1287,14 @@ class MessageParser:
                 {
                     "type": "command",
                     "command": command_name,
-                    "content": "",  # content 由下一条消息提供，但不再在这里处理
+                    "content": "",  # content 由后续的 isMeta 消息提供
                     "args": command_args or "",
                     "uuid": message_uuid,
                 }
             ],
         }
+        # 标记这是一个 command 消息，用于后续 processor 中的合并逻辑
+        converted_message["isCommand"] = True
 
         logger.debug(
             f"Converted command message | "

@@ -1049,6 +1049,173 @@ class TestMessageProcessor:
         """测试空 dict"""
         assert processor._is_tool_use_item({}) is False
 
+    # ========== 测试 _merge_meta_to_command ==========
+
+    def test_merge_meta_to_command_success(self, processor):
+        """测试成功合并 isMeta 消息到 command"""
+        messages = [
+            StandardMessage(
+                type="user",
+                subtype=None,
+                uuid="cmd-uuid",
+                uuids=[],
+                raw_message={"isCommand": True},
+                meta=MessageMeta(
+                    drop=False,
+                    extra={"isCommand": True},
+                ),
+                message=StandardMessageContent(
+                    role="user",
+                    content=[
+                        {
+                            "type": "command",
+                            "command": "/test",
+                            "content": "",  # 初始为空
+                            "args": "",
+                        }
+                    ],
+                ),
+                timestamp="2024-01-01T10:00:00Z",
+                parentToolUseID=None,
+            ),
+            StandardMessage(
+                type="user",
+                subtype=None,
+                uuid="meta-uuid",
+                uuids=[],
+                raw_message={"isMeta": True},
+                meta=MessageMeta(
+                    drop=False,
+                    extra={"isMeta": True},
+                ),
+                message=StandardMessageContent(
+                    role="user",
+                    content=[{"type": "text", "text": "Command output content"}],
+                ),
+                timestamp="2024-01-01T10:00:01Z",
+                parentToolUseID=None,
+            ),
+        ]
+
+        result = processor._merge_meta_to_command(messages)
+
+        # 应该返回两条消息（command 和被标记为 drop 的 isMeta）
+        assert len(result) == 2
+
+        # command 消息的 content 应该被更新
+        command_msg = result[0]
+        assert command_msg.message.content[0]["content"] == "Command output content"
+
+        # isMeta 消息应该被标记为 drop
+        meta_msg = result[1]
+        assert meta_msg.meta.drop is True
+        assert meta_msg.meta.drop_reason == "merged_into_command"
+        assert meta_msg.meta.expected_drop is True
+
+    def test_merge_meta_to_command_no_ismeta(self, processor):
+        """测试 command 后面没有 isMeta 消息"""
+        messages = [
+            StandardMessage(
+                type="user",
+                subtype=None,
+                uuid="cmd-uuid",
+                uuids=[],
+                raw_message={"isCommand": True},
+                meta=MessageMeta(
+                    drop=False,
+                    extra={"isCommand": True},
+                ),
+                message=StandardMessageContent(
+                    role="user",
+                    content=[
+                        {
+                            "type": "command",
+                            "command": "/test",
+                            "content": "",
+                            "args": "",
+                        }
+                    ],
+                ),
+                timestamp="2024-01-01T10:00:00Z",
+                parentToolUseID=None,
+            ),
+            StandardMessage(
+                type="user",
+                subtype=None,
+                uuid="normal-uuid",
+                uuids=[],
+                raw_message={},
+                meta=MessageMeta(drop=False),
+                message=StandardMessageContent(
+                    role="user",
+                    content=[{"type": "text", "text": "Normal message"}],
+                ),
+                timestamp="2024-01-01T10:00:01Z",
+                parentToolUseID=None,
+            ),
+        ]
+
+        result = processor._merge_meta_to_command(messages)
+
+        # 应该返回两条消息，且 content 都没有被修改
+        assert len(result) == 2
+        assert result[0].message.content[0]["content"] == ""
+        assert result[1].message.content[0]["text"] == "Normal message"
+
+    def test_merge_meta_to_command_ismeta_already_dropped(self, processor):
+        """测试 isMeta 消息已经被 drop 的情况"""
+        messages = [
+            StandardMessage(
+                type="user",
+                subtype=None,
+                uuid="cmd-uuid",
+                uuids=[],
+                raw_message={"isCommand": True},
+                meta=MessageMeta(
+                    drop=False,
+                    extra={"isCommand": True},
+                ),
+                message=StandardMessageContent(
+                    role="user",
+                    content=[
+                        {
+                            "type": "command",
+                            "command": "/test",
+                            "content": "",
+                            "args": "",
+                        }
+                    ],
+                ),
+                timestamp="2024-01-01T10:00:00Z",
+                parentToolUseID=None,
+            ),
+            StandardMessage(
+                type="user",
+                subtype=None,
+                uuid="meta-uuid",
+                uuids=[],
+                raw_message={"isMeta": True},
+                meta=MessageMeta(
+                    drop=True,
+                    drop_reason="other_reason",
+                    extra={"isMeta": True},
+                ),
+                message=StandardMessageContent(
+                    role="user",
+                    content=[{"type": "text", "text": "Meta content"}],
+                ),
+                timestamp="2024-01-01T10:00:01Z",
+                parentToolUseID=None,
+            ),
+        ]
+
+        result = processor._merge_meta_to_command(messages)
+
+        # isMeta 已经被 drop，不应该被合并
+        # 但因为 _merge_meta_to_command 会过滤 drop 的消息，所以只返回 command
+        assert len(result) == 1
+        assert result[0].message.content[0]["content"] == ""
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

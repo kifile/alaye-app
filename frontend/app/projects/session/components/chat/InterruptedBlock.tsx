@@ -19,10 +19,10 @@ export const InterruptedBlock = memo(({ text }: InterruptedBlockProps) => {
   };
 
   return (
-    <div className='my-3 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg'>
+    <div className='my-3 p-3 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800 rounded-lg'>
       <div className='flex items-center gap-2'>
-        <Ban className='h-4 w-4 text-amber-700 dark:text-amber-300 flex-shrink-0' />
-        <span className='text-sm font-medium text-amber-900 dark:text-amber-100'>
+        <Ban className='h-4 w-4 text-rose-700 dark:text-rose-300 flex-shrink-0' />
+        <span className='text-sm font-medium text-rose-900 dark:text-rose-100'>
           {getDisplayText(text)}
         </span>
       </div>
