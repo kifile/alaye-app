@@ -1,12 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
-import { Loader2, Eye, EyeOff, Check, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { useState, useEffect } from 'react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 import log from '@/lib/log';
 import { PreferenceWrapper } from './PreferenceWrapper';
 
@@ -19,16 +14,13 @@ interface InputPreferenceProps {
   placeholder?: string;
   disabled?: boolean;
   type?: 'text' | 'password' | 'email' | 'url' | 'number' | 'textarea';
-  rows?: number; // 仅对 textarea 有效
+  rows?: number;
   maxLength?: number;
   showCharacterCount?: boolean;
-  validate?: (value: string) => string | null; // 验证函数，返回错误信息或null
-  leftIcon?: React.ReactNode;
-  rightIcon?: React.ReactNode;
-  size?: 'sm' | 'default' | 'lg';
-  hasError?: boolean;
+  validate?: (value: string) => string | null;
   infoLink?: string;
-  prefix?: React.ReactNode; // 新增：Label 前缀
+  prefix?: React.ReactNode;
+  leftIcon?: React.ReactNode;
 }
 
 export function InputPreference({
@@ -44,33 +36,28 @@ export function InputPreference({
   maxLength,
   showCharacterCount = false,
   validate,
-  leftIcon,
-  rightIcon,
-  size = 'default',
-  hasError = false,
   infoLink,
   prefix,
+  leftIcon,
 }: InputPreferenceProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [localValue, setLocalValue] = useState(value);
   const [showPassword, setShowPassword] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
-  const [originalValue, setOriginalValue] = useState(value);
 
   // 同步外部value变化
   useEffect(() => {
     setLocalValue(value);
-    setOriginalValue(value);
-    if (!isEditing) {
-      setValidationError(null);
-      setSaveError(false);
-    }
-  }, [value, isEditing]);
+    setValidationError(null);
+    setSaveError(false);
+  }, [value]);
 
   // 保存配置到后端
   const saveSetting = async (newValue: string) => {
+    // 如果值没有变化，不保存
+    if (newValue === value) return;
+
     try {
       setIsSaving(true);
       setSaveError(false);
@@ -80,39 +67,24 @@ export function InputPreference({
         const error = validate(newValue);
         if (error) {
           setValidationError(error);
-          return false;
+          return;
         }
       }
       setValidationError(null);
 
-      // 调用父组件的回调
       const success = await onSettingChange(settingKey, newValue);
 
-      if (success) {
-        setSaveError(false);
-        return true;
-      } else {
+      if (!success) {
         setSaveError(true);
-        // 恢复原值
-        setLocalValue(value);
-        return false;
+        setLocalValue(value); // 恢复原值
       }
     } catch (error) {
       setSaveError(true);
       log.error(`保存输入配置失败: ${error}`);
-      // 恢复原值
-      setLocalValue(value);
-      return false;
+      setLocalValue(value); // 恢复原值
     } finally {
       setIsSaving(false);
     }
-  };
-
-  // 开始编辑
-  const startEdit = () => {
-    setIsEditing(true);
-    setOriginalValue(localValue);
-    setValidationError(null);
   };
 
   // 处理输入变化
@@ -121,169 +93,84 @@ export function InputPreference({
     setValidationError(null);
   };
 
-  // 保存编辑
-  const saveEdit = async () => {
-    if (!isEditing) return;
-
-    // 验证输入
-    if (validate) {
-      const error = validate(localValue);
-      if (error) {
-        setValidationError(error);
-        return;
-      }
+  // 处理失焦保存
+  const handleBlur = () => {
+    if (!validationError) {
+      saveSetting(localValue);
     }
-
-    const success = await saveSetting(localValue);
-    if (success) {
-      setIsEditing(false);
-    }
-  };
-
-  // 取消编辑
-  const cancelEdit = () => {
-    if (!isEditing) return;
-
-    setLocalValue(originalValue);
-    setValidationError(null);
-    setIsEditing(false);
   };
 
   // 处理按键事件
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (isEditing) {
-      if (e.key === 'Enter' && type !== 'textarea') {
-        e.preventDefault();
-        saveEdit();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        cancelEdit();
-      }
-    } else {
-      // 非编辑状态下，Enter 开始编辑
-      if (e.key === 'Enter' && type !== 'textarea') {
-        e.preventDefault();
-        startEdit();
-      }
+    if (e.key === 'Enter' && type !== 'textarea') {
+      e.preventDefault();
+      (e.target as HTMLElement).blur();
     }
-  };
-
-  // 获取输入框尺寸类
-  const getInputSize = () => {
-    switch (size) {
-      case 'sm':
-        return 'text-sm px-2 py-1';
-      case 'lg':
-        return 'text-lg px-4 py-3';
-      default:
-        return 'px-3 py-2';
-    }
-  };
-
-  // 获取实际的输入类型
-  const getInputType = () => {
-    if (type === 'password') {
-      return showPassword ? 'text' : 'password';
-    }
-    return type;
   };
 
   const inputContent = (
     <div className='relative'>
       {type === 'textarea' ? (
-        <Textarea
+        <textarea
           value={localValue}
           onChange={e => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          onFocus={isEditing ? undefined : startEdit}
+          onBlur={handleBlur}
           placeholder={placeholder}
           disabled={disabled || isSaving}
           rows={rows}
           maxLength={maxLength}
-          readOnly={!isEditing}
-          className={`${getInputSize()} resize-none ${
-            hasError || saveError ? 'border-red-500 focus:ring-red-500' : ''
-          } ${leftIcon ? 'pl-10' : ''} ${
-            isEditing ? 'pr-24' : rightIcon ? 'pr-10' : ''
-          } ${!isEditing ? 'cursor-pointer' : ''}`}
+          className={`
+            w-full rounded-[8px] bg-slate-100 px-[14px] py-[11px]
+            text-sm text-slate-900 placeholder:text-muted-foreground
+            focus:outline-none focus:ring-2 focus:ring-slate-300
+            disabled:opacity-50 disabled:cursor-not-allowed
+            resize-none
+            ${saveError ? 'ring-2 ring-red-500' : ''}
+            ${leftIcon ? 'pl-10' : ''}
+          `}
         />
       ) : (
-        <>
-          {/* 左侧图标 */}
-          {leftIcon && (
-            <div className='absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground'>
-              {leftIcon}
-            </div>
-          )}
-
-          <Input
-            type={getInputType()}
+        <div className='relative'>
+          <input
+            type={type === 'password' ? (showPassword ? 'text' : 'password') : type}
             value={localValue}
             onChange={e => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
-            onFocus={isEditing ? undefined : startEdit}
+            onBlur={handleBlur}
             placeholder={placeholder}
             disabled={disabled || isSaving}
             maxLength={maxLength}
-            readOnly={!isEditing}
-            className={`${getInputSize()} ${
-              hasError || saveError ? 'border-red-500 focus:ring-red-500' : ''
-            } ${leftIcon ? 'pl-10' : ''} ${
-              isEditing || type === 'password' ? 'pr-24' : rightIcon ? 'pr-10' : ''
-            } ${!isEditing && type !== 'password' ? 'cursor-pointer' : ''}`}
+            className={`
+              w-full rounded-[8px] bg-slate-100 px-[14px] py-[11px]
+              text-sm text-slate-900 placeholder:text-muted-foreground
+              focus:outline-none focus:ring-2 focus:ring-slate-300
+              disabled:opacity-50 disabled:cursor-not-allowed
+              ${saveError ? 'ring-2 ring-red-500' : ''}
+              ${type === 'password' && !isSaving ? 'pr-10' : ''}
+              ${leftIcon ? 'pl-10' : ''}
+            `}
           />
-
-          {/* 右侧图标区域 */}
-          {!isEditing && type !== 'password' && (
-            <div className='absolute right-3 top-1/2 transform -translate-y-1/2'>
-              {rightIcon && !isSaving && rightIcon}
-              {isSaving && (
-                <Loader2 className='w-4 h-4 animate-spin text-muted-foreground' />
-              )}
+          {leftIcon && (
+            <div className='absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground'>
+              {leftIcon}
             </div>
           )}
-
-          {/* 密码显示切换 */}
-          {type === 'password' && !isEditing && (
-            <div className='absolute right-3 top-1/2 transform -translate-y-1/2'>
-              <button
-                type='button'
-                onClick={() => setShowPassword(!showPassword)}
-                className='text-muted-foreground hover:text-foreground'
-                disabled={disabled || isSaving}
-              >
-                {showPassword ? (
-                  <EyeOff className='w-4 h-4' />
-                ) : (
-                  <Eye className='w-4 h-4' />
-                )}
-              </button>
+          {isSaving && (
+            <div className='absolute right-3 top-1/2 -translate-y-1/2'>
+              <Loader2 className='w-4 h-4 animate-spin text-muted-foreground' />
             </div>
           )}
-        </>
-      )}
-
-      {/* 编辑状态按钮 */}
-      {isEditing && (
-        <div className='absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center gap-1'>
-          <Button
-            onClick={saveEdit}
-            disabled={disabled || isSaving}
-            size='sm'
-            variant='outline'
-            className='h-7 px-2'
-          >
-            <Check className='w-3 h-3' />
-          </Button>
-          <Button
-            onClick={cancelEdit}
-            disabled={disabled || isSaving}
-            size='sm'
-            variant='outline'
-            className='h-7 px-2'
-          >
-            <X className='w-3 h-3' />
-          </Button>
+          {type === 'password' && !isSaving && (
+            <button
+              type='button'
+              onClick={() => setShowPassword(!showPassword)}
+              className='absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground'
+              disabled={disabled}
+            >
+              {showPassword ? <EyeOff className='w-4 h-4' /> : <Eye className='w-4 h-4' />}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -298,7 +185,7 @@ export function InputPreference({
     ) : undefined;
 
   const extraInfo = validationError ? (
-    <p className='text-xs text-yellow-600'>{validationError}</p>
+    <p className='text-xs text-red-500'>{validationError}</p>
   ) : undefined;
 
   return (

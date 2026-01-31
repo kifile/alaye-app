@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -11,12 +9,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { Loader2, Plus, Trash2, Edit2, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
-import { useTranslation } from 'react-i18next';
-import { loadComponentTranslations, getCurrentLanguage } from '@/lib/i18n';
 import log from '@/lib/log';
 import { PreferenceWrapper } from './PreferenceWrapper';
+import { useTranslation } from 'react-i18next';
+import { loadAllComponentTranslations } from '@/lib/i18n';
+
+// 编辑模式下输入框样式常量
+const EDIT_INPUT_CLASS = 'h-8 rounded-md border border-slate-200 bg-white flex items-center justify-center px-2.5';
+const EDIT_INPUT_TEXT_CLASS = 'w-full bg-transparent border-none outline-none text-[12px] text-slate-900 placeholder:text-slate-400';
+const DELETE_BUTTON_CLASS = 'shrink-0 p-1.5 text-slate-400 hover:text-red-600 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+const DISPLAY_ROW_CLASS = 'flex items-center gap-3 h-8 rounded-md bg-slate-50 px-3';
 
 interface KVPair {
   key: string;
@@ -36,16 +41,8 @@ interface KVsPreferenceProps {
   maxItems?: number;
   keyValidator?: (key: string) => string | null;
   valueValidator?: (value: string) => string | null;
-  itemHeight?: 'sm' | 'default' | 'lg';
   infoLink?: string;
-  prefix?: React.ReactNode;
 }
-
-const INPUT_SIZE_STYLES = {
-  sm: 'text-sm px-2 py-1 h-8',
-  default: 'px-3 py-2 h-10',
-  lg: 'text-lg px-4 py-3 h-12',
-} as const;
 
 export function KVsPreference({
   title,
@@ -60,12 +57,8 @@ export function KVsPreference({
   maxItems,
   keyValidator,
   valueValidator,
-  itemHeight = 'default',
   infoLink,
-  prefix,
 }: KVsPreferenceProps) {
-  loadComponentTranslations('preference', getCurrentLanguage());
-
   const { t } = useTranslation('preference');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
@@ -76,7 +69,15 @@ export function KVsPreference({
     Object.entries(value).map(([key, val]) => ({ key, value: val }))
   );
 
-  // 监听 value prop 的变化，更新内部状态
+  // Load translations on mount
+  useEffect(() => {
+    loadAllComponentTranslations('preference');
+  }, []);
+
+  // Use translated placeholders if not provided
+  const finalKeyPlaceholder = keyPlaceholder || t('kvs.keyPlaceholder');
+  const finalValuePlaceholder = valuePlaceholder || t('kvs.valuePlaceholder');
+
   useEffect(() => {
     const pairs = Object.entries(value).map(([key, val]) => ({ key, value: val }));
     setKvPairs(pairs);
@@ -85,15 +86,6 @@ export function KVsPreference({
     }
   }, [value, isEditingMode]);
 
-  // 缓存计算值
-  const inputSizeClass = INPUT_SIZE_STYLES[itemHeight];
-  const currentPairs = isEditingMode ? tempKvPairs : kvPairs;
-  const isPairsEmpty = currentPairs.length === 0;
-  const isMaxItemsReached = maxItems ? tempKvPairs.length >= maxItems : false;
-  const keyPlaceholderText = keyPlaceholder || t('kvs.keyPlaceholder');
-  const valuePlaceholderText = valuePlaceholder || t('kvs.valuePlaceholder');
-
-  // 将状态转换为对象字符串
   const convertToString = useCallback(
     (pairs: KVPair[]) => {
       const obj: Record<string, string> = {};
@@ -107,7 +99,6 @@ export function KVsPreference({
     [allowEmptyValues]
   );
 
-  // 保存配置到后端
   const saveSetting = useCallback(
     async (newValue: string) => {
       try {
@@ -132,18 +123,16 @@ export function KVsPreference({
     [onSettingChange, settingKey, t]
   );
 
-  // 进入编辑模式
   const enterEditMode = useCallback(() => {
     setTempKvPairs([...kvPairs]);
     setIsEditingMode(true);
   }, [kvPairs]);
 
-  // 取消编辑模式
   const cancelEditMode = useCallback(() => {
     setIsEditingMode(false);
+    setTempKvPairs([]);
   }, []);
 
-  // 验证所有键值对
   const validateAllPairs = useCallback((): boolean => {
     for (let i = 0; i < tempKvPairs.length; i++) {
       const pair = tempKvPairs[i];
@@ -167,7 +156,7 @@ export function KVsPreference({
       if (pair.key) {
         const isDuplicate = tempKvPairs.some((p, j) => j !== i && p.key === pair.key);
         if (isDuplicate) {
-          toast.error(`${pair.key}: ${t('kvs.duplicateKey')}`);
+          toast.error(`${pair.key}: ${t('kvs.keyExists')}`);
           return false;
         }
       }
@@ -176,7 +165,6 @@ export function KVsPreference({
     return true;
   }, [tempKvPairs, keyValidator, valueValidator, t]);
 
-  // 保存所有更改
   const handleSaveAll = useCallback(() => {
     if (!validateAllPairs()) {
       return;
@@ -184,7 +172,6 @@ export function KVsPreference({
     setShowSaveConfirm(true);
   }, [validateAllPairs]);
 
-  // 确认保存
   const confirmSaveAll = useCallback(async () => {
     const success = await saveSetting(convertToString(tempKvPairs));
 
@@ -195,21 +182,29 @@ export function KVsPreference({
     }
   }, [saveSetting, convertToString, tempKvPairs]);
 
-  // 取消保存
   const cancelSaveAll = useCallback(() => {
     setShowSaveConfirm(false);
   }, []);
 
-  // 添加新的键值对
   const addNewPair = useCallback(() => {
-    if (isMaxItemsReached) {
+    if (maxItems && tempKvPairs.length >= maxItems) {
       toast.error(t('kvs.maxItemsError', { max: maxItems }));
       return;
     }
     setTempKvPairs([...tempKvPairs, { key: '', value: '' }]);
-  }, [isMaxItemsReached, maxItems, tempKvPairs, t]);
+  }, [maxItems, tempKvPairs, t]);
 
-  // 删除键值对
+  const handleAddAndEnterEditMode = useCallback(() => {
+    if (kvPairs.length === 0) {
+      // 空状态：进入编辑模式并自动添加一个空项
+      setTempKvPairs([{ key: '', value: '' }]);
+      setIsEditingMode(true);
+    } else {
+      // 有数据：只进入编辑模式
+      enterEditMode();
+    }
+  }, [kvPairs, enterEditMode]);
+
   const deletePair = useCallback(
     (index: number) => {
       setTempKvPairs(tempKvPairs.filter((_, i) => i !== index));
@@ -217,7 +212,6 @@ export function KVsPreference({
     [tempKvPairs]
   );
 
-  // 处理输入变化
   const handleInputChange = useCallback(
     (index: number, field: keyof KVPair, inputValue: string) => {
       const newPairs = [...tempKvPairs];
@@ -227,124 +221,68 @@ export function KVsPreference({
     [tempKvPairs]
   );
 
-  // 右上角按钮区域
-  const rightElement = useMemo(() => {
-    const buttonClass = 'h-8';
-    const iconClass = 'w-3 h-3 mr-1';
+  const currentPairs = isEditingMode ? tempKvPairs : kvPairs;
+  const isMaxItemsReached = maxItems ? tempKvPairs.length >= maxItems : false;
 
+  const rightElement = useMemo(() => {
+    // 空状态：显示"添加配置项"按钮
+    if (currentPairs.length === 0 && !isEditingMode) {
+      return (
+        <Button
+          onClick={handleAddAndEnterEditMode}
+          disabled={disabled || isSaving}
+          size='sm'
+          variant='outline'
+          className='h-8 px-3 text-[12px] gap-1.5'
+        >
+          <Plus className='w-3 h-3' />
+          {t('kvs.addConfigItem')}
+        </Button>
+      );
+    }
+
+    // 编辑模式：显示"取消"和"保存"按钮
     if (isEditingMode) {
       return (
         <div className='flex items-center gap-2'>
-          <Button
-            onClick={handleSaveAll}
-            disabled={disabled || isSaving}
-            size='sm'
-            variant='default'
-            className={buttonClass}
-          >
-            <Check className={iconClass} />
-            {t('kvs.save')}
-          </Button>
           <Button
             onClick={cancelEditMode}
             disabled={disabled || isSaving}
             size='sm'
             variant='outline'
-            className={buttonClass}
+            className='h-8 px-3 text-[12px] gap-1.5'
           >
-            <X className={iconClass} />
+            <X className='w-3 h-3' />
             {t('kvs.cancel')}
+          </Button>
+          <Button
+            onClick={handleSaveAll}
+            disabled={disabled || isSaving}
+            size='sm'
+            variant='default'
+            className='h-8 px-3 text-[12px] gap-1.5 bg-slate-900 hover:bg-slate-800'
+          >
+            <Check className='w-3 h-3' />
+            {t('kvs.save')}
           </Button>
         </div>
       );
     }
 
+    // 有数据且非编辑模式：显示"编辑"按钮
     return (
       <Button
         onClick={enterEditMode}
         disabled={disabled || isSaving}
         size='sm'
         variant='outline'
-        className={buttonClass}
+        className='h-8 px-3 text-[12px] gap-1.5'
       >
-        <Edit2 className={iconClass} />
+        <Edit2 className='w-3 h-3' />
         {t('kvs.edit')}
       </Button>
     );
-  }, [
-    isEditingMode,
-    handleSaveAll,
-    cancelEditMode,
-    enterEditMode,
-    disabled,
-    isSaving,
-    t,
-  ]);
-
-  // 渲染单个列表项
-  const renderListItem = useCallback(
-    (pair: KVPair, index: number) => (
-      <div key={index} className='flex items-center gap-2'>
-        {isEditingMode ? (
-          <>
-            <Input
-              value={pair.key}
-              onChange={e => handleInputChange(index, 'key', e.target.value)}
-              placeholder={keyPlaceholderText}
-              disabled={disabled || isSaving}
-              className={`flex-1 font-mono font-medium ${inputSizeClass}`}
-              style={{
-                fontFamily:
-                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-              }}
-            />
-            <Input
-              value={pair.value}
-              onChange={e => handleInputChange(index, 'value', e.target.value)}
-              placeholder={valuePlaceholderText}
-              disabled={disabled || isSaving}
-              className={`flex-1 ${inputSizeClass}`}
-            />
-            <Button
-              onClick={() => deletePair(index)}
-              disabled={disabled || isSaving}
-              size='sm'
-              variant='outline'
-              className='h-8 px-2 text-red-600 hover:text-red-700 hover:bg-red-50'
-            >
-              <Trash2 className='w-3 h-3' />
-            </Button>
-          </>
-        ) : (
-          <div className='flex-1 min-w-0'>
-            <div className='font-mono text-sm truncate'>{pair.key}</div>
-            <div className='text-xs text-muted-foreground truncate'>{pair.value}</div>
-          </div>
-        )}
-      </div>
-    ),
-    [
-      isEditingMode,
-      handleInputChange,
-      deletePair,
-      keyPlaceholderText,
-      valuePlaceholderText,
-      inputSizeClass,
-      disabled,
-      isSaving,
-    ]
-  );
-
-  // 渲染空状态
-  const renderEmptyState = useCallback(
-    () => (
-      <div className='text-center py-6 text-muted-foreground border-2 border-dashed border-gray-300 rounded-lg'>
-        <div className='text-sm'>{t('kvs.noItems')}</div>
-        <div className='text-xs mt-1'>{t('kvs.noItemsHint')}</div>
-      </div>
-    ),
-    [t]
-  );
+  }, [isEditingMode, currentPairs.length, cancelEditMode, handleSaveAll, enterEditMode, handleAddAndEnterEditMode, disabled, isSaving, t]);
 
   return (
     <>
@@ -356,34 +294,83 @@ export function KVsPreference({
         saveError={saveError}
         isSaving={isSaving}
         rightElement={rightElement}
-        className='space-y-3'
-        prefix={prefix}
       >
-        <div className='space-y-2'>
-          {currentPairs.map(renderListItem)}
+        {/* KVsPreference 不使用 children，内容独立展示 */}
+      </PreferenceWrapper>
 
-          {isPairsEmpty && renderEmptyState()}
+      {/* Content Area - Independent outside Wrapper */}
+      {currentPairs.length === 0 && !isEditingMode ? (
+        <div className='flex flex-col items-center justify-center gap-3 rounded-lg bg-slate-50 h-32 mt-2'>
+          <div className='w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center'>
+            <Plus className='w-5 h-5 text-slate-400' />
+          </div>
+          <p className='text-[13px] text-slate-500'>{t('kvs.noEnvironmentVariables')}</p>
+          <p className='text-[12px] text-slate-400'>{t('kvs.noEnvironmentVariablesHint')}</p>
+        </div>
+      ) : (
+        <div className='flex flex-col gap-1.5 mt-2'>
+          {currentPairs.map((pair, index) => (
+            <div key={index}>
+              {isEditingMode ? (
+                <div className='flex items-center gap-2'>
+                  <div className={`${EDIT_INPUT_CLASS} w-[180px]`}>
+                    <input
+                      type='text'
+                      value={pair.key}
+                      onChange={e => handleInputChange(index, 'key', e.target.value)}
+                      placeholder={finalKeyPlaceholder}
+                      disabled={disabled || isSaving}
+                      className={EDIT_INPUT_TEXT_CLASS}
+                    />
+                  </div>
+                  <div className={`${EDIT_INPUT_CLASS} flex-1`}>
+                    <input
+                      type='text'
+                      value={pair.value}
+                      onChange={e => handleInputChange(index, 'value', e.target.value)}
+                      placeholder={finalValuePlaceholder}
+                      disabled={disabled || isSaving}
+                      className={EDIT_INPUT_TEXT_CLASS}
+                    />
+                  </div>
+                  <button
+                    onClick={() => deletePair(index)}
+                    disabled={disabled || isSaving}
+                    className={DELETE_BUTTON_CLASS}
+                    title={t('kvs.delete')}
+                  >
+                    <Trash2 className='w-3.5 h-3.5' />
+                  </button>
+                </div>
+              ) : (
+                <div className={DISPLAY_ROW_CLASS}>
+                  <span className='text-[12px] font-medium font-mono text-slate-700'>{pair.key}</span>
+                  <span className='text-[12px] text-slate-500'>{pair.value}</span>
+                </div>
+              )}
+            </div>
+          ))}
 
           {isEditingMode && (
-            <Button
+            <button
               onClick={addNewPair}
               disabled={disabled || isSaving || isMaxItemsReached}
-              size='sm'
-              variant='outline'
-              className='w-full h-8'
+              className='flex items-center justify-center gap-2 h-8 rounded-md bg-slate-50 px-3 text-[12px] text-slate-400 border border-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100'
             >
-              <Plus className='w-3 h-3 mr-1' />
-              {t('kvs.add')}
-            </Button>
+              <Plus className='w-3.5 h-3.5' />
+              {t('kvs.addNewItem', { itemType: t('kvs.environmentVariable') })}
+            </button>
           )}
         </div>
-      </PreferenceWrapper>
+      )}
 
       <Dialog open={showSaveConfirm} onOpenChange={setShowSaveConfirm}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t('kvs.unsavedChanges')}</DialogTitle>
-            <DialogDescription>{t('kvs.unsavedChangesMessage')}</DialogDescription>
+            <DialogTitle>{t('kvs.confirmSaveTitle')}</DialogTitle>
+            <DialogDescription>
+              {t('kvs.confirmSaveMessage')}
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant='outline' onClick={cancelSaveAll} disabled={isSaving}>
@@ -393,10 +380,10 @@ export function KVsPreference({
               {isSaving ? (
                 <>
                   <Loader2 className='w-4 h-4 mr-2 animate-spin' />
-                  {t('kvs.save')}
+                  {t('kvs.saving')}
                 </>
               ) : (
-                t('kvs.save')
+                t('kvs.confirm')
               )}
             </Button>
           </DialogFooter>

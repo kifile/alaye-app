@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Switch } from '@/components/ui/switch';
 import { Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
 import log from '@/lib/log';
+import { toast } from 'sonner';
 import { PreferenceWrapper } from './PreferenceWrapper';
 
 interface SwitchPreferenceProps {
@@ -14,10 +13,8 @@ interface SwitchPreferenceProps {
   settingKey: string;
   onSettingChange: (key: string, value: string) => Promise<boolean>;
   disabled?: boolean;
-  size?: 'sm' | 'default' | 'lg';
-  labelPosition?: 'left' | 'right';
   infoLink?: string;
-  prefix?: React.ReactNode; // 新增：Label 前缀
+  prefix?: React.ReactNode;
 }
 
 export function SwitchPreference({
@@ -27,8 +24,6 @@ export function SwitchPreference({
   settingKey,
   onSettingChange,
   disabled = false,
-  size = 'default',
-  labelPosition = 'right',
   infoLink,
   prefix,
 }: SwitchPreferenceProps) {
@@ -57,12 +52,14 @@ export function SwitchPreference({
         setSaveError(false);
       } else {
         setSaveError(true);
+        toast.error('Failed to save switch setting');
         // 恢复原状态
         setLocalChecked(checked);
       }
     } catch (error) {
       setSaveError(true);
       log.error(`保存开关配置失败: ${error}`);
+      toast.error('Failed to save switch setting');
       // 恢复原状态
       setLocalChecked(checked);
     } finally {
@@ -70,28 +67,30 @@ export function SwitchPreference({
     }
   };
 
-  // 根据尺寸调整开关大小
-  const getSwitchSize = () => {
-    switch (size) {
-      case 'sm':
-        return 'h-3 w-7';
-      case 'lg':
-        return 'h-6 w-11';
-      default:
-        return 'h-5 w-9';
-    }
-  };
-
   const switchContent = (
     <div className='relative'>
-      <Switch
-        checked={localChecked}
-        onCheckedChange={handleSwitchChange}
-        disabled={disabled || isSaving}
-        className={`${getSwitchSize()} ${
-          saveError ? 'border-red-500 focus:ring-red-500' : ''
-        }`}
-      />
+      <div
+        onClick={() => !disabled && !isSaving && handleSwitchChange(!localChecked)}
+        className={`
+          relative inline-flex items-center
+          h-7 w-12 rounded-full
+          cursor-pointer select-none
+          transition-colors duration-200
+          ${localChecked ? 'bg-slate-900' : 'bg-slate-200'}
+          ${disabled || isSaving ? 'opacity-50 cursor-not-allowed' : ''}
+        `}
+      >
+        <span
+          className={`
+            inline-block h-[22px] w-[22px] rounded-full bg-white shadow
+            transition-transform duration-200
+            ${localChecked ? 'translate-x-6' : 'translate-x-0.5'}
+          `}
+          style={{
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+          }}
+        />
+      </div>
       {isSaving && (
         <div className='absolute inset-0 flex items-center justify-center pointer-events-none'>
           <Loader2 className='w-4 h-4 animate-spin text-primary' />
@@ -108,9 +107,6 @@ export function SwitchPreference({
       disabled={disabled}
       saveError={saveError}
       isSaving={isSaving}
-      variant='horizontal'
-      className={labelPosition === 'left' ? 'flex-row-reverse' : ''}
-      contentClassName={labelPosition === 'left' ? 'mr-4 ml-0' : 'ml-4'}
       prefix={prefix}
     >
       {switchContent}

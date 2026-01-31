@@ -21,6 +21,25 @@
     "unsavedChanges": "确认保存",
     "unsavedChangesMessage": "确定要保存所有更改吗？",
     "discardChanges": "放弃",
-    "keepEditing": "继续编辑"
+    "keepEditing": "继续编辑",
+    "addConfigItem": "添加配置项",
+    "addNewItem": "添加新的{{itemType}}",
+    "environmentVariable": "环境变量",
+    "noEnvironmentVariables": "暂无环境变量",
+    "noEnvironmentVariablesHint": "点击上方「添加配置项」按钮添加第一个环境变量",
+    "keyExists": "Key 已存在",
+    "confirmSaveTitle": "确认保存",
+    "confirmSaveMessage": "确认要保存这些更改吗？此操作将更新配置。",
+    "saving": "保存中..."
+  },
+  "fileSelect": {
+    "desktopOnly": "文件路径选择功能仅在 PyWebView 桌面应用环境中支持。在浏览器环境中，出于安全考虑，只能获取文件名而非完整路径。",
+    "selectFailed": "文件选择失败，请重试"
+  },
+  "tagsInput": {
+    "maxItemsError": "最多支持 {{max}} 个标签",
+    "duplicateError": "该标签已存在",
+    "disabled": "已禁用编辑",
+    "maxItemsReached": "已达到最大数量限制 ({{max}})"
   }
 }

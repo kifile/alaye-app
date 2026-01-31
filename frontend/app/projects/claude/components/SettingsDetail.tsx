@@ -36,9 +36,11 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
 
   // 从扁平化的 settings 中获取值（优先级：local > project > user）
   const getValue = useCallback(
-    (key: string): any => {
+    <T extends string | boolean | number | string[] | Record<string, string> = string>(
+      key: string
+    ): T | undefined => {
       if (!settingsInfo) return undefined;
-      return settingsInfo.settings[key]?.[0]; // 返回值，忽略 scope
+      return settingsInfo.settings[key]?.[0] as T;
     },
     [settingsInfo]
   );
@@ -274,6 +276,22 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
     return selectedScope === 'mixed' || !selectedScope;
   }, [selectedScope]);
 
+  // 创建带 ScopeBadgeUpdater 的 prefix 的辅助函数
+  const createScopePrefix = useCallback(
+    (settingKey: string) => {
+      if (!shouldShowScopeBadge) return undefined;
+      return (
+        <ScopeBadgeUpdater
+          currentScope={getValueWithScope(settingKey)?.[1]}
+          onScopeChange={(oldScope, newScope) =>
+            handleSettingScopeChange(settingKey, oldScope, newScope)
+          }
+        />
+      );
+    },
+    [shouldShowScopeBadge, getValueWithScope, handleSettingScopeChange]
+  );
+
   // 渲染环境变量设置（根据 selectedScope 决定显示哪个 scope 的 env）
   const renderEnvironmentSettings = () => {
     // 如果是 mixed 模式，显示所有 scope 的 env
@@ -300,10 +318,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                 title={
                   <div className='flex items-center gap-2'>
                     <Globe className='h-4 w-4 text-blue-500' />
-                    <span>{t('detail.settings.environment.user.title')}</span>
-                    <span className='text-xs text-gray-500 font-normal'>
-                      {t('detail.settings.environment.user.path')}
-                    </span>
+                    <span className='truncate'>{t('detail.settings.environment.user.title')}({t('detail.settings.environment.user.path')})</span>
                   </div>
                 }
                 description={t('detail.settings.environment.user.description')}
@@ -317,7 +332,6 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                 valuePlaceholder={t(
                   'detail.settings.environment.user.valuePlaceholder'
                 )}
-                itemHeight='sm'
                 keyValidator={key => {
                   if (!key.trim())
                     return t('detail.settings.environment.user.validation.emptyName');
@@ -337,10 +351,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                 title={
                   <div className='flex items-center gap-2'>
                     <Shield className='h-4 w-4 text-blue-600' />
-                    <span>{t('detail.settings.environment.project.title')}</span>
-                    <span className='text-xs text-gray-500 font-normal'>
-                      {t('detail.settings.environment.project.path')}
-                    </span>
+                    <span className='truncate'>{t('detail.settings.environment.project.title')}({t('detail.settings.environment.project.path')})</span>
                   </div>
                 }
                 description={t('detail.settings.environment.project.description')}
@@ -354,7 +365,6 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                 valuePlaceholder={t(
                   'detail.settings.environment.project.valuePlaceholder'
                 )}
-                itemHeight='sm'
                 keyValidator={key => {
                   if (!key.trim())
                     return t(
@@ -378,10 +388,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                 title={
                   <div className='flex items-center gap-2'>
                     <Shield className='h-4 w-4 text-green-600' />
-                    <span>{t('detail.settings.environment.local.title')}</span>
-                    <span className='text-xs text-gray-500 font-normal'>
-                      {t('detail.settings.environment.local.path')}
-                    </span>
+                    <span className='truncate'>{t('detail.settings.environment.local.title')}({t('detail.settings.environment.local.path')})</span>
                   </div>
                 }
                 description={t('detail.settings.environment.local.description')}
@@ -395,7 +402,6 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                 valuePlaceholder={t(
                   'detail.settings.environment.local.valuePlaceholder'
                 )}
-                itemHeight='sm'
                 keyValidator={key => {
                   if (!key.trim())
                     return t('detail.settings.environment.local.validation.emptyName');
@@ -428,46 +434,24 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
           <InputPreference
             title='model'
             description={t('detail.settings.basic.model.description')}
-            value={getValue('model') || ''}
+            value={(getValue<string>('model') as string) || ''}
             settingKey='model'
             onSettingChange={(key, value) => updateSetting(key, value, 'string')}
             placeholder={t('detail.settings.basic.model.placeholder')}
             disabled={isUpdating}
             leftIcon={<Bot className='w-4 h-4' />}
-            prefix={
-              shouldShowScopeBadge ? (
-                <ScopeBadgeUpdater
-                  currentScope={getValueWithScope('model')?.[1]}
-                  onScopeChange={(oldScope, newScope) =>
-                    handleSettingScopeChange('model', oldScope, newScope)
-                  }
-                />
-              ) : undefined
-            }
+            prefix={createScopePrefix('model')}
           />
 
           {/* Always Thinking Enabled */}
           <SwitchPreference
             title='alwaysThinkingEnabled'
             description={t('detail.settings.basic.alwaysThinkingEnabled.description')}
-            checked={getValue('alwaysThinkingEnabled') || false}
+            checked={(getValue<boolean>('alwaysThinkingEnabled') as boolean) ?? false}
             settingKey='alwaysThinkingEnabled'
             onSettingChange={(key, value) => updateSetting(key, value, 'boolean')}
             disabled={isUpdating}
-            prefix={
-              shouldShowScopeBadge ? (
-                <ScopeBadgeUpdater
-                  currentScope={getValueWithScope('alwaysThinkingEnabled')?.[1]}
-                  onScopeChange={(oldScope, newScope) =>
-                    handleSettingScopeChange(
-                      'alwaysThinkingEnabled',
-                      oldScope,
-                      newScope
-                    )
-                  }
-                />
-              ) : undefined
-            }
+            prefix={createScopePrefix('alwaysThinkingEnabled')}
           />
         </div>
       </div>
@@ -509,16 +493,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
               placeholder={t(
                 'detail.settings.permissions.controlList.allow.placeholder'
               )}
-              prefix={
-                shouldShowScopeBadge ? (
-                  <ScopeBadgeUpdater
-                    currentScope={getValueWithScope('permissions.allow')?.[1]}
-                    onScopeChange={(oldScope, newScope) =>
-                      handleSettingScopeChange('permissions.allow', oldScope, newScope)
-                    }
-                  />
-                ) : undefined
-              }
+              prefix={createScopePrefix('permissions.allow')}
             />
 
             <InputListPreference
@@ -528,16 +503,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
               settingKey='permissions.ask'
               onSettingChange={(key, value) => updateSetting(key, value, 'array')}
               placeholder={t('detail.settings.permissions.controlList.ask.placeholder')}
-              prefix={
-                shouldShowScopeBadge ? (
-                  <ScopeBadgeUpdater
-                    currentScope={getValueWithScope('permissions.ask')?.[1]}
-                    onScopeChange={(oldScope, newScope) =>
-                      handleSettingScopeChange('permissions.ask', oldScope, newScope)
-                    }
-                  />
-                ) : undefined
-              }
+              prefix={createScopePrefix('permissions.ask')}
             />
 
             <InputListPreference
@@ -551,16 +517,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
               placeholder={t(
                 'detail.settings.permissions.controlList.deny.placeholder'
               )}
-              prefix={
-                shouldShowScopeBadge ? (
-                  <ScopeBadgeUpdater
-                    currentScope={getValueWithScope('permissions.deny')?.[1]}
-                    onScopeChange={(oldScope, newScope) =>
-                      handleSettingScopeChange('permissions.deny', oldScope, newScope)
-                    }
-                  />
-                ) : undefined
-              }
+              prefix={createScopePrefix('permissions.deny')}
             />
           </div>
 
@@ -590,20 +547,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                 'detail.settings.permissions.modeConfig.defaultMode.notSet'
               )}
               infoLink='https://code.claude.com/docs/en/iam#permission-modes'
-              prefix={
-                shouldShowScopeBadge ? (
-                  <ScopeBadgeUpdater
-                    currentScope={getValueWithScope('permissions.defaultMode')?.[1]}
-                    onScopeChange={(oldScope, newScope) =>
-                      handleSettingScopeChange(
-                        'permissions.defaultMode',
-                        oldScope,
-                        newScope
-                      )
-                    }
-                  />
-                ) : undefined
-              }
+              prefix={createScopePrefix('permissions.defaultMode')}
             />
 
             <SelectPreference
@@ -622,22 +566,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
               emptyLabel={t(
                 'detail.settings.permissions.modeConfig.disableBypassPermissionsMode.notSet'
               )}
-              prefix={
-                shouldShowScopeBadge ? (
-                  <ScopeBadgeUpdater
-                    currentScope={
-                      getValueWithScope('permissions.disableBypassPermissionsMode')?.[1]
-                    }
-                    onScopeChange={(oldScope, newScope) =>
-                      handleSettingScopeChange(
-                        'permissions.disableBypassPermissionsMode',
-                        oldScope,
-                        newScope
-                      )
-                    }
-                  />
-                ) : undefined
-              }
+              prefix={createScopePrefix('permissions.disableBypassPermissionsMode')}
             />
           </div>
 
@@ -661,22 +590,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
               placeholder={t(
                 'detail.settings.permissions.additionalDirectories.placeholder'
               )}
-              prefix={
-                shouldShowScopeBadge ? (
-                  <ScopeBadgeUpdater
-                    currentScope={
-                      getValueWithScope('permissions.additionalDirectories')?.[1]
-                    }
-                    onScopeChange={(oldScope, newScope) =>
-                      handleSettingScopeChange(
-                        'permissions.additionalDirectories',
-                        oldScope,
-                        newScope
-                      )
-                    }
-                  />
-                ) : undefined
-              }
+              prefix={createScopePrefix('permissions.additionalDirectories')}
             />
           </div>
         </div>
@@ -686,7 +600,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
 
   // 渲染沙盒设置
   const renderSandboxSettings = () => {
-    const isSandboxEnabled = getValue('sandbox.enabled') || false;
+    const isSandboxEnabled = (getValue<boolean>('sandbox.enabled') as boolean) ?? false;
 
     return (
       <GroupWrapper
@@ -710,16 +624,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
               settingKey='sandbox.enabled'
               onSettingChange={(key, value) => updateSetting(key, value, 'boolean')}
               disabled={isUpdating}
-              prefix={
-                shouldShowScopeBadge ? (
-                  <ScopeBadgeUpdater
-                    currentScope={getValueWithScope('sandbox.enabled')?.[1]}
-                    onScopeChange={(oldScope, newScope) =>
-                      handleSettingScopeChange('sandbox.enabled', oldScope, newScope)
-                    }
-                  />
-                ) : undefined
-              }
+              prefix={createScopePrefix('sandbox.enabled')}
             />
           </div>
 
@@ -751,22 +656,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                   settingKey='sandbox.autoAllowBashIfSandboxed'
                   onSettingChange={(key, value) => updateSetting(key, value, 'boolean')}
                   disabled={isUpdating}
-                  prefix={
-                    shouldShowScopeBadge ? (
-                      <ScopeBadgeUpdater
-                        currentScope={
-                          getValueWithScope('sandbox.autoAllowBashIfSandboxed')?.[1]
-                        }
-                        onScopeChange={(oldScope, newScope) =>
-                          handleSettingScopeChange(
-                            'sandbox.autoAllowBashIfSandboxed',
-                            oldScope,
-                            newScope
-                          )
-                        }
-                      />
-                    ) : undefined
-                  }
+                  prefix={createScopePrefix('sandbox.autoAllowBashIfSandboxed')}
                 />
 
                 <SwitchPreference
@@ -778,22 +668,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                   settingKey='sandbox.allowUnsandboxedCommands'
                   onSettingChange={(key, value) => updateSetting(key, value, 'boolean')}
                   disabled={isUpdating}
-                  prefix={
-                    shouldShowScopeBadge ? (
-                      <ScopeBadgeUpdater
-                        currentScope={
-                          getValueWithScope('sandbox.allowUnsandboxedCommands')?.[1]
-                        }
-                        onScopeChange={(oldScope, newScope) =>
-                          handleSettingScopeChange(
-                            'sandbox.allowUnsandboxedCommands',
-                            oldScope,
-                            newScope
-                          )
-                        }
-                      />
-                    ) : undefined
-                  }
+                  prefix={createScopePrefix('sandbox.allowUnsandboxedCommands')}
                 />
 
                 <SwitchPreference
@@ -805,22 +680,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                   settingKey='sandbox.enableWeakerNestedSandbox'
                   onSettingChange={(key, value) => updateSetting(key, value, 'boolean')}
                   disabled={isUpdating}
-                  prefix={
-                    shouldShowScopeBadge ? (
-                      <ScopeBadgeUpdater
-                        currentScope={
-                          getValueWithScope('sandbox.enableWeakerNestedSandbox')?.[1]
-                        }
-                        onScopeChange={(oldScope, newScope) =>
-                          handleSettingScopeChange(
-                            'sandbox.enableWeakerNestedSandbox',
-                            oldScope,
-                            newScope
-                          )
-                        }
-                      />
-                    ) : undefined
-                  }
+                  prefix={createScopePrefix('sandbox.enableWeakerNestedSandbox')}
                 />
               </div>
 
@@ -857,22 +717,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                     }
                     return null;
                   }}
-                  prefix={
-                    shouldShowScopeBadge ? (
-                      <ScopeBadgeUpdater
-                        currentScope={
-                          getValueWithScope('sandbox.excludedCommands')?.[1]
-                        }
-                        onScopeChange={(oldScope, newScope) =>
-                          handleSettingScopeChange(
-                            'sandbox.excludedCommands',
-                            oldScope,
-                            newScope
-                          )
-                        }
-                      />
-                    ) : undefined
-                  }
+                  prefix={createScopePrefix('sandbox.excludedCommands')}
                 />
               </div>
 
@@ -903,24 +748,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                         updateSetting(key, value, 'boolean')
                       }
                       disabled={isUpdating}
-                      prefix={
-                        shouldShowScopeBadge ? (
-                          <ScopeBadgeUpdater
-                            currentScope={
-                              getValueWithScope(
-                                'sandbox.network.allowLocalBinding'
-                              )?.[1]
-                            }
-                            onScopeChange={(oldScope, newScope) =>
-                              handleSettingScopeChange(
-                                'sandbox.network.allowLocalBinding',
-                                oldScope,
-                                newScope
-                              )
-                            }
-                          />
-                        ) : undefined
-                      }
+                      prefix={createScopePrefix('sandbox.network.allowLocalBinding')}
                     />
                   </div>
 
@@ -944,22 +772,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                       }
                       type='number'
                       leftIcon={<Shield className='w-4 h-4' />}
-                      prefix={
-                        shouldShowScopeBadge ? (
-                          <ScopeBadgeUpdater
-                            currentScope={
-                              getValueWithScope('sandbox.network.httpProxyPort')?.[1]
-                            }
-                            onScopeChange={(oldScope, newScope) =>
-                              handleSettingScopeChange(
-                                'sandbox.network.httpProxyPort',
-                                oldScope,
-                                newScope
-                              )
-                            }
-                          />
-                        ) : undefined
-                      }
+                      prefix={createScopePrefix('sandbox.network.httpProxyPort')}
                     />
 
                     <InputPreference
@@ -976,22 +789,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                       }
                       type='number'
                       leftIcon={<Shield className='w-4 h-4' />}
-                      prefix={
-                        shouldShowScopeBadge ? (
-                          <ScopeBadgeUpdater
-                            currentScope={
-                              getValueWithScope('sandbox.network.socksProxyPort')?.[1]
-                            }
-                            onScopeChange={(oldScope, newScope) =>
-                              handleSettingScopeChange(
-                                'sandbox.network.socksProxyPort',
-                                oldScope,
-                                newScope
-                              )
-                            }
-                          />
-                        ) : undefined
-                      }
+                      prefix={createScopePrefix('sandbox.network.socksProxyPort')}
                     />
                   </div>
 
@@ -1027,22 +825,7 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                         }
                         return null;
                       }}
-                      prefix={
-                        shouldShowScopeBadge ? (
-                          <ScopeBadgeUpdater
-                            currentScope={
-                              getValueWithScope('sandbox.network.allowUnixSockets')?.[1]
-                            }
-                            onScopeChange={(oldScope, newScope) =>
-                              handleSettingScopeChange(
-                                'sandbox.network.allowUnixSockets',
-                                oldScope,
-                                newScope
-                              )
-                            }
-                          />
-                        ) : undefined
-                      }
+                      prefix={createScopePrefix('sandbox.network.allowUnixSockets')}
                     />
                   </div>
                 </div>

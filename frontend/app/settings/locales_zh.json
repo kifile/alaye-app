@@ -1,5 +1,11 @@
 {
   "title": "设置",
+  "managePreferences": "管理您的偏好设置",
+  "applicationPaths": "应用程序路径",
+  "applicationPathsDescription": "配置所需的应用程序路径",
+  "preferences": "偏好设置",
+  "preferencesDescription": "自定义您的体验",
+  "interfaceLanguage": "界面语言",
   "language": "语言",
   "languageDescription": "选择应用程序界面语言",
   "npmPath": "NPM 路径",

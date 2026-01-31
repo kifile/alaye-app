@@ -1,13 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { selectFile, type FileDialogFilter } from '@/lib/file';
 import { Loader2, FolderOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import isAbsolute from 'is-absolute';
 import { PreferenceWrapper } from './PreferenceWrapper';
+import { useTranslation } from 'react-i18next';
 
 interface FileSelectPreferenceProps {
   title: string;
@@ -38,7 +37,9 @@ export function FileSelectPreference({
   errorMessage,
   savingMessage,
   saveFailedMessage,
+  accept,
 }: FileSelectPreferenceProps) {
+  const { t } = useTranslation('preference');
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState(false);
 
@@ -59,7 +60,18 @@ export function FileSelectPreference({
 
   // 获取文件过滤器
   const getFileFilters = (): FileDialogFilter[] => {
-    return [{ name: 'File', extensions: ['*'] }];
+    if (accept) {
+      // 解析 accept 字符串，如 ".exe,.cmd" 或 "image/*"
+      if (accept.includes('/*')) {
+        // MIME 类型暂不支持，返回所有文件
+        return [{ name: 'All Files', extensions: ['*'] }];
+      } else {
+        // 扩展名列表，如 ".exe,.cmd"
+        const extensions = accept.split(',').map(ext => ext.trim().replace(/^\./, ''));
+        return [{ name: 'Files', extensions }];
+      }
+    }
+    return [{ name: 'All Files', extensions: ['*'] }];
   };
 
   // 检查路径是否为绝对路径 - 使用专门的库
@@ -94,16 +106,14 @@ export function FileSelectPreference({
           }
         } else {
           // 不是绝对路径，显示错误提示
-          toast.error(
-            '文件路径选择功能仅在 PyWebView 桌面应用环境中支持。在浏览器环境中，出于安全考虑，只能获取文件名而非完整路径。'
-          );
+          toast.error(t('fileSelect.desktopOnly'));
         }
       } else if (result.error) {
         // 显示其他错误信息
         toast.error(result.error);
       }
-    } catch (error) {
-      toast.error('文件选择失败，请重试');
+    } catch {
+      toast.error(t('fileSelect.selectFailed'));
       setSaveError(true);
     } finally {
       setIsSaving(false);
@@ -123,23 +133,27 @@ export function FileSelectPreference({
 
   const inputContent = (
     <div className='relative'>
-      <Input
-        value={displayText}
-        readOnly
+      <div
         onClick={handleInputClick}
-        placeholder={placeholder}
-        disabled={disabled || isSaving}
-        className={`cursor-pointer pr-10 ${
-          hasError || saveError ? 'border-red-500 focus:ring-red-500' : ''
-        } ${!value ? 'text-muted-foreground' : ''}`}
-      />
-
-      {/* 文件夹图标 */}
-      <div className='absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none'>
+        className={`
+          flex items-center justify-between gap-2
+          rounded-[8px] bg-slate-100 px-[14px] py-[11px]
+          cursor-pointer select-none
+          ${hasError || saveError ? 'ring-2 ring-red-500' : ''}
+          ${disabled || isSaving ? 'opacity-50 cursor-not-allowed' : ''}
+        `}
+      >
+        <span
+          className={`text-sm truncate ${
+            !value ? 'text-muted-foreground' : 'text-slate-900'
+          }`}
+        >
+          {displayText}
+        </span>
         {isSaving ? (
-          <Loader2 className='w-4 h-4 animate-spin text-muted-foreground' />
+          <Loader2 className='w-4 h-4 animate-spin text-muted-foreground flex-shrink-0' />
         ) : (
-          <FolderOpen className='w-4 h-4 text-muted-foreground' />
+          <FolderOpen className='w-4 h-4 text-muted-foreground flex-shrink-0' />
         )}
       </div>
     </div>

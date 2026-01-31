@@ -21,6 +21,25 @@
     "unsavedChanges": "Confirm Save",
     "unsavedChangesMessage": "Are you sure you want to save all changes?",
     "discardChanges": "Discard",
-    "keepEditing": "Keep Editing"
+    "keepEditing": "Keep Editing",
+    "addConfigItem": "Add Configuration Item",
+    "addNewItem": "Add New {{itemType}}",
+    "environmentVariable": "Environment Variable",
+    "noEnvironmentVariables": "No Environment Variables",
+    "noEnvironmentVariablesHint": "Click the \"Add Configuration Item\" button above to add the first environment variable",
+    "keyExists": "Key already exists",
+    "confirmSaveTitle": "Confirm Save",
+    "confirmSaveMessage": "Are you sure you want to save these changes? This will update the configuration.",
+    "saving": "Saving..."
+  },
+  "fileSelect": {
+    "desktopOnly": "File path selection is only supported in PyWebView desktop application environment. In browser environment, only filename can be obtained for security reasons.",
+    "selectFailed": "Failed to select file, please try again"
+  },
+  "tagsInput": {
+    "maxItemsError": "Maximum {{max}} tags allowed",
+    "duplicateError": "This tag already exists",
+    "disabled": "Editing disabled",
+    "maxItemsReached": "Maximum limit reached ({{max}})"
   }
 }

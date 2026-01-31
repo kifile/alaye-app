@@ -115,7 +115,7 @@
         "description": "Configure environment variables required for project runtime, such as API keys, HTTP_PROXY, proxy settings, etc.",
         "currentScope": "Currently showing environment variables for {{scope}} scope.",
         "user": {
-          "title": "User (User Global Configuration)",
+          "title": "User",
           "path": "~/.claude/settings.json",
           "description": "User global environment variables, shared by all projects",
           "keyPlaceholder": "Variable name (e.g., HTTP_PROXY)",
@@ -126,8 +126,8 @@
           }
         },
         "project": {
-          "title": "Project (Project Configuration)",
-          "path": "${PROJECT}/.claude/settings.json",
+          "title": "Project",
+          "path": "./.claude/settings.json",
           "description": "Project-level environment variables, exclusive to this project",
           "keyPlaceholder": "Variable name (e.g., API_KEY)",
           "valuePlaceholder": "Variable value (e.g., sk-xxxxxxxx)",
@@ -137,8 +137,8 @@
           }
         },
         "local": {
-          "title": "Local (Local Configuration)",
-          "path": "${PROJECT}/.claude/settings.local.json",
+          "title": "Local",
+          "path": "./.claude/settings.local.json",
           "description": "Local environment variables with highest priority, not committed to version control",
           "keyPlaceholder": "Variable name (e.g., DATABASE_URL)",
           "valuePlaceholder": "Variable value (e.g., postgresql://localhost:5432/db)",

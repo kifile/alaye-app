@@ -1,5 +1,11 @@
 {
   "title": "Settings",
+  "managePreferences": "Manage your preferences",
+  "applicationPaths": "APPLICATION PATHS",
+  "applicationPathsDescription": "Configure required application paths",
+  "preferences": "PREFERENCES",
+  "preferencesDescription": "Customize your experience",
+  "interfaceLanguage": "Interface Language",
   "language": "Language",
   "languageDescription": "Select application interface language",
   "npmPath": "NPM Path",

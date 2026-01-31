@@ -6,7 +6,7 @@ import { SelectPreference } from '@/components/preference/SelectPreference';
 import { SwitchPreference } from '@/components/preference/SwitchPreference';
 import { loadSettings, updateSetting, type LoadSettingsData } from '@/api/api';
 import { useAnalytics } from '@/components/analytics';
-import { Loader2, Settings as SettingsIcon } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import log from '@/lib/log';
 import { useTranslation } from 'react-i18next';
@@ -159,70 +159,97 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className='container mx-auto px-4 py-6 max-w-2xl'>
-      <div className='space-y-6'>
-        {/* 页面标题 */}
-        <div className='flex items-center gap-3'>
-          <SettingsIcon className='w-6 h-6 text-primary' />
-          <h1 className='text-2xl font-semibold'>{t('title')}</h1>
-          {loading && (
-            <div className='ml-auto'>
-              <Loader2 className='w-5 h-5 animate-spin text-muted-foreground' />
+    <div className='min-h-screen bg-slate-50'>
+      <div className='mx-auto max-w-208.75' style={{ padding: 24 }}>
+        <div className='flex flex-col gap-8'>
+          {/* 页面标题 */}
+          <div className='flex items-center justify-between'>
+            <div className='flex items-center gap-4'>
+              <div className='flex items-center justify-center rounded-[14px] bg-slate-900' style={{ width: 48, height: 48 }}>
+                <span className='text-[22px] font-semibold text-white'>⚙</span>
+              </div>
+              <div className='flex flex-col gap-1'>
+                <h1 className='text-[28px] font-bold text-slate-900'>{t('title')}</h1>
+                <p className='text-[14px] text-slate-500'>{t('managePreferences')}</p>
+              </div>
             </div>
-          )}
-        </div>
+            {loading && (
+              <Loader2 className='w-5 h-5 animate-spin text-muted-foreground' />
+            )}
+          </div>
 
-        {/* 配置项列表 */}
-        <div className='space-y-4'>
-          <FileSelectPreference
-            title={t('npmPath')}
-            description={getNpmDescription()}
-            value={settings['npm.path']}
-            settingKey='npm.path'
-            onSettingChange={updateSettingValue}
-            placeholder={t('selectNpmExecutable')}
-            disabled={loading}
-            hasError={!loading && settings['npm.enable']?.toLowerCase() !== 'true'}
-            errorMessage={t('toolNotConfigured')}
-            savingMessage={t('savingConfig')}
-            saveFailedMessage={t('saveFailedRetry')}
-          />
+          {/* 配置项列表 */}
+          <div className='flex flex-col gap-6'>
+            {/* Application Paths Section */}
+            <div className='flex flex-col gap-4'>
+              <div className='flex flex-col gap-1'>
+                <h2 className='text-[13px] font-semibold tracking-[1px] text-slate-900'>
+                  {t('applicationPaths')}
+                </h2>
+                <p className='text-[12px] text-slate-500'>{t('applicationPathsDescription')}</p>
+              </div>
 
-          <FileSelectPreference
-            title={t('claudePath')}
-            description={getClaudeDescription()}
-            value={settings['claude.path']}
-            settingKey='claude.path'
-            onSettingChange={updateSettingValue}
-            placeholder={t('selectClaudeApp')}
-            disabled={loading}
-            hasError={!loading && settings['claude.enable']?.toLowerCase() !== 'true'}
-            errorMessage={t('toolNotConfigured')}
-            savingMessage={t('savingConfig')}
-            saveFailedMessage={t('saveFailedRetry')}
-          />
+              <FileSelectPreference
+                title={t('npmPath')}
+                description={getNpmDescription()}
+                value={settings['npm.path']}
+                settingKey='npm.path'
+                onSettingChange={updateSettingValue}
+                placeholder={t('selectNpmExecutable')}
+                disabled={loading}
+                hasError={!loading && settings['npm.enable']?.toLowerCase() !== 'true'}
+                errorMessage={t('toolNotConfigured')}
+                savingMessage={t('savingConfig')}
+                saveFailedMessage={t('saveFailedRetry')}
+              />
 
-          <SelectPreference
-            title={t('language')}
-            description={t('languageDescription')}
-            value={settings['app.language']}
-            settingKey='app.language'
-            onSettingChange={updateSettingValue}
-            disabled={loading}
-            options={[
-              { value: 'en', label: 'English' },
-              { value: 'zh', label: '中文' },
-            ]}
-          />
+              <FileSelectPreference
+                title={t('claudePath')}
+                description={getClaudeDescription()}
+                value={settings['claude.path']}
+                settingKey='claude.path'
+                onSettingChange={updateSettingValue}
+                placeholder={t('selectClaudeApp')}
+                disabled={loading}
+                hasError={!loading && settings['claude.enable']?.toLowerCase() !== 'true'}
+                errorMessage={t('toolNotConfigured')}
+                savingMessage={t('savingConfig')}
+                saveFailedMessage={t('saveFailedRetry')}
+              />
+            </div>
 
-          <SwitchPreference
-            title={t('analytics')}
-            description={t('analyticsDescription')}
-            checked={settings['analytics.enabled']?.toLowerCase() === 'true'}
-            settingKey='analytics.enabled'
-            onSettingChange={updateSettingValue}
-            disabled={loading}
-          />
+            {/* Preferences Section */}
+            <div className='flex flex-col gap-4'>
+              <div className='flex flex-col gap-1'>
+                <h2 className='text-[13px] font-semibold tracking-[1px] text-slate-900'>
+                  {t('preferences')}
+                </h2>
+                <p className='text-[12px] text-slate-500'>{t('preferencesDescription')}</p>
+              </div>
+
+              <SelectPreference
+                title={t('interfaceLanguage')}
+                description={t('languageDescription')}
+                value={settings['app.language']}
+                settingKey='app.language'
+                onSettingChange={updateSettingValue}
+                disabled={loading}
+                options={[
+                  { value: 'en', label: 'English' },
+                  { value: 'zh', label: '中文' },
+                ]}
+              />
+
+              <SwitchPreference
+                title={t('analytics')}
+                description={t('analyticsDescription')}
+                checked={settings['analytics.enabled']?.toLowerCase() === 'true'}
+                settingKey='analytics.enabled'
+                onSettingChange={updateSettingValue}
+                disabled={loading}
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
