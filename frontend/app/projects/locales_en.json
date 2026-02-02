@@ -352,8 +352,8 @@
         "title": "Commands",
         "description": "Command tools"
       },
-      "subAgents": {
-        "title": "Sub Agents",
+      "agents": {
+        "title": "Agents",
         "description": "AI agents"
       },
       "hooks": {
@@ -387,8 +387,8 @@
       "title": "Commands",
       "description": "Create and manage custom Slash commands"
     },
-    "subAgents": {
-      "title": "Sub Agents",
+    "agents": {
+      "title": "Agents",
       "description": "Configure sub-agents with specific tools and permissions"
     },
     "hooks": {
@@ -501,7 +501,7 @@
     "deleteConfirmMessage": "Are you sure you want to delete skill \"{{name}}\"?",
     "unsavedChanges": "You have unsaved changes. Are you sure you want to switch files?"
   },
-  "subAgents": {
+  "agents": {
     "scanFailed": "Failed to scan Agents",
     "noSelection": "No Agent Selected",
     "noSelectionDesc": "Select an agent from the dropdown above to edit it, or create a new one to get started.",

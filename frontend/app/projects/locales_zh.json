@@ -352,8 +352,8 @@
         "title": "Commands",
         "description": "命令工具"
       },
-      "subAgents": {
-        "title": "Sub Agents",
+      "agents": {
+        "title": "Agents",
         "description": "AI 代理"
       },
       "hooks": {
@@ -387,8 +387,8 @@
       "title": "Commands 命令",
       "description": "创建和管理自定义 Slash 命令"
     },
-    "subAgents": {
-      "title": "Sub Agents 代理",
+    "agents": {
+      "title": "Agents 代理",
       "description": "配置具有特定工具和权限的子代理"
     },
     "hooks": {
@@ -501,7 +501,7 @@
     "deleteConfirmMessage": "确定要删除 skill \"{{name}}\" 吗？",
     "unsavedChanges": "您有未保存的更改，确定要切换文件吗？"
   },
-  "subAgents": {
+  "agents": {
     "scanFailed": "扫描 Agents 失败",
     "noSelection": "未选择代理",
     "noSelectionDesc": "从上方下拉框选择一个代理进行编辑，或创建一个新代理以开始。",

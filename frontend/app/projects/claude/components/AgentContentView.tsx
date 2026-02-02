@@ -25,7 +25,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 
-interface SubAgentContentViewProps {
+interface AgentContentViewProps {
   projectId: number;
   selectedAgent: { name: string; scope?: ConfigScope };
   currentAgent: AgentInfo | null;
@@ -33,13 +33,13 @@ interface SubAgentContentViewProps {
   onRenamed?: (newName: string, newScope?: ConfigScope) => void;
 }
 
-export function SubAgentContentView({
+export function AgentContentView({
   projectId,
   selectedAgent,
   currentAgent,
   onDeleted,
   onRenamed,
-}: SubAgentContentViewProps) {
+}: AgentContentViewProps) {
   const { t } = useTranslation('projects');
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -88,8 +88,8 @@ export function SubAgentContentView({
         setHasChanges(false);
       }
     } catch (error) {
-      console.error(t('subAgents.loadFailed') + ':', error);
-      toast.error(t('subAgents.loadFailed'), {
+      console.error(t('agents.loadFailed') + ':', error);
+      toast.error(t('agents.loadFailed'), {
         description: error instanceof Error ? error.message : t('unknownError'),
       });
       setOriginalContent('');
@@ -125,20 +125,20 @@ export function SubAgentContentView({
         setShowSaveTooltip(true);
         setTimeout(() => setShowSaveTooltip(false), 2000);
 
-        toast.success(t('subAgents.saveSuccess'), {
-          description: t('subAgents.saveSuccessDesc', { name: selectedAgent.name }),
+        toast.success(t('agents.saveSuccess'), {
+          description: t('agents.saveSuccessDesc', { name: selectedAgent.name }),
         });
 
         // 重新加载内容以获取新的 MD5
         await loadAgentContent();
       } else {
-        toast.error(t('subAgents.saveFailed'), {
+        toast.error(t('agents.saveFailed'), {
           description: response.error || t('unknownError'),
         });
       }
     } catch (error) {
-      console.error(t('subAgents.saveFailed') + ':', error);
-      toast.error(t('subAgents.saveFailed'), {
+      console.error(t('agents.saveFailed') + ':', error);
+      toast.error(t('agents.saveFailed'), {
         description: error instanceof Error ? error.message : t('networkError'),
       });
     } finally {
@@ -174,7 +174,7 @@ export function SubAgentContentView({
   const handleTitleChange = useCallback(
     async (newTitle: string, newScope?: ConfigScope) => {
       if (!projectId || !selectedAgent) {
-        throw new Error(t('subAgents.missingParams'));
+        throw new Error(t('agents.missingParams'));
       }
 
       const response = await renameClaudeMarkdownContent({
@@ -187,10 +187,10 @@ export function SubAgentContentView({
       });
 
       if (!response.success) {
-        throw new Error(response.error || t('subAgents.renameFailed'));
+        throw new Error(response.error || t('agents.renameFailed'));
       }
 
-      toast.success(t('subAgents.saveSuccess'));
+      toast.success(t('agents.saveSuccess'));
 
       // 通知父组件重命名成功，传递新的 name 和 scope
       onRenamed?.(newTitle, newScope || currentAgent?.scope);
@@ -211,19 +211,19 @@ export function SubAgentContentView({
       });
 
       if (response.success) {
-        toast.success(t('subAgents.deleteSuccess'), {
-          description: t('subAgents.deleteSuccessDesc', { name: selectedAgent.name }),
+        toast.success(t('agents.deleteSuccess'), {
+          description: t('agents.deleteSuccessDesc', { name: selectedAgent.name }),
         });
 
         onDeleted();
       } else {
-        toast.error(t('subAgents.deleteFailed'), {
+        toast.error(t('agents.deleteFailed'), {
           description: response.error || t('unknownError'),
         });
       }
     } catch (error) {
       console.error('Delete agent error:', error);
-      toast.error(t('subAgents.deleteFailed'), {
+      toast.error(t('agents.deleteFailed'), {
         description: error instanceof Error ? error.message : t('networkError'),
       });
     }
@@ -276,7 +276,7 @@ export function SubAgentContentView({
         headerInfo={
           currentAgent?.last_modified_str && (
             <span>
-              {t('subAgents.lastModified')}: {currentAgent.last_modified_str}
+              {t('agents.lastModified')}: {currentAgent.last_modified_str}
             </span>
           )
         }
@@ -289,7 +289,7 @@ export function SubAgentContentView({
                 size='sm'
                 onClick={handleGoToPlugin}
                 className='text-blue-600 hover:text-blue-700 hover:bg-blue-50'
-                title={t('subAgents.goToPlugin')}
+                title={t('agents.goToPlugin')}
               >
                 <Store className='h-4 w-4' />
               </Button>
@@ -301,7 +301,7 @@ export function SubAgentContentView({
                 size='sm'
                 onClick={() => setShowDeleteDialog(true)}
                 className='text-red-600 hover:text-red-700 hover:bg-red-50'
-                title={t('subAgents.delete')}
+                title={t('agents.delete')}
               >
                 <Trash2 className='h-4 w-4' />
               </Button>
@@ -317,9 +317,9 @@ export function SubAgentContentView({
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>{t('subAgents.deleteConfirm')}</AlertDialogTitle>
+              <AlertDialogTitle>{t('agents.deleteConfirm')}</AlertDialogTitle>
               <AlertDialogDescription>
-                {t('subAgents.deleteConfirmMessage', { name: selectedAgent.name })}
+                {t('agents.deleteConfirmMessage', { name: selectedAgent.name })}
                 {currentAgent?.scope && (
                   <span className='ml-2'>
                     (
@@ -332,12 +332,12 @@ export function SubAgentContentView({
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>{t('subAgents.cancel')}</AlertDialogCancel>
+              <AlertDialogCancel>{t('agents.cancel')}</AlertDialogCancel>
               <AlertDialogAction
                 onClick={handleDeleteAgent}
                 className='bg-red-600 hover:bg-red-700'
               >
-                {t('subAgents.delete')}
+                {t('agents.delete')}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

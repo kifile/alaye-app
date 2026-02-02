@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useDetailHeader } from '../context/DetailHeaderContext';
 import { EmptyView } from '@/components/EmptyView';
 import { ClaudeToolSelectBar, ToolGroup } from './ClaudeToolSelectBar';
-import { SubAgentContentView } from './SubAgentContentView';
+import { AgentContentView } from './AgentContentView';
 import { scanClaudeAgents, saveClaudeMarkdownContent } from '@/api/api';
 import { ConfigScope, AgentInfo } from '@/api/types';
 import { useTranslation } from 'react-i18next';
@@ -87,11 +87,11 @@ function LoadingState({ message }: { message: string }) {
 
 type ViewMode = 'select' | 'edit';
 
-interface SubAgentsDetailProps {
+interface AgentsDetailProps {
   projectId: number;
 }
 
-export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
+export function AgentsDetail({ projectId }: AgentsDetailProps) {
   const { t } = useTranslation('projects');
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -184,7 +184,7 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
           }
         }
       } catch (error) {
-        console.error(t('subAgents.scanFailed') + ':', error);
+        console.error(t('agents.scanFailed') + ':', error);
       } finally {
         setIsLoading(false);
         setIsInitialLoaded(true);
@@ -240,8 +240,8 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
         });
 
         if (response.success) {
-          toast.success(t('subAgents.createSuccess'), {
-            description: t('subAgents.createSuccessDesc', { name }),
+          toast.success(t('agents.createSuccess'), {
+            description: t('agents.createSuccessDesc', { name }),
           });
           // 关闭 Popover
           setNewPopoverOpen(false);
@@ -251,13 +251,13 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
           // 重新扫描列表
           scanAgentsList({ name: name.trim(), scope });
         } else {
-          toast.error(t('subAgents.createFailed'), {
+          toast.error(t('agents.createFailed'), {
             description: response.error || t('unknownError'),
           });
         }
       } catch (error) {
         console.error('Create agent error:', error);
-        toast.error(t('subAgents.createFailed'), {
+        toast.error(t('agents.createFailed'), {
           description: error instanceof Error ? error.message : t('networkError'),
         });
       }
@@ -303,7 +303,7 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
   return (
     <div className='p-4 flex flex-col h-full'>
       {/* 加载状态 */}
-      {isLoading && <LoadingState message={t('subAgents.loading')} />}
+      {isLoading && <LoadingState message={t('agents.loading')} />}
 
       {/* 视图内容 */}
       {!isLoading && (
@@ -325,7 +325,7 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
 
               {/* 编辑代理内容 */}
               <div className='flex-1 min-h-0'>
-                <SubAgentContentView
+                <AgentContentView
                   projectId={projectId}
                   selectedAgent={selectedAgent}
                   currentAgent={currentAgent}
@@ -355,18 +355,18 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
               {currentScope === 'plugin' ? (
                 <EmptyView
                   icon={<Bot />}
-                  title={t('subAgents.pluginScopeTitle')}
-                  description={t('subAgents.pluginScopeDesc')}
-                  actionLabel={t('subAgents.goToPlugins')}
+                  title={t('agents.pluginScopeTitle')}
+                  description={t('agents.pluginScopeDesc')}
+                  actionLabel={t('agents.goToPlugins')}
                   onAction={handleGoToPlugins}
                   actionIcon={<ExternalLink className='h-4 w-4' />}
                 />
               ) : (
                 <EmptyView
                   icon={<Bot />}
-                  title={t('subAgents.noSelection')}
-                  description={t('subAgents.noSelectionDesc')}
-                  actionLabel={t('subAgents.createNew')}
+                  title={t('agents.noSelection')}
+                  description={t('agents.noSelectionDesc')}
+                  actionLabel={t('agents.createNew')}
                   onAction={handleOpenNewPopover}
                   actionIcon={<Plus className='h-4 w-4' />}
                 />

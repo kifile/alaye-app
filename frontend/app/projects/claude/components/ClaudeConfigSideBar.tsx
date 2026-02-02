@@ -18,7 +18,7 @@ type ConfigSection =
   | 'mcpServers'
   | 'lspServers'
   | 'commands'
-  | 'subAgents'
+  | 'agents'
   | 'hooks'
   | 'skills'
   | 'settings';
@@ -58,10 +58,10 @@ export function ClaudeConfigSideBar({
       color: 'text-green-600 bg-green-100 border-green-200',
     },
     {
-      key: 'subAgents' as const,
-      title: t('sidebar.sections.subAgents.title'),
+      key: 'agents' as const,
+      title: t('sidebar.sections.agents.title'),
       icon: <Bot className='h-3 w-3' />,
-      description: t('sidebar.sections.subAgents.description'),
+      description: t('sidebar.sections.agents.description'),
       color: 'text-purple-600 bg-purple-100 border-purple-200',
     },
     {

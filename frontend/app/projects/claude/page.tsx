@@ -13,7 +13,7 @@ import { DetailHeaderProvider } from './context/DetailHeaderContext';
 import { MemoryDetail } from './components/MemoryDetail';
 import { McpServersDetail } from './components/McpServersDetail';
 import { CommandsDetail } from './components/CommandsDetail';
-import { SubAgentsDetail } from './components/SubAgentsDetail';
+import { AgentsDetail } from './components/AgentsDetail';
 import { HooksDetail } from './components/HooksDetail';
 import { SkillsDetail } from './components/SkillsDetail';
 import { SettingsDetail } from './components/SettingsDetail';
@@ -29,7 +29,7 @@ type ConfigSection =
   | 'mcpServers'
   | 'lspServers'
   | 'commands'
-  | 'subAgents'
+  | 'agents'
   | 'hooks'
   | 'skills'
   | 'settings';
@@ -155,8 +155,8 @@ function ProjectDetailPageContent() {
         return <LspServersDetail projectId={currentProjectId} />;
       case 'commands':
         return <CommandsDetail projectId={currentProjectId} />;
-      case 'subAgents':
-        return <SubAgentsDetail projectId={currentProjectId} />;
+      case 'agents':
+        return <AgentsDetail projectId={currentProjectId} />;
       case 'hooks':
         return <HooksDetail projectId={currentProjectId} />;
       case 'skills':

@@ -20,7 +20,7 @@ type ConfigSection =
   | 'mcpServers'
   | 'lspServers'
   | 'commands'
-  | 'subAgents'
+  | 'agents'
   | 'hooks'
   | 'skills'
   | 'plugins'
@@ -85,9 +85,9 @@ export function DetailHeader({
         icon: <Terminal className='h-4 w-4' />,
         doc: 'https://code.claude.com/docs/en/slash-commands',
       },
-      subAgents: {
-        title: t('header.subAgents.title'),
-        description: t('header.subAgents.description'),
+      agents: {
+        title: t('header.agents.title'),
+        description: t('header.agents.description'),
         icon: <Bot className='h-4 w-4' />,
         doc: 'https://code.claude.com/docs/en/sub-agents',
       },
