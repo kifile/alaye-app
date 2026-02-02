@@ -14,16 +14,7 @@ import { ConfigScope as ConfigScopeEnum } from '@/api/types';
 import { MarkdownEditor } from '@/components/editor';
 import { ClaudeEditorTitle } from './ClaudeEditorTitle';
 import { Button } from '@/components/ui/button';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 interface CommandContentViewProps {
   projectId: number;
@@ -272,14 +263,6 @@ export function CommandContentView({
         isSaving={isSaving}
         hasChanges={hasChanges}
         showSaveTooltip={showSaveTooltip}
-        icon={<Terminal className='h-4 w-4 text-gray-500' />}
-        headerInfo={
-          currentCommand?.last_modified_str && (
-            <span>
-              {t('commands.lastModified')}: {currentCommand.last_modified_str}
-            </span>
-          )
-        }
         toolbarActions={
           <>
             {/* Plugin scope 时显示跳转按钮 */}
@@ -296,53 +279,61 @@ export function CommandContentView({
             )}
             {/* 非只读模式时显示删除按钮 */}
             {!isReadOnly && (
-              <Button
-                variant='ghost'
-                size='sm'
-                onClick={() => setShowDeleteDialog(true)}
-                className='text-red-600 hover:text-red-700 hover:bg-red-50'
-                title={t('commands.delete')}
-              >
-                <Trash2 className='h-4 w-4' />
-              </Button>
+              <Popover open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    className='text-red-600 hover:text-red-700 hover:bg-red-50'
+                    title={t('commands.delete')}
+                  >
+                    <Trash2 className='h-4 w-4' />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className='w-80 p-4' align='end'>
+                  <div className='space-y-4'>
+                    <div>
+                      <h4 className='font-medium'>{t('commands.deleteConfirm')}</h4>
+                      <p className='text-sm text-muted-foreground mt-2'>
+                        {t('commands.deleteConfirmMessage', {
+                          name: selectedCommand.name,
+                        })}
+                        {currentCommand?.scope && (
+                          <span className='ml-2'>
+                            (
+                            <span className='text-xs bg-gray-100 px-2 py-1 rounded'>
+                              {currentCommand.scope.toUpperCase()}
+                            </span>
+                            )
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className='flex justify-end gap-2'>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={() => setShowDeleteDialog(false)}
+                      >
+                        {t('commands.cancel')}
+                      </Button>
+                      <Button
+                        variant='destructive'
+                        size='sm'
+                        onClick={handleDeleteCommand}
+                      >
+                        {t('commands.delete')}
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
           </>
         }
         className='flex-1 flex flex-col'
         readonly={isReadOnly}
       />
-
-      {/* 删除确认对话框 - 只在非只读模式下显示 */}
-      {!isReadOnly && (
-        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{t('commands.deleteConfirm')}</AlertDialogTitle>
-              <AlertDialogDescription>
-                {t('commands.deleteConfirmMessage', { name: selectedCommand.name })}
-                {currentCommand?.scope && (
-                  <span className='ml-2'>
-                    (
-                    <span className='text-xs bg-gray-100 px-2 py-1 rounded'>
-                      {currentCommand.scope.toUpperCase()}
-                    </span>
-                    )
-                  </span>
-                )}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>{t('commands.cancel')}</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDeleteCommand}
-                className='bg-red-600 hover:bg-red-700'
-              >
-                {t('commands.delete')}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
     </div>
   );
 }

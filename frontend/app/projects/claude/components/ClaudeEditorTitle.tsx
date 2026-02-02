@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Edit, Check, X } from 'lucide-react';
+import { Edit, Check, X, Home, Folder, User, Puzzle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,6 +11,14 @@ import {
 } from '@/components/ui/select';
 import { ConfigScope } from '@/api/types';
 import { ScopeBadge } from './ScopeBadge';
+
+// 与 ScopeBadge.tsx 保持一致的图标配置
+const SCOPE_ICONS: Record<ConfigScope, React.ComponentType<{ className?: string }>> = {
+  user: Home,
+  project: Folder,
+  local: User,
+  plugin: Puzzle,
+};
 
 export interface ClaudeEditorTitleProps {
   /** 标题文本 */
@@ -142,14 +150,30 @@ export function ClaudeEditorTitle({
               }}
             >
               <SelectTrigger className='h-7 w-28 text-xs'>
-                <SelectValue placeholder={t('detail.editorTitle.scope')} />
+                <SelectValue placeholder={t('detail.editorTitle.scope')}>
+                  {editingScope && (
+                    <div className='flex items-center gap-1'>
+                      {(() => {
+                        const Icon = SCOPE_ICONS[editingScope] || SCOPE_ICONS.project;
+                        return <Icon className='h-3 w-3' />;
+                      })()}
+                      <span>{t(`detail.editorTitle.scope_${editingScope}`)}</span>
+                    </div>
+                  )}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {scopes.map(s => (
-                  <SelectItem key={s} value={s} className='text-xs'>
-                    {t(`detail.editorTitle.scope_${s}`)}
-                  </SelectItem>
-                ))}
+                {scopes.map(s => {
+                  const Icon = SCOPE_ICONS[s] || SCOPE_ICONS.project;
+                  return (
+                    <SelectItem key={s} value={s} className='text-xs'>
+                      <div className='flex items-center gap-2'>
+                        <Icon className='h-4 w-4' />
+                        <span>{t(`detail.editorTitle.scope_${s}`)}</span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           )}
@@ -205,8 +229,8 @@ export function ClaudeEditorTitle({
     }
 
     return (
-      <div className='flex items-center gap-2'>
-        {scope && <ScopeBadge scope={scope} showLabel={true} className='text-xs' />}
+      <div className='flex items-center gap-0.5'>
+        {scope && <ScopeBadge scope={scope} showLabel={false} className='text-xs' />}
         <span className={`text-sm font-medium text-gray-700 ${className}`}>
           {title}
         </span>

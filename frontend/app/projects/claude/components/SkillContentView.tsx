@@ -14,21 +14,12 @@ import {
   moveSkillFile,
   renameSkillFile,
 } from '@/api/api';
-import type { ConfigScope, SkillInfo } from '@/api/types';
+import type { ConfigScope, FileType, SkillInfo } from '@/api/types';
 import { ConfigScope as ConfigScopeEnum } from '@/api/types';
 import { MarkdownEditor } from '@/components/editor';
 import { ClaudeEditorTitle } from './ClaudeEditorTitle';
 import { Button } from '@/components/ui/button';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { type FileTreeNode } from '@/components/editor/EditorFileTree';
 
 interface SkillContentViewProps {
@@ -232,73 +223,37 @@ export function SkillContentView({
     [projectId, selectedSkill, currentSkill, t, onRenamed]
   );
 
-  // 删除当前文件
+  // 删除整个 skill
   const handleDeleteSkill = useCallback(async () => {
-    if (!projectId || !selectedSkill || !selectedFile) return;
+    if (!projectId || !selectedSkill) return;
 
     try {
-      // 检查是否删除主文件 SKILL.md
-      const isMainFile =
-        selectedFile === 'SKILL.md' || selectedFile.endsWith('/SKILL.md');
+      const response = await deleteClaudeMarkdownContent({
+        project_id: projectId,
+        content_type: 'skill',
+        name: selectedSkill.name,
+        scope: currentSkill?.scope,
+      });
 
-      if (isMainFile) {
-        // 删除主文件时，删除整个 skill
-        const response = await deleteClaudeMarkdownContent({
-          project_id: projectId,
-          content_type: 'skill',
-          name: selectedSkill.name,
-          scope: currentSkill?.scope,
+      if (response.success) {
+        toast.success(t('skills.deleteSuccess'), {
+          description: t('skills.deleteSuccessDesc', { name: selectedSkill.name }),
         });
 
-        if (response.success) {
-          toast.success(t('skills.deleteSuccess'), {
-            description: t('skills.deleteSuccessDesc', { name: selectedSkill.name }),
-          });
-
-          // 通知父组件 skill 已删除
-          onDeleted();
-        } else {
-          toast.error(t('skills.deleteFailed'), {
-            description: response.error || t('unknownError'),
-          });
-        }
+        // 通知父组件 skill 已删除
+        onDeleted();
       } else {
-        // 删除单个文件
-        const response = await deleteSkillFile({
-          project_id: projectId,
-          name: selectedSkill.name,
-          scope: currentSkill?.scope,
-          file_path: selectedFile,
+        toast.error(t('skills.deleteFailed'), {
+          description: response.error || t('unknownError'),
         });
-
-        if (response.success) {
-          toast.success(t('skills.deleteSuccess'), {
-            description: `File "${selectedFile}" has been deleted`,
-          });
-
-          // 重新加载文件树
-          await loadFileTree();
-        } else {
-          toast.error(t('skills.deleteFailed'), {
-            description: response.error || t('unknownError'),
-          });
-        }
       }
     } catch (error) {
-      console.error('Delete file error:', error);
+      console.error('Delete skill error:', error);
       toast.error(t('skills.deleteFailed'), {
         description: error instanceof Error ? error.message : t('networkError'),
       });
     }
-  }, [
-    projectId,
-    selectedSkill,
-    currentSkill,
-    selectedFile,
-    loadFileTree,
-    t,
-    onDeleted,
-  ]);
+  }, [projectId, selectedSkill, currentSkill, t, onDeleted]);
 
   // 跳转到插件页面
   const handleGoToPlugin = useCallback(() => {
@@ -341,7 +296,7 @@ export function SkillContentView({
           name: selectedSkill.name,
           parent_path: parentPath,
           new_name: name,
-          file_type: type,
+          file_type: type as FileType,
           scope: selectedSkill.scope,
         });
 
@@ -511,12 +466,9 @@ export function SkillContentView({
         isSaving={isSaving}
         hasChanges={hasChanges}
         showSaveTooltip={showSaveTooltip}
-        icon={<BookOpen className='h-4 w-4 text-gray-500' />}
         headerInfo={
-          currentSkill?.last_modified_str && (
-            <span>
-              {t('skills.lastModified')}: {currentSkill.last_modified_str}
-            </span>
+          selectedFile && (
+            <span className='text-sm text-muted-foreground'>{selectedFile}</span>
           )
         }
         toolbarActions={
@@ -535,15 +487,53 @@ export function SkillContentView({
             )}
             {/* 非只读模式时显示删除按钮 */}
             {!isReadOnly && (
-              <Button
-                variant='ghost'
-                size='sm'
-                onClick={() => setShowDeleteDialog(true)}
-                className='text-red-600 hover:text-red-700 hover:bg-red-50'
-                title={t('skills.delete')}
-              >
-                <Trash2 className='h-4 w-4' />
-              </Button>
+              <Popover open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    className='text-red-600 hover:text-red-700 hover:bg-red-50'
+                    title={t('skills.delete')}
+                  >
+                    <Trash2 className='h-4 w-4' />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className='w-80 p-4' align='end'>
+                  <div className='space-y-4'>
+                    <div>
+                      <h4 className='font-medium'>{t('skills.deleteConfirm')}</h4>
+                      <p className='text-sm text-muted-foreground mt-2'>
+                        {t('skills.deleteConfirmMessage', { name: selectedSkill.name })}
+                        {currentSkill?.scope && (
+                          <span className='ml-2'>
+                            (
+                            <span className='text-xs bg-gray-100 px-2 py-1 rounded'>
+                              {currentSkill.scope.toUpperCase()}
+                            </span>
+                            )
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className='flex justify-end gap-2'>
+                      <Button
+                        variant='outline'
+                        size='sm'
+                        onClick={() => setShowDeleteDialog(false)}
+                      >
+                        {t('skills.cancel')}
+                      </Button>
+                      <Button
+                        variant='destructive'
+                        size='sm'
+                        onClick={handleDeleteSkill}
+                      >
+                        {t('skills.delete')}
+                      </Button>
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
           </>
         }
@@ -557,38 +547,6 @@ export function SkillContentView({
         onFileRename={handleFileRename}
         onFileMove={handleFileMove}
       />
-
-      {/* 删除确认对话框 - 只在非只读模式下显示 */}
-      {!isReadOnly && (
-        <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{t('skills.deleteConfirm')}</AlertDialogTitle>
-              <AlertDialogDescription>
-                {t('skills.deleteConfirmMessage', { name: selectedSkill.name })}
-                {currentSkill?.scope && (
-                  <span className='ml-2'>
-                    (
-                    <span className='text-xs bg-gray-100 px-2 py-1 rounded'>
-                      {currentSkill.scope.toUpperCase()}
-                    </span>
-                    )
-                  </span>
-                )}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>{t('skills.cancel')}</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={handleDeleteSkill}
-                className='bg-red-600 hover:bg-red-700'
-              >
-                {t('skills.delete')}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
     </div>
   );
 }
