@@ -5,10 +5,10 @@ import { useDetailHeader } from '../context/DetailHeaderContext';
 import { EmptyView } from '@/components/EmptyView';
 import { ClaudeToolSelectBar, ToolGroup } from './ClaudeToolSelectBar';
 import { CommandContentView } from './CommandContentView';
-import { NewCommandContentView } from './NewCommandContentView';
-import { scanClaudeCommands } from '@/api/api';
+import { scanClaudeCommands, saveClaudeMarkdownContent } from '@/api/api';
 import { ConfigScope, CommandInfo } from '@/api/types';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 // 分组函数：按照 scope + pluginName 分组
 function groupCommandsByScope(
@@ -85,7 +85,7 @@ function LoadingState({ message }: { message: string }) {
   );
 }
 
-type ViewMode = 'select' | 'new' | 'edit';
+type ViewMode = 'select' | 'edit';
 
 interface CommandsDetailProps {
   projectId: number;
@@ -99,6 +99,9 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
 
   // 视图模式
   const [viewMode, setViewMode] = useState<ViewMode>('select');
+
+  // Popover 控制状态
+  const [newPopoverOpen, setNewPopoverOpen] = useState<boolean>(false);
 
   // 选中的命令
   const [selectedCommand, setSelectedCommand] = useState<{
@@ -231,20 +234,42 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
     setViewMode('edit');
   }, []);
 
-  // 新建命令 - 切换到新建模式
-  const handleNewCommand = useCallback(() => {
-    setViewMode('new');
-  }, []);
+  // 新建 command - 通过 Popover 创建空 command
+  const handleCreateCommand = useCallback(
+    async (name: string, scope: ConfigScope) => {
+      try {
+        const response = await saveClaudeMarkdownContent({
+          project_id: projectId,
+          content_type: 'command',
+          name: name.trim(),
+          content: '', // 内容为空
+          scope,
+        });
 
-  // 命令保存完成 - 切换到编辑模式
-  const handleCommandSaved = useCallback(
-    (name: string, scope: ConfigScope) => {
-      setSelectedCommand({ name, scope });
-      setViewMode('edit');
-      // 重新扫描列表
-      scanCommandsList();
+        if (response.success) {
+          toast.success(t('commands.createSuccess'), {
+            description: t('commands.createSuccessDesc', { name }),
+          });
+          // 关闭 Popover
+          setNewPopoverOpen(false);
+          // 选中新建的 command 并切换到编辑模式
+          setSelectedCommand({ name: name.trim(), scope });
+          setViewMode('edit');
+          // 重新扫描列表
+          scanCommandsList({ name: name.trim(), scope });
+        } else {
+          toast.error(t('commands.createFailed'), {
+            description: response.error || t('unknownError'),
+          });
+        }
+      } catch (error) {
+        console.error('Create command error:', error);
+        toast.error(t('commands.createFailed'), {
+          description: error instanceof Error ? error.message : t('networkError'),
+        });
+      }
     },
-    [scanCommandsList]
+    [projectId, t, scanCommandsList]
   );
 
   // 命令删除完成 - 切换到选择模式
@@ -264,17 +289,22 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
     [scanCommandsList]
   );
 
-  // 取消新建 - 返回选择模式
-  const handleCancelNew = useCallback(() => {
-    setViewMode(selectedCommand ? 'edit' : 'select');
-  }, [selectedCommand]);
-
   // 跳转到插件页面
   const handleGoToPlugins = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('section', 'plugins');
     router.push(`?${params.toString()}`);
   }, [router, searchParams]);
+
+  // 打开新建 Popover
+  const handleOpenNewPopover = useCallback(() => {
+    setNewPopoverOpen(true);
+  }, []);
+
+  // 处理 Popover 状态变化
+  const handlePopoverOpenChange = useCallback((open: boolean) => {
+    setNewPopoverOpen(open);
+  }, []);
 
   // 根据视图模式渲染不同内容
   return (
@@ -285,28 +315,6 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
       {/* 视图内容 */}
       {!isLoading && (
         <>
-          {viewMode === 'new' && (
-            <>
-              <div className='mb-4 flex-shrink-0'>
-                <ClaudeToolSelectBar
-                  groups={groupedCommands}
-                  selectedItem={selectedCommand}
-                  onSelectItem={handleSelectCommand}
-                  onRefresh={() => selectedCommand && scanCommandsList(selectedCommand)}
-                  onNew={handleNewCommand}
-                />
-              </div>
-              <div className='flex-1 min-h-0'>
-                <NewCommandContentView
-                  projectId={projectId}
-                  initialScope={ConfigScope.PROJECT}
-                  onSaved={handleCommandSaved}
-                  onCancelled={handleCancelNew}
-                />
-              </div>
-            </>
-          )}
-
           {viewMode === 'edit' && selectedCommand && currentCommand && (
             <>
               {/* 命令选择器 */}
@@ -316,7 +324,9 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
                   selectedItem={selectedCommand}
                   onSelectItem={handleSelectCommand}
                   onRefresh={() => selectedCommand && scanCommandsList(selectedCommand)}
-                  onNew={handleNewCommand}
+                  onCreateItem={handleCreateCommand}
+                  newPopoverOpen={newPopoverOpen}
+                  onPopoverOpenChange={handlePopoverOpenChange}
                 />
               </div>
 
@@ -342,7 +352,9 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
                   selectedItem={selectedCommand}
                   onSelectItem={handleSelectCommand}
                   onRefresh={() => selectedCommand && scanCommandsList(selectedCommand)}
-                  onNew={handleNewCommand}
+                  onCreateItem={handleCreateCommand}
+                  newPopoverOpen={newPopoverOpen}
+                  onPopoverOpenChange={handlePopoverOpenChange}
                 />
               </div>
 
@@ -362,7 +374,7 @@ export function CommandsDetail({ projectId }: CommandsDetailProps) {
                   title={t('commands.noSelection')}
                   description={t('commands.noSelectionDesc')}
                   actionLabel={t('commands.createNew')}
-                  onAction={handleNewCommand}
+                  onAction={handleOpenNewPopover}
                   actionIcon={<Plus className='h-4 w-4' />}
                 />
               )}

@@ -41,9 +41,7 @@ export function InputListPreference({
   const convertToString = useCallback(
     (list: string[]) => {
       // 当 allowEmptyValues 为 true 时，保留空值；否则过滤掉空值
-      const filteredList = allowEmptyValues
-        ? list
-        : list.filter(item => item.trim());
+      const filteredList = allowEmptyValues ? list : list.filter(item => item.trim());
       return JSON.stringify(filteredList);
     },
     [allowEmptyValues]

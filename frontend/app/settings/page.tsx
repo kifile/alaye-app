@@ -165,7 +165,10 @@ export default function SettingsPage() {
           {/* 页面标题 */}
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-4'>
-              <div className='flex items-center justify-center rounded-[14px] bg-slate-900' style={{ width: 48, height: 48 }}>
+              <div
+                className='flex items-center justify-center rounded-[14px] bg-slate-900'
+                style={{ width: 48, height: 48 }}
+              >
                 <span className='text-[22px] font-semibold text-white'>⚙</span>
               </div>
               <div className='flex flex-col gap-1'>
@@ -186,7 +189,9 @@ export default function SettingsPage() {
                 <h2 className='text-[13px] font-semibold tracking-[1px] text-slate-900'>
                   {t('applicationPaths')}
                 </h2>
-                <p className='text-[12px] text-slate-500'>{t('applicationPathsDescription')}</p>
+                <p className='text-[12px] text-slate-500'>
+                  {t('applicationPathsDescription')}
+                </p>
               </div>
 
               <FileSelectPreference
@@ -211,7 +216,9 @@ export default function SettingsPage() {
                 onSettingChange={updateSettingValue}
                 placeholder={t('selectClaudeApp')}
                 disabled={loading}
-                hasError={!loading && settings['claude.enable']?.toLowerCase() !== 'true'}
+                hasError={
+                  !loading && settings['claude.enable']?.toLowerCase() !== 'true'
+                }
                 errorMessage={t('toolNotConfigured')}
                 savingMessage={t('savingConfig')}
                 saveFailedMessage={t('saveFailedRetry')}
@@ -224,7 +231,9 @@ export default function SettingsPage() {
                 <h2 className='text-[13px] font-semibold tracking-[1px] text-slate-900'>
                   {t('preferences')}
                 </h2>
-                <p className='text-[12px] text-slate-500'>{t('preferencesDescription')}</p>
+                <p className='text-[12px] text-slate-500'>
+                  {t('preferencesDescription')}
+                </p>
               </div>
 
               <SelectPreference

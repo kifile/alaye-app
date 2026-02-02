@@ -498,7 +498,8 @@
     "cancel": "取消",
     "delete": "删除",
     "deleteConfirm": "确认删除",
-    "deleteConfirmMessage": "确定要删除 skill \"{{name}}\" 吗？"
+    "deleteConfirmMessage": "确定要删除 skill \"{{name}}\" 吗？",
+    "unsavedChanges": "您有未保存的更改，确定要切换文件吗？"
   },
   "subAgents": {
     "scanFailed": "扫描 Agents 失败",
@@ -853,7 +854,7 @@
     "agentsList": "代理列表",
     "newAgent": "新建代理",
     "groups": {
-      "user": "用户 (全局)",
+      "user": "用户",
       "project": "项目",
       "local": "本地",
       "plugin": "插件: {{name}}"

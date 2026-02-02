@@ -8,6 +8,31 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field, computed_field
 
+# ==================== 自定义异常类 ====================
+
+
+class ClaudeConfigError(Exception):
+    """Claude 配置相关异常基类"""
+
+
+class SkillNotFoundError(ClaudeConfigError):
+    """Skill 不存在异常"""
+
+
+class SkillFileNotFoundError(ClaudeConfigError):
+    """Skill 文件不存在异常"""
+
+
+class SkillPathTraversalError(ClaudeConfigError):
+    """Skill 路径遍历攻击异常"""
+
+
+class SkillOperationError(ClaudeConfigError):
+    """Skill 操作失败异常"""
+
+
+# ==================== 配置作用域枚举 ====================
+
 
 class ConfigScope(str, enum.Enum):
     """配置作用域"""
@@ -30,6 +55,13 @@ class LSPTransport(str, enum.Enum):
 
     stdio = "stdio"
     socket = "socket"
+
+
+class FileType(str, enum.Enum):
+    """文件类型枚举"""
+
+    FILE = "file"
+    DIRECTORY = "directory"
 
 
 # 支持的 Hook 事件类型
@@ -337,6 +369,27 @@ class SkillInfo(BaseModel):
             if self.last_modified
             else None
         )
+
+
+class SkillFileTreeNode(BaseModel):
+    """Skill 文件树节点"""
+
+    name: str  # 文件或文件夹名称
+    type: FileType  # 文件类型
+    path: str  # 相对于 skill 目录的路径
+    children: Optional[List["SkillFileTreeNode"]] = Field(
+        default=None, description="子节点（仅目录有）"
+    )
+    size: Optional[int] = Field(default=None, description="文件大小（字节，仅文件有）")
+    modified: Optional[datetime] = Field(
+        default=None, exclude=True, description="修改时间"
+    )
+
+    @computed_field
+    @property
+    def modified_str(self) -> Optional[str]:
+        """格式化的修改时间字符串"""
+        return self.modified.strftime("%Y-%m-%d %H:%M:%S") if self.modified else None
 
 
 class MarkdownContentDTO(BaseModel):

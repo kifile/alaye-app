@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..claude.models import (
     ConfigScope,
+    FileType,
     HookConfig,
     HookEvent,
     MCPServer,
@@ -401,6 +402,103 @@ class DeleteMarkdownContentRequest(BaseModel):
         pattern="^(memory|command|agent|hook|skill)$",
     )
     name: str = Field(..., min_length=1, description="内容名称")
+    scope: Optional[ConfigScope] = Field(None, description="配置作用域")
+
+    model_config = ConfigDict(extra="allow")
+
+
+class ListSkillContentRequest(BaseModel):
+    """列出 Skill 文件树请求模型"""
+
+    project_id: int = Field(..., description="项目ID")
+    name: str = Field(..., min_length=1, description="Skill 名称")
+    scope: Optional[ConfigScope] = Field(None, description="配置作用域")
+
+    model_config = ConfigDict(extra="allow")
+
+
+class ReadSkillFileRequest(BaseModel):
+    """读取 Skill 文件内容请求模型"""
+
+    project_id: int = Field(..., description="项目ID")
+    name: str = Field(..., min_length=1, description="Skill 名称")
+    file_path: str = Field(..., min_length=1, description="相对于 skill 目录的文件路径")
+    scope: Optional[ConfigScope] = Field(None, description="配置作用域")
+
+    model_config = ConfigDict(extra="allow")
+
+
+class UpdateSkillFileRequest(BaseModel):
+    """更新 Skill 文件内容请求模型"""
+
+    project_id: int = Field(..., description="项目ID")
+    name: str = Field(..., min_length=1, description="Skill 名称")
+    file_path: str = Field(..., min_length=1, description="相对于 skill 目录的文件路径")
+    content: str = Field(..., description="新的文件内容")
+    scope: Optional[ConfigScope] = Field(None, description="配置作用域")
+
+    model_config = ConfigDict(extra="allow")
+
+
+class DeleteSkillFileRequest(BaseModel):
+    """删除 Skill 文件请求模型"""
+
+    project_id: int = Field(..., description="项目ID")
+    name: str = Field(..., min_length=1, description="Skill 名称")
+    file_path: str = Field(
+        ..., min_length=1, description="相对于 skill 目录的文件或文件夹路径"
+    )
+    scope: Optional[ConfigScope] = Field(None, description="配置作用域")
+
+    model_config = ConfigDict(extra="allow")
+
+
+class CreateSkillFileRequest(BaseModel):
+    """创建 Skill 文件或文件夹请求模型"""
+
+    project_id: int = Field(..., description="项目ID")
+    name: str = Field(..., min_length=1, description="Skill 名称")
+    parent_path: str = Field(
+        ...,
+        min_length=0,
+        description="父目录路径（相对于 skill 目录），空字符串表示根目录",
+    )
+    new_name: str = Field(..., min_length=1, description="新文件或文件夹的名称")
+    file_type: FileType = Field(..., description="文件类型")
+    scope: Optional[ConfigScope] = Field(None, description="配置作用域")
+
+    model_config = ConfigDict(extra="allow")
+
+
+class RenameSkillFileRequest(BaseModel):
+    """重命名/移动 Skill 文件或文件夹请求模型"""
+
+    project_id: int = Field(..., description="项目ID")
+    name: str = Field(..., min_length=1, description="Skill 名称")
+    file_path: str = Field(
+        ..., min_length=1, description="相对于 skill 目录的文件或文件夹路径"
+    )
+    new_file_path: str = Field(
+        ...,
+        min_length=1,
+        description="新的文件或文件夹路径（支持路径分隔符，可包含目录）",
+    )
+    scope: Optional[ConfigScope] = Field(None, description="配置作用域")
+
+    model_config = ConfigDict(extra="allow")
+
+
+class MoveSkillFileRequest(BaseModel):
+    """移动 Skill 文件或文件夹请求模型"""
+
+    project_id: int = Field(..., description="项目ID")
+    name: str = Field(..., min_length=1, description="Skill 名称")
+    source_path: str = Field(
+        ..., min_length=1, description="源文件或文件夹路径（相对于 skill 目录）"
+    )
+    target_path: str = Field(
+        ..., min_length=1, description="目标文件夹路径（相对于 skill 目录）"
+    )
     scope: Optional[ConfigScope] = Field(None, description="配置作用域")
 
     model_config = ConfigDict(extra="allow")

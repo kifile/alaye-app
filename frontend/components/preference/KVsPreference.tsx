@@ -18,10 +18,14 @@ import { useTranslation } from 'react-i18next';
 import { loadAllComponentTranslations } from '@/lib/i18n';
 
 // 编辑模式下输入框样式常量
-const EDIT_INPUT_CLASS = 'h-8 rounded-md border border-slate-200 bg-white flex items-center justify-center px-2.5';
-const EDIT_INPUT_TEXT_CLASS = 'w-full bg-transparent border-none outline-none text-[12px] text-slate-900 placeholder:text-slate-400';
-const DELETE_BUTTON_CLASS = 'shrink-0 p-1.5 text-slate-400 hover:text-red-600 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
-const DISPLAY_ROW_CLASS = 'flex items-center gap-3 h-8 rounded-md bg-slate-50 px-3';
+const EDIT_INPUT_CLASS =
+  'h-8 rounded-md border border-slate-200 bg-white flex items-center justify-center px-2.5';
+const EDIT_INPUT_TEXT_CLASS =
+  'w-full bg-transparent border-none outline-none text-[12px] text-slate-900 placeholder:text-slate-400';
+const DELETE_BUTTON_CLASS =
+  'shrink-0 p-1.5 text-slate-400 hover:text-red-600 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
+const DISPLAY_ROW_CLASS =
+  'flex items-center gap-3 h-8 rounded-md border border-slate-200 px-3';
 
 interface KVPair {
   key: string;
@@ -282,7 +286,17 @@ export function KVsPreference({
         {t('kvs.edit')}
       </Button>
     );
-  }, [isEditingMode, currentPairs.length, cancelEditMode, handleSaveAll, enterEditMode, handleAddAndEnterEditMode, disabled, isSaving, t]);
+  }, [
+    isEditingMode,
+    currentPairs.length,
+    cancelEditMode,
+    handleSaveAll,
+    enterEditMode,
+    handleAddAndEnterEditMode,
+    disabled,
+    isSaving,
+    t,
+  ]);
 
   return (
     <>
@@ -300,12 +314,16 @@ export function KVsPreference({
 
       {/* Content Area - Independent outside Wrapper */}
       {currentPairs.length === 0 && !isEditingMode ? (
-        <div className='flex flex-col items-center justify-center gap-3 rounded-lg bg-slate-50 h-32 mt-2'>
-          <div className='w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center'>
-            <Plus className='w-5 h-5 text-slate-400' />
+        <div className='flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-slate-300 h-32 mt-2'>
+          <div className='w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center'>
+            <Plus className='w-5 h-5 text-slate-500' />
           </div>
-          <p className='text-[13px] text-slate-500'>{t('kvs.noEnvironmentVariables')}</p>
-          <p className='text-[12px] text-slate-400'>{t('kvs.noEnvironmentVariablesHint')}</p>
+          <p className='text-[13px] text-slate-600'>
+            {t('kvs.noEnvironmentVariables')}
+          </p>
+          <p className='text-[12px] text-slate-500'>
+            {t('kvs.noEnvironmentVariablesHint')}
+          </p>
         </div>
       ) : (
         <div className='flex flex-col gap-1.5 mt-2'>
@@ -344,7 +362,9 @@ export function KVsPreference({
                 </div>
               ) : (
                 <div className={DISPLAY_ROW_CLASS}>
-                  <span className='text-[12px] font-medium font-mono text-slate-700'>{pair.key}</span>
+                  <span className='text-[12px] font-medium font-mono text-slate-700'>
+                    {pair.key}
+                  </span>
                   <span className='text-[12px] text-slate-500'>{pair.value}</span>
                 </div>
               )}
@@ -368,9 +388,7 @@ export function KVsPreference({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{t('kvs.confirmSaveTitle')}</DialogTitle>
-            <DialogDescription>
-              {t('kvs.confirmSaveMessage')}
-            </DialogDescription>
+            <DialogDescription>{t('kvs.confirmSaveMessage')}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant='outline' onClick={cancelSaveAll} disabled={isSaving}>

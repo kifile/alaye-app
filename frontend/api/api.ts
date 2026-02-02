@@ -37,6 +37,13 @@ import type {
   RenameMarkdownContentRequest,
   SaveMarkdownContentRequest,
   DeleteMarkdownContentRequest,
+  ListSkillContentRequest,
+  ReadSkillFileRequest,
+  UpdateSkillFileRequest,
+  DeleteSkillFileRequest,
+  CreateSkillFileRequest,
+  RenameSkillFileRequest,
+  MoveSkillFileRequest,
   IDRequest,
   ScanMCPServersRequest,
   AddMCPServerRequest,
@@ -97,6 +104,12 @@ import type {
   RenameMarkdownContentResponse,
   SaveMarkdownContentResponse,
   DeleteMarkdownContentResponse,
+  ListSkillContentResponse,
+  ReadSkillFileResponse,
+  UpdateSkillFileResponse,
+  DeleteSkillFileResponse,
+  CreateSkillFileResponse,
+  MoveSkillFileResponse,
   ScanMCPServersResponse,
   AddMCPServerResponse,
   UpdateMCPServerResponse,
@@ -117,6 +130,7 @@ import type {
   CommandInfo,
   HooksInfo,
   SkillInfo,
+  SkillFileTreeNode,
   LSPServerInfo,
   PluginMarketplaceInfo,
   PluginInfo,
@@ -438,6 +452,85 @@ export const deleteClaudeMarkdownContent = async (
   request: DeleteMarkdownContentRequest
 ): Promise<DeleteMarkdownContentResponse> => {
   return await callAPI<boolean>('delete_claude_markdown_content', request);
+};
+
+// ===== Skill 文件管理 API =====
+
+/**
+ * 列出指定 Skill 的文件树结构API
+ * @param request 列出 Skill 文件树请求参数
+ * @returns Promise<ListSkillContentResponse>
+ */
+export const listSkillContent = async (
+  request: ListSkillContentRequest
+): Promise<ListSkillContentResponse> => {
+  return await callAPI<SkillFileTreeNode[]>('list_skill_content', request);
+};
+
+/**
+ * 读取指定 Skill 文件内容API
+ * @param request 读取 Skill 文件内容请求参数
+ * @returns Promise<ReadSkillFileResponse>
+ */
+export const readSkillFileContent = async (
+  request: ReadSkillFileRequest
+): Promise<ReadSkillFileResponse> => {
+  return await callAPI<string>('read_skill_file_content', request);
+};
+
+/**
+ * 更新指定 Skill 文件内容API
+ * @param request 更新 Skill 文件内容请求参数
+ * @returns Promise<UpdateSkillFileResponse>
+ */
+export const updateSkillFileContent = async (
+  request: UpdateSkillFileRequest
+): Promise<UpdateSkillFileResponse> => {
+  return await callAPI<boolean>('update_skill_file_content', request);
+};
+
+/**
+ * 删除指定 Skill 文件API
+ * @param request 删除 Skill 文件请求参数
+ * @returns Promise<DeleteSkillFileResponse>
+ */
+export const deleteSkillFile = async (
+  request: DeleteSkillFileRequest
+): Promise<DeleteSkillFileResponse> => {
+  return await callAPI<boolean>('delete_skill_file', request);
+};
+
+/**
+ * 创建 Skill 文件或文件夹API
+ * @param request 创建 Skill 文件请求参数
+ * @returns Promise<CreateSkillFileResponse>
+ */
+export const createSkillFile = async (
+  request: CreateSkillFileRequest
+): Promise<CreateSkillFileResponse> => {
+  return await callAPI<boolean>('create_skill_file', request);
+};
+
+/**
+ * 重命名 Skill 文件或文件夹API
+ * @param request 重命名 Skill 文件请求参数
+ * @returns Promise<RenameSkillFileResponse>
+ */
+export const renameSkillFile = async (
+  request: RenameSkillFileRequest
+): Promise<RenameSkillFileResponse> => {
+  return await callAPI<boolean>('rename_skill_file', request);
+};
+
+/**
+ * 移动 Skill 文件或文件夹API
+ * @param request 移动 Skill 文件请求参数
+ * @returns Promise<MoveSkillFileResponse>
+ */
+export const moveSkillFile = async (
+  request: MoveSkillFileRequest
+): Promise<MoveSkillFileResponse> => {
+  return await callAPI<boolean>('move_skill_file', request);
 };
 
 // ===== MCP 服务器管理 API =====

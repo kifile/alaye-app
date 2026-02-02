@@ -318,7 +318,10 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                 title={
                   <div className='flex items-center gap-2'>
                     <Globe className='h-4 w-4 text-blue-500' />
-                    <span className='truncate'>{t('detail.settings.environment.user.title')}({t('detail.settings.environment.user.path')})</span>
+                    <span className='truncate'>
+                      {t('detail.settings.environment.user.title')}(
+                      {t('detail.settings.environment.user.path')})
+                    </span>
                   </div>
                 }
                 description={t('detail.settings.environment.user.description')}
@@ -351,7 +354,10 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                 title={
                   <div className='flex items-center gap-2'>
                     <Shield className='h-4 w-4 text-blue-600' />
-                    <span className='truncate'>{t('detail.settings.environment.project.title')}({t('detail.settings.environment.project.path')})</span>
+                    <span className='truncate'>
+                      {t('detail.settings.environment.project.title')}(
+                      {t('detail.settings.environment.project.path')})
+                    </span>
                   </div>
                 }
                 description={t('detail.settings.environment.project.description')}
@@ -388,7 +394,10 @@ export function SettingsDetail({ projectId }: SettingsDetailProps) {
                 title={
                   <div className='flex items-center gap-2'>
                     <Shield className='h-4 w-4 text-green-600' />
-                    <span className='truncate'>{t('detail.settings.environment.local.title')}({t('detail.settings.environment.local.path')})</span>
+                    <span className='truncate'>
+                      {t('detail.settings.environment.local.title')}(
+                      {t('detail.settings.environment.local.path')})
+                    </span>
                   </div>
                 }
                 description={t('detail.settings.environment.local.description')}

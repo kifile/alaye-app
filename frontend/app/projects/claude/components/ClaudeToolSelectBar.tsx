@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
+import { type LucideIcon } from 'lucide-react';
 import {
   Search,
   ChevronDown,
@@ -8,6 +9,7 @@ import {
   Folder,
   User,
   Puzzle,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,7 +25,15 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import type { ConfigScope } from '@/api/types';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { ConfigScope } from '@/api/types';
 import { useTranslation } from 'react-i18next';
 
 // 与 ScopeBadge.tsx 保持一致的图标配置
@@ -56,7 +66,11 @@ interface ClaudeToolSelectBarProps {
   // 回调函数
   onSelectItem: (item: ToolItem) => void;
   onRefresh: () => void;
-  onNew: () => void;
+  onCreateItem?: (name: string, scope: ConfigScope) => void; // 新建项的回调
+
+  // Popover 控制
+  newPopoverOpen?: boolean; // 外部控制 Popover 的开关状态
+  onPopoverOpenChange?: (open: boolean) => void; // Popover 状态变化回调
 
   // UI 文本 (可选，如果未提供则使用翻译)
   placeholder?: string;
@@ -72,7 +86,9 @@ export function ClaudeToolSelectBar({
   selectedItem,
   onSelectItem,
   onRefresh,
-  onNew,
+  onCreateItem,
+  newPopoverOpen,
+  onPopoverOpenChange,
   placeholder,
   searchPlaceholder,
   emptyText,
@@ -81,6 +97,14 @@ export function ClaudeToolSelectBar({
   const { t } = useTranslation('projects');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
+
+  // Popover 状态 - 支持外部控制
+  const [internalPopoverOpen, setInternalPopoverOpen] = useState<boolean>(false);
+  const showNewPopover =
+    newPopoverOpen !== undefined ? newPopoverOpen : internalPopoverOpen;
+
+  const [newItemName, setNewItemName] = useState<string>('');
+  const [newItemScope, setNewItemScope] = useState<ConfigScope>(ConfigScope.PROJECT);
 
   // Use translation with fallback to provided props
   const finalPlaceholder = placeholder ?? t('toolSelectBar.selectCommand');
@@ -113,6 +137,56 @@ export function ClaudeToolSelectBar({
       }))
       .filter(group => group.items.length > 0);
   }, [groups, searchQuery]);
+
+  // 处理新建项
+  const handleCreateItem = useCallback(() => {
+    if (!newItemName.trim()) return;
+
+    onCreateItem?.(newItemName.trim(), newItemScope);
+
+    // 重置表单并关闭 Popover
+    setNewItemName('');
+    setNewItemScope(ConfigScope.PROJECT);
+    if (newPopoverOpen === undefined) {
+      setInternalPopoverOpen(false);
+    } else if (onPopoverOpenChange) {
+      onPopoverOpenChange(false);
+    }
+  }, [newItemName, newItemScope, onCreateItem, newPopoverOpen, onPopoverOpenChange]);
+
+  // 处理 Popover 打开时的状态重置
+  const handlePopoverOpenChange = useCallback(
+    (open: boolean) => {
+      if (newPopoverOpen === undefined) {
+        // 非受控模式：内部管理状态
+        setInternalPopoverOpen(open);
+      } else if (onPopoverOpenChange) {
+        // 受控模式：通知父组件
+        onPopoverOpenChange(open);
+      }
+
+      if (!open) {
+        // 关闭时重置表单
+        setNewItemName('');
+        setNewItemScope(ConfigScope.PROJECT);
+      }
+    },
+    [newPopoverOpen, onPopoverOpenChange]
+  );
+
+  // scope 选项
+  const scopeOptions: { value: ConfigScope; label: string; icon: LucideIcon }[] = [
+    {
+      value: ConfigScope.PROJECT,
+      label: t('detail.scopeBadge.project.label'),
+      icon: Folder,
+    },
+    {
+      value: ConfigScope.USER,
+      label: t('detail.scopeBadge.user.label'),
+      icon: Home,
+    },
+  ];
 
   return (
     <TooltipProvider>
@@ -206,10 +280,83 @@ export function ClaudeToolSelectBar({
           <RefreshCw className='h-4 w-4' />
         </Button>
 
-        <Button variant='default' size='sm' onClick={onNew}>
-          <Plus className='h-4 w-4 mr-2' />
-          {t('toolSelectBar.newCommand')}
-        </Button>
+        <Popover open={showNewPopover} onOpenChange={handlePopoverOpenChange}>
+          <PopoverTrigger asChild>
+            <Button variant='default' size='icon' title={t('toolSelectBar.newCommand')}>
+              <Plus className='h-4 w-4' />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className='w-80 p-4' align='end'>
+            <div className='space-y-4'>
+              <div className='space-y-2'>
+                <label className='text-sm font-medium'>Scope</label>
+                <Select
+                  value={newItemScope}
+                  onValueChange={value => setNewItemScope(value as ConfigScope)}
+                >
+                  <SelectTrigger className='w-full'>
+                    <SelectValue placeholder='Select scope' />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {scopeOptions.map(option => {
+                      const Icon = option.icon;
+                      return (
+                        <SelectItem key={option.value} value={option.value}>
+                          <div className='flex items-center gap-2'>
+                            <Icon className='h-4 w-4' />
+                            <span>{option.label}</span>
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className='space-y-2'>
+                <label className='text-sm font-medium'>{t('skills.enterName')}</label>
+                <Input
+                  placeholder={t('toolSelectBar.newCommand')}
+                  value={newItemName}
+                  onChange={e => setNewItemName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newItemName.trim()) {
+                      handleCreateItem();
+                    }
+                  }}
+                  autoFocus
+                />
+              </div>
+
+              <div className='flex justify-end gap-2'>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  onClick={() => {
+                    if (newPopoverOpen === undefined) {
+                      setInternalPopoverOpen(false);
+                    } else if (onPopoverOpenChange) {
+                      onPopoverOpenChange(false);
+                    }
+                    setNewItemName('');
+                    setNewItemScope(ConfigScope.PROJECT);
+                  }}
+                >
+                  {t('skills.cancel')}
+                </Button>
+                <Button
+                  variant='default'
+                  size='sm'
+                  onClick={handleCreateItem}
+                  disabled={!newItemName.trim()}
+                >
+                  <Check className='h-4 w-4 mr-2' />
+                  {t('skills.save')}
+                </Button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
     </TooltipProvider>
   );

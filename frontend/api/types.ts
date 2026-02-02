@@ -30,6 +30,11 @@ export enum ConfigScope {
   PLUGIN = 'plugin',
 }
 
+export enum FileType {
+  FILE = 'file',
+  DIRECTORY = 'directory',
+}
+
 export enum AiToolType {
   CLAUDE = 'claude',
 }
@@ -195,6 +200,59 @@ export interface DeleteMarkdownContentRequest {
   content_type: 'memory' | 'command' | 'agent' | 'hook' | 'skill';
   name: string;
   scope?: ConfigScope;
+}
+
+export interface ListSkillContentRequest {
+  project_id: number;
+  name: string; // Skill 名称
+  scope?: ConfigScope; // 配置作用域
+}
+
+export interface ReadSkillFileRequest {
+  project_id: number;
+  name: string; // Skill 名称
+  file_path: string; // 相对于 skill 目录的文件路径
+  scope?: ConfigScope; // 配置作用域
+}
+
+export interface UpdateSkillFileRequest {
+  project_id: number;
+  name: string; // Skill 名称
+  file_path: string; // 相对于 skill 目录的文件路径
+  content: string; // 新的文件内容
+  scope?: ConfigScope; // 配置作用域
+}
+
+export interface DeleteSkillFileRequest {
+  project_id: number;
+  name: string; // Skill 名称
+  file_path: string; // 相对于 skill 目录的文件或文件夹路径
+  scope?: ConfigScope; // 配置作用域
+}
+
+export interface CreateSkillFileRequest {
+  project_id: number;
+  name: string; // Skill 名称
+  parent_path: string; // 父目录路径（相对于 skill 目录）
+  new_name: string; // 新文件或文件夹的名称
+  file_type: FileType; // 文件类型枚举
+  scope?: ConfigScope; // 配置作用域
+}
+
+export interface RenameSkillFileRequest {
+  project_id: number;
+  name: string; // Skill 名称
+  file_path: string; // 相对于 skill 目录的文件或文件夹路径
+  new_file_path: string; // 新的文件或文件夹路径（支持路径分隔符，可包含目录，实现移动功能）
+  scope?: ConfigScope; // 配置作用域
+}
+
+export interface MoveSkillFileRequest {
+  project_id: number;
+  name: string; // Skill 名称
+  source_path: string; // 源文件或文件夹路径（相对于 skill 目录）
+  target_path: string; // 目标文件夹路径（相对于 skill 目录）
+  scope?: ConfigScope; // 配置作用域
 }
 
 export interface MarkdownContentDTO {
@@ -486,6 +544,15 @@ export interface SkillInfo {
   file_path?: string; // Skill 目录绝对路径
 }
 
+export interface SkillFileTreeNode {
+  name: string;
+  type: FileType; // 文件类型枚举
+  path: string; // 相对于 skill 目录的路径
+  children?: SkillFileTreeNode[]; // 子节点（仅目录有）
+  size?: number; // 文件大小（仅文件有）
+  modified_str?: string; // Formatted datetime string
+}
+
 // Claude Settings DTO 类型
 export interface ClaudeSettingsDTO {
   model?: string;
@@ -573,6 +640,15 @@ export type UpdateMarkdownContentResponse = ApiResponse<boolean>;
 export type RenameMarkdownContentResponse = ApiResponse<boolean>;
 export type SaveMarkdownContentResponse = ApiResponse<MarkdownContentDTO>;
 export type DeleteMarkdownContentResponse = ApiResponse<boolean>;
+
+// Skill 文件管理响应类型
+export type ListSkillContentResponse = ApiResponse<SkillFileTreeNode[]>;
+export type ReadSkillFileResponse = ApiResponse<string>;
+export type UpdateSkillFileResponse = ApiResponse<boolean>;
+export type DeleteSkillFileResponse = ApiResponse<boolean>;
+export type CreateSkillFileResponse = ApiResponse<boolean>;
+export type RenameSkillFileResponse = ApiResponse<boolean>;
+export type MoveSkillFileResponse = ApiResponse<boolean>;
 
 // MCP 服务器管理响应类型
 export type ScanMCPServersResponse = ApiResponse<MCPInfo>;

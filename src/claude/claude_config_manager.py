@@ -343,6 +343,136 @@ class ClaudeConfigManager:
         """
         return await self.markdown_ops.scan_skills(scope)
 
+    async def list_skill_content(
+        self, name: str, scope: ConfigScope = ConfigScope.project
+    ):
+        """
+        列出 Skill 目录的文件树结构
+
+        Args:
+            name: Skill 名称
+            scope: 配置作用域，默认为 project
+
+        Returns:
+            List[SkillFileTreeNode]: Skill 目录的文件树结构（目录优先，按名称排序）
+        """
+        return await self.markdown_ops.list_skill_content(name, scope)
+
+    async def read_skill_file_content(
+        self, skill_name: str, file_path: str, scope: ConfigScope = ConfigScope.project
+    ):
+        """
+        读取 Skill 目录中特定文件的内容
+
+        Args:
+            skill_name: Skill 名称
+            file_path: 相对于 skill 目录的文件路径
+            scope: 配置作用域，默认为 project（支持 plugin 作用域）
+
+        Returns:
+            str: 文件内容
+        """
+        return await self.markdown_ops.read_skill_file_content(
+            skill_name, file_path, scope
+        )
+
+    async def update_skill_file_content(
+        self,
+        skill_name: str,
+        file_path: str,
+        content: str,
+        scope: ConfigScope = ConfigScope.project,
+    ):
+        """
+        更新 Skill 目录中特定文件的内容
+
+        Args:
+            skill_name: Skill 名称
+            file_path: 相对于 skill 目录的文件路径
+            content: 新的文件内容
+            scope: 配置作用域，默认为 project
+        """
+        await self.markdown_ops.update_skill_file_content(
+            skill_name, file_path, content, scope
+        )
+
+    async def delete_skill_file(
+        self, skill_name: str, file_path: str, scope: ConfigScope = ConfigScope.project
+    ):
+        """
+        删除 Skill 目录中的特定文件或文件夹
+
+        Args:
+            skill_name: Skill 名称
+            file_path: 相对于 skill 目录的文件或文件夹路径
+            scope: 配置作用域，默认为 project
+        """
+        await self.markdown_ops.delete_skill_file(skill_name, file_path, scope)
+
+    async def rename_skill_file(
+        self,
+        skill_name: str,
+        file_path: str,
+        new_file_path: str,
+        scope: ConfigScope = ConfigScope.project,
+    ):
+        """
+        重命名/移动 Skill 目录中的文件或文件夹
+
+        支持路径分隔符，可以将文件移动到不同目录，只要目标路径仍在 skill 目录内。
+
+        Args:
+            skill_name: Skill 名称
+            file_path: 相对于 skill 目录的文件或文件夹路径
+            new_file_path: 新的文件或文件夹路径（支持路径分隔符，可包含目录）
+            scope: 配置作用域，默认为 project
+        """
+        await self.markdown_ops.rename_skill_file(
+            skill_name, file_path, new_file_path, scope
+        )
+
+    async def create_skill_file(
+        self,
+        skill_name: str,
+        parent_path: str,
+        name: str,
+        file_type: str,
+        scope: ConfigScope = ConfigScope.project,
+    ):
+        """
+        在 Skill 目录中创建新文件或文件夹
+
+        Args:
+            skill_name: Skill 名称
+            parent_path: 父目录路径（相对于 skill 目录）
+            name: 新文件或文件夹的名称
+            file_type: 类型，'file' 或 'directory'
+            scope: 配置作用域，默认为 project
+        """
+        await self.markdown_ops.create_skill_file(
+            skill_name, parent_path, name, file_type, scope
+        )
+
+    async def move_skill_file(
+        self,
+        skill_name: str,
+        source_path: str,
+        target_path: str,
+        scope: ConfigScope = ConfigScope.project,
+    ):
+        """
+        在 Skill 目录中移动文件或文件夹
+
+        Args:
+            skill_name: Skill 名称
+            source_path: 源文件或文件夹路径（相对于 skill 目录）
+            target_path: 目标文件夹路径（相对于 skill 目录）
+            scope: 配置作用域，默认为 project
+        """
+        await self.markdown_ops.move_skill_file(
+            skill_name, source_path, target_path, scope
+        )
+
     # Plugin Marketplace 相关操作
     def scan_plugin_marketplaces(self) -> List[PluginMarketplaceInfo]:
         """扫描已安装的 marketplace 列表"""

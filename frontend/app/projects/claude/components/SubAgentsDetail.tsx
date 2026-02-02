@@ -5,10 +5,10 @@ import { useDetailHeader } from '../context/DetailHeaderContext';
 import { EmptyView } from '@/components/EmptyView';
 import { ClaudeToolSelectBar, ToolGroup } from './ClaudeToolSelectBar';
 import { SubAgentContentView } from './SubAgentContentView';
-import { NewSubAgentContentView } from './NewSubAgentContentView';
-import { scanClaudeAgents } from '@/api/api';
+import { scanClaudeAgents, saveClaudeMarkdownContent } from '@/api/api';
 import { ConfigScope, AgentInfo } from '@/api/types';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 // 分组函数：按照 scope + pluginName 分组
 function groupAgentsByScope(
@@ -85,7 +85,7 @@ function LoadingState({ message }: { message: string }) {
   );
 }
 
-type ViewMode = 'select' | 'new' | 'edit';
+type ViewMode = 'select' | 'edit';
 
 interface SubAgentsDetailProps {
   projectId: number;
@@ -99,6 +99,9 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
 
   // 视图模式
   const [viewMode, setViewMode] = useState<ViewMode>('select');
+
+  // Popover 控制状态
+  const [newPopoverOpen, setNewPopoverOpen] = useState<boolean>(false);
 
   // 选中的代理
   const [selectedAgent, setSelectedAgent] = useState<{
@@ -224,20 +227,42 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
     setViewMode('edit');
   }, []);
 
-  // 新建代理 - 切换到新建模式
-  const handleNewAgent = useCallback(() => {
-    setViewMode('new');
-  }, []);
+  // 新建 agent - 通过 Popover 创建空 agent
+  const handleCreateAgent = useCallback(
+    async (name: string, scope: ConfigScope) => {
+      try {
+        const response = await saveClaudeMarkdownContent({
+          project_id: projectId,
+          content_type: 'agent',
+          name: name.trim(),
+          content: '', // 内容为空
+          scope,
+        });
 
-  // 代理保存完成 - 切换到编辑模式
-  const handleAgentSaved = useCallback(
-    (name: string, scope: ConfigScope) => {
-      setSelectedAgent({ name, scope });
-      setViewMode('edit');
-      // 重新扫描列表
-      scanAgentsList();
+        if (response.success) {
+          toast.success(t('subAgents.createSuccess'), {
+            description: t('subAgents.createSuccessDesc', { name }),
+          });
+          // 关闭 Popover
+          setNewPopoverOpen(false);
+          // 选中新建的 agent 并切换到编辑模式
+          setSelectedAgent({ name: name.trim(), scope });
+          setViewMode('edit');
+          // 重新扫描列表
+          scanAgentsList({ name: name.trim(), scope });
+        } else {
+          toast.error(t('subAgents.createFailed'), {
+            description: response.error || t('unknownError'),
+          });
+        }
+      } catch (error) {
+        console.error('Create agent error:', error);
+        toast.error(t('subAgents.createFailed'), {
+          description: error instanceof Error ? error.message : t('networkError'),
+        });
+      }
     },
-    [scanAgentsList]
+    [projectId, t, scanAgentsList]
   );
 
   // 代理删除完成 - 切换到选择模式
@@ -257,17 +282,22 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
     [scanAgentsList]
   );
 
-  // 取消新建 - 返回选择模式
-  const handleCancelNew = useCallback(() => {
-    setViewMode(selectedAgent ? 'edit' : 'select');
-  }, [selectedAgent]);
-
   // 跳转到插件页面
   const handleGoToPlugins = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('section', 'plugins');
     router.push(`?${params.toString()}`);
   }, [router, searchParams]);
+
+  // 打开新建 Popover
+  const handleOpenNewPopover = useCallback(() => {
+    setNewPopoverOpen(true);
+  }, []);
+
+  // 处理 Popover 状态变化
+  const handlePopoverOpenChange = useCallback((open: boolean) => {
+    setNewPopoverOpen(open);
+  }, []);
 
   // 根据视图模式渲染不同内容
   return (
@@ -278,28 +308,6 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
       {/* 视图内容 */}
       {!isLoading && (
         <>
-          {viewMode === 'new' && (
-            <>
-              <div className='mb-4 flex-shrink-0'>
-                <ClaudeToolSelectBar
-                  groups={groupedAgents}
-                  selectedItem={selectedAgent}
-                  onSelectItem={handleSelectAgent}
-                  onRefresh={() => selectedAgent && scanAgentsList(selectedAgent)}
-                  onNew={handleNewAgent}
-                />
-              </div>
-              <div className='flex-1 min-h-0'>
-                <NewSubAgentContentView
-                  projectId={projectId}
-                  initialScope={ConfigScope.PROJECT}
-                  onSaved={handleAgentSaved}
-                  onCancelled={handleCancelNew}
-                />
-              </div>
-            </>
-          )}
-
           {viewMode === 'edit' && selectedAgent && currentAgent && (
             <>
               {/* 代理选择器 */}
@@ -309,7 +317,9 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
                   selectedItem={selectedAgent}
                   onSelectItem={handleSelectAgent}
                   onRefresh={() => selectedAgent && scanAgentsList(selectedAgent)}
-                  onNew={handleNewAgent}
+                  onCreateItem={handleCreateAgent}
+                  newPopoverOpen={newPopoverOpen}
+                  onPopoverOpenChange={handlePopoverOpenChange}
                 />
               </div>
 
@@ -335,7 +345,9 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
                   selectedItem={selectedAgent}
                   onSelectItem={handleSelectAgent}
                   onRefresh={() => selectedAgent && scanAgentsList(selectedAgent)}
-                  onNew={handleNewAgent}
+                  onCreateItem={handleCreateAgent}
+                  newPopoverOpen={newPopoverOpen}
+                  onPopoverOpenChange={handlePopoverOpenChange}
                 />
               </div>
 
@@ -355,7 +367,7 @@ export function SubAgentsDetail({ projectId }: SubAgentsDetailProps) {
                   title={t('subAgents.noSelection')}
                   description={t('subAgents.noSelectionDesc')}
                   actionLabel={t('subAgents.createNew')}
-                  onAction={handleNewAgent}
+                  onAction={handleOpenNewPopover}
                   actionIcon={<Plus className='h-4 w-4' />}
                 />
               )}

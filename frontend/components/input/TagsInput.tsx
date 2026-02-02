@@ -168,7 +168,10 @@ export function TagsInput({
 
     if (delimiter) {
       // 使用分隔符分割
-      const splitTags = pastedText.split(delimiter).map(tag => tag.trim()).filter(Boolean);
+      const splitTags = pastedText
+        .split(delimiter)
+        .map(tag => tag.trim())
+        .filter(Boolean);
       splitTags.forEach(tag => addTag(tag));
     } else {
       // 直接添加
@@ -236,7 +239,9 @@ export function TagsInput({
       {/* 禁用或达到最大数量的提示 */}
       {disabled || isMaxItemsReached ? (
         <div className='text-xs text-muted-foreground'>
-          {disabled ? t('tagsInput.disabled') : t('tagsInput.maxItemsReached', { max: maxItems })}
+          {disabled
+            ? t('tagsInput.disabled')
+            : t('tagsInput.maxItemsReached', { max: maxItems })}
         </div>
       ) : null}
 

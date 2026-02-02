@@ -14,8 +14,13 @@ from src.claude.models import (
     ClaudeMemoryInfo,
     CommandInfo,
     ConfigScope,
+    FileType,
     MarkdownContentDTO,
+    SkillFileNotFoundError,
     SkillInfo,
+    SkillNotFoundError,
+    SkillOperationError,
+    SkillPathTraversalError,
 )
 
 
@@ -788,3 +793,839 @@ description: A test skill for testing
 
         assert len(result) == 1
         assert result[0].name == "valid-skill"
+
+    # ========== 测试 list_skill_content ==========
+
+    @pytest.mark.asyncio
+    async def test_list_skill_content_simple(self, markdown_ops, temp_project_dir):
+        """测试列出简单 skill 的文件树"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test Skill", encoding="utf-8")
+
+        result = await markdown_ops.list_skill_content("test-skill")
+
+        assert len(result) == 1
+        assert result[0].name == "SKILL.md"
+        assert result[0].type == "file"
+        assert result[0].path == "SKILL.md"
+        assert result[0].size == 12  # "# Test Skill" 的字节数
+
+    @pytest.mark.asyncio
+    async def test_list_skill_content_with_nested_structure(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试列出包含嵌套结构的 skill 文件树"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        # 创建嵌套目录和文件
+        lib_dir = skill_dir / "lib"
+        lib_dir.mkdir(parents=True, exist_ok=True)
+        (lib_dir / "helper.py").write_text("def helper(): pass", encoding="utf-8")
+
+        docs_dir = skill_dir / "docs"
+        docs_dir.mkdir(parents=True, exist_ok=True)
+        (docs_dir / "guide.md").write_text("# Guide", encoding="utf-8")
+
+        result = await markdown_ops.list_skill_content("test-skill")
+
+        # 应该有 3 个节点：SKILL.md, lib (目录), docs (目录)
+        # 目录优先，然后按名称排序
+        assert len(result) == 3
+        [node.name for node in result]
+
+        # 目录应该在前面
+        assert result[0].type == "directory"
+        assert result[1].type == "directory"
+        assert result[2].type == "file"
+
+    @pytest.mark.asyncio
+    async def test_list_skill_content_directories_before_files(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试目录优先于文件排序"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+
+        # 创建混合的文件和目录
+        (skill_dir / "a.txt").write_text("A", encoding="utf-8")
+        (skill_dir / "z.txt").write_text("Z", encoding="utf-8")
+
+        dir_b = skill_dir / "b-dir"
+        dir_b.mkdir(parents=True, exist_ok=True)
+        (dir_b / "file.txt").write_text("B", encoding="utf-8")
+
+        dir_m = skill_dir / "m-dir"
+        dir_m.mkdir(parents=True, exist_ok=True)
+        (dir_m / "file.txt").write_text("M", encoding="utf-8")
+
+        result = await markdown_ops.list_skill_content("test-skill")
+
+        # 目录应该在前，按名称排序：b-dir, m-dir, a.txt, z.txt
+        assert len(result) == 4
+        assert result[0].type == "directory"
+        assert result[0].name == "b-dir"
+        assert result[1].type == "directory"
+        assert result[1].name == "m-dir"
+        assert result[2].type == "file"
+        assert result[2].name == "a.txt"
+        assert result[3].type == "file"
+        assert result[3].name == "z.txt"
+
+    @pytest.mark.asyncio
+    async def test_list_skill_content_ignores_hidden_files(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试忽略隐藏文件"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+        (skill_dir / ".hidden.txt").write_text("Hidden", encoding="utf-8")
+
+        hidden_dir = skill_dir / ".hidden_dir"
+        hidden_dir.mkdir(parents=True, exist_ok=True)
+        (hidden_dir / "file.txt").write_text("File", encoding="utf-8")
+
+        result = await markdown_ops.list_skill_content("test-skill")
+
+        # 只应该返回 SKILL.md，不应该包含隐藏文件
+        assert len(result) == 1
+        assert result[0].name == "SKILL.md"
+        assert all(".hidden" not in node.name for node in result)
+
+    @pytest.mark.asyncio
+    async def test_list_skill_content_nonexistent_skill_raises_error(
+        self, markdown_ops
+    ):
+        """测试列出不存在的 skill 抛出异常"""
+        with pytest.raises(SkillNotFoundError, match="不存在"):
+            await markdown_ops.list_skill_content("nonexistent-skill")
+
+    @pytest.mark.asyncio
+    async def test_list_skill_content_plugin_scope_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试 plugin 作用域抛出异常（plugin_ops 未初始化时抛出 ValueError）"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        # plugin_ops 未初始化时会抛出 ValueError
+        with pytest.raises(ValueError, match="plugin_ops 未初始化"):
+            await markdown_ops.list_skill_content(
+                "test-skill", scope=ConfigScope.plugin
+            )
+
+    # ========== 测试 read_skill_file_content ==========
+
+    @pytest.mark.asyncio
+    async def test_read_skill_file_content_success(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试成功读取文件内容"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text(
+            "# Test Skill\n\nContent here", encoding="utf-8"
+        )
+
+        result = await markdown_ops.read_skill_file_content("test-skill", "SKILL.md")
+
+        assert result == "# Test Skill\n\nContent here"
+
+    @pytest.mark.asyncio
+    async def test_read_skill_file_content_nested_path(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试读取嵌套路径的文件"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+
+        lib_dir = skill_dir / "lib"
+        lib_dir.mkdir(parents=True, exist_ok=True)
+        (lib_dir / "helper.py").write_text("def helper():\n    pass", encoding="utf-8")
+
+        result = await markdown_ops.read_skill_file_content(
+            "test-skill", "lib/helper.py"
+        )
+
+        assert result == "def helper():\n    pass"
+
+    @pytest.mark.asyncio
+    async def test_read_skill_file_content_nonexistent_skill_raises_error(
+        self, markdown_ops
+    ):
+        """测试读取不存在的 skill 抛出异常"""
+        with pytest.raises(SkillNotFoundError, match="不存在"):
+            await markdown_ops.read_skill_file_content("nonexistent-skill", "SKILL.md")
+
+    @pytest.mark.asyncio
+    async def test_read_skill_file_content_nonexistent_file_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试读取不存在的文件抛出异常"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        with pytest.raises(SkillFileNotFoundError, match="不存在"):
+            await markdown_ops.read_skill_file_content("test-skill", "nonexistent.md")
+
+    @pytest.mark.asyncio
+    async def test_read_skill_file_content_path_traversal_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试路径遍历攻击被阻止"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        # 尝试路径遍历攻击
+        with pytest.raises(SkillPathTraversalError, match="超出了 skill 目录范围"):
+            await markdown_ops.read_skill_file_content("test-skill", "../SKILL.md")
+
+    @pytest.mark.asyncio
+    async def test_read_skill_file_content_symlink_attack_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试符号链接攻击被阻止"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        # 在项目根目录创建一个敏感文件
+        sensitive_file = temp_project_dir / "sensitive.txt"
+        sensitive_file.write_text("Secret data", encoding="utf-8")
+
+        # 在 skill 目录中创建指向项目根目录的符号链接
+        link_dir = skill_dir / "link_to_parent"
+        try:
+            link_dir.symlink_to(temp_project_dir)
+        except OSError:
+            # Windows 可能需要管理员权限创建符号链接，跳过此测试
+            pytest.skip("需要管理员权限创建符号链接")
+
+        # 尝试通过符号链接读取敏感文件
+        with pytest.raises(SkillPathTraversalError, match="超出了 skill 目录范围"):
+            await markdown_ops.read_skill_file_content(
+                "test-skill", "link_to_parent/sensitive.txt"
+            )
+
+        # 验证敏感文件没有被读取
+        assert sensitive_file.read_text(encoding="utf-8") == "Secret data"
+
+    @pytest.mark.asyncio
+    async def test_read_skill_file_content_with_utf8_encoding(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试读取 UTF-8 编码的文件"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+
+        # 包含中文和 emoji 的内容
+        content = "# 测试 Skill\n\n这是一个测试文件，包含中文和 emoji: 🚀"
+        (skill_dir / "SKILL.md").write_text(content, encoding="utf-8")
+
+        result = await markdown_ops.read_skill_file_content("test-skill", "SKILL.md")
+
+        assert result == content
+
+    # ========== 测试 update_skill_file_content ==========
+
+    @pytest.mark.asyncio
+    async def test_update_skill_file_content_success(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试成功更新文件内容"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Original", encoding="utf-8")
+
+        new_content = "# Updated Content\n\nNew content here"
+        await markdown_ops.update_skill_file_content(
+            "test-skill", "SKILL.md", new_content
+        )
+
+        # 验证更新
+        result = await markdown_ops.read_skill_file_content("test-skill", "SKILL.md")
+        assert result == new_content
+
+    @pytest.mark.asyncio
+    async def test_update_skill_file_content_creates_directory(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试更新时自动创建目录"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+
+        # 更新不存在的文件（在子目录中）
+        content = "# New File"
+        await markdown_ops.update_skill_file_content(
+            "test-skill", "lib/helper.py", content
+        )
+
+        # 验证文件已创建
+        lib_dir = skill_dir / "lib"
+        assert lib_dir.exists()
+        assert (lib_dir / "helper.py").exists()
+        assert (lib_dir / "helper.py").read_text(encoding="utf-8") == content
+
+    @pytest.mark.asyncio
+    async def test_update_skill_file_content_nonexistent_skill_raises_error(
+        self, markdown_ops
+    ):
+        """测试更新不存在的 skill 抛出异常"""
+        with pytest.raises(SkillOperationError, match="不存在"):
+            await markdown_ops.update_skill_file_content(
+                "nonexistent-skill", "SKILL.md", "content"
+            )
+
+    @pytest.mark.asyncio
+    async def test_update_skill_file_content_path_traversal_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试路径遍历攻击被阻止"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        # 尝试路径遍历攻击
+        with pytest.raises(SkillPathTraversalError, match="超出了 skill 目录范围"):
+            await markdown_ops.update_skill_file_content(
+                "test-skill", "../SKILL.md", "content"
+            )
+
+    @pytest.mark.asyncio
+    async def test_update_skill_file_content_plugin_scope_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试 plugin 作用域抛出异常（不允许修改）"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        with pytest.raises(SkillOperationError, match="不允许修改插件作用域"):
+            await markdown_ops.update_skill_file_content(
+                "test-skill", "SKILL.md", "content", scope=ConfigScope.plugin
+            )
+
+    # ========== 测试 delete_skill_file ==========
+
+    @pytest.mark.asyncio
+    async def test_delete_skill_file_success(self, markdown_ops, temp_project_dir):
+        """测试成功删除文件"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "extra.txt").write_text("Extra", encoding="utf-8")
+
+        await markdown_ops.delete_skill_file("test-skill", "extra.txt")
+
+        # 验证文件已删除
+        assert not (skill_dir / "extra.txt").exists()
+
+    @pytest.mark.asyncio
+    async def test_delete_skill_file_directory_success(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试成功删除目录"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+
+        lib_dir = skill_dir / "lib"
+        lib_dir.mkdir(parents=True, exist_ok=True)
+        (lib_dir / "helper.py").write_text("Helper", encoding="utf-8")
+        (lib_dir / "utils.py").write_text("Utils", encoding="utf-8")
+
+        await markdown_ops.delete_skill_file("test-skill", "lib")
+
+        # 验证目录已删除
+        assert not lib_dir.exists()
+
+    @pytest.mark.asyncio
+    async def test_delete_skill_file_nonexistent_skill_raises_error(self, markdown_ops):
+        """测试删除不存在的 skill 抛出异常"""
+        with pytest.raises(SkillOperationError, match="不存在"):
+            await markdown_ops.delete_skill_file("nonexistent-skill", "SKILL.md")
+
+    @pytest.mark.asyncio
+    async def test_delete_skill_file_nonexistent_file_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试删除不存在的文件抛出异常"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        with pytest.raises(SkillFileNotFoundError, match="不存在"):
+            await markdown_ops.delete_skill_file("test-skill", "nonexistent.md")
+
+    @pytest.mark.asyncio
+    async def test_delete_skill_file_path_traversal_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试路径遍历攻击被阻止"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "extra.txt").write_text("Extra", encoding="utf-8")
+
+        # 尝试路径遍历攻击
+        with pytest.raises(SkillPathTraversalError, match="超出了 skill 目录范围"):
+            await markdown_ops.delete_skill_file("test-skill", "../extra.txt")
+
+        # 验证原文件仍然存在
+        assert (skill_dir / "extra.txt").exists()
+
+    @pytest.mark.asyncio
+    async def test_delete_skill_file_plugin_scope_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试 plugin 作用域抛出异常（不允许删除）"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "extra.txt").write_text("Extra", encoding="utf-8")
+
+        with pytest.raises(SkillOperationError, match="不允许删除插件作用域"):
+            await markdown_ops.delete_skill_file(
+                "test-skill", "extra.txt", scope=ConfigScope.plugin
+            )
+
+    # ========== 测试 create_skill_file ==========
+
+    @pytest.mark.asyncio
+    async def test_create_skill_file_success(self, markdown_ops, temp_project_dir):
+        """测试成功创建文件"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        await markdown_ops.create_skill_file(
+            "test-skill", "", "new_file.md", FileType.FILE
+        )
+
+        # 验证文件已创建
+        assert (skill_dir / "new_file.md").exists()
+
+    @pytest.mark.asyncio
+    async def test_create_skill_directory_success(self, markdown_ops, temp_project_dir):
+        """测试成功创建目录"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        await markdown_ops.create_skill_file(
+            "test-skill", "", "new_dir", FileType.DIRECTORY
+        )
+
+        # 验证目录已创建
+        assert (skill_dir / "new_dir").exists()
+        assert (skill_dir / "new_dir").is_dir()
+
+    @pytest.mark.asyncio
+    async def test_create_skill_file_in_subdirectory(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试在子目录中创建文件"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        # 先创建子目录
+        lib_dir = skill_dir / "lib"
+        lib_dir.mkdir(parents=True, exist_ok=True)
+
+        # 在子目录中创建文件
+        await markdown_ops.create_skill_file(
+            "test-skill", "lib", "helper.py", FileType.FILE
+        )
+
+        # 验证文件已创建
+        assert (lib_dir / "helper.py").exists()
+
+    @pytest.mark.asyncio
+    async def test_create_skill_file_nonexistent_skill_raises_error(self, markdown_ops):
+        """测试在不存在的 skill 中创建文件抛出异常"""
+        with pytest.raises(SkillOperationError, match="不存在"):
+            await markdown_ops.create_skill_file(
+                "nonexistent-skill", "", "new.md", FileType.FILE
+            )
+
+    @pytest.mark.asyncio
+    async def test_create_skill_file_nonexistent_parent_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试在不存在的父目录中创建文件抛出异常"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        with pytest.raises(SkillOperationError, match="父目录.*不存在"):
+            await markdown_ops.create_skill_file(
+                "test-skill", "nonexistent_dir", "new.md", FileType.FILE
+            )
+
+    @pytest.mark.asyncio
+    async def test_create_skill_file_already_exists_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试创建已存在的文件抛出异常"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+        (skill_dir / "existing.md").write_text("Content", encoding="utf-8")
+
+        with pytest.raises(SkillOperationError, match="已存在"):
+            await markdown_ops.create_skill_file(
+                "test-skill", "", "existing.md", FileType.FILE
+            )
+
+    @pytest.mark.asyncio
+    async def test_create_skill_file_path_traversal_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试路径遍历攻击被阻止"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        # 尝试路径遍历攻击
+        with pytest.raises(SkillPathTraversalError, match="超出了 skill 目录范围"):
+            await markdown_ops.create_skill_file(
+                "test-skill", "../", "new.md", FileType.FILE
+            )
+
+    @pytest.mark.asyncio
+    async def test_create_skill_file_plugin_scope_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试 plugin 作用域抛出异常（不允许创建）"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        with pytest.raises(SkillOperationError, match="不允许在插件作用域创建内容"):
+            await markdown_ops.create_skill_file(
+                "test-skill", "", "new.md", FileType.FILE, scope=ConfigScope.plugin
+            )
+
+    # ========== 测试 move_skill_file ==========
+
+    @pytest.mark.asyncio
+    async def test_move_skill_file_success(self, markdown_ops, temp_project_dir):
+        """测试成功移动文件"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+        (skill_dir / "source.txt").write_text("Content", encoding="utf-8")
+
+        # 创建目标目录
+        target_dir = skill_dir / "target"
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        await markdown_ops.move_skill_file("test-skill", "source.txt", "target")
+
+        # 验证文件已移动
+        assert not (skill_dir / "source.txt").exists()
+        assert (target_dir / "source.txt").exists()
+
+    @pytest.mark.asyncio
+    async def test_move_skill_directory_success(self, markdown_ops, temp_project_dir):
+        """测试成功移动目录"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        # 创建源目录
+        source_dir = skill_dir / "source"
+        source_dir.mkdir(parents=True, exist_ok=True)
+        (source_dir / "file.txt").write_text("Content", encoding="utf-8")
+
+        # 创建目标目录
+        target_dir = skill_dir / "target"
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        await markdown_ops.move_skill_file("test-skill", "source", "target")
+
+        # 验证目录已移动
+        assert not source_dir.exists()
+        assert (target_dir / "source").exists()
+        assert (target_dir / "source" / "file.txt").exists()
+
+    @pytest.mark.asyncio
+    async def test_move_skill_file_to_subdirectory_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试不能将目录移动到其子目录中"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        # 创建源目录和子目录
+        source_dir = skill_dir / "source"
+        source_dir.mkdir(parents=True, exist_ok=True)
+        (source_dir / "subdir").mkdir(parents=True, exist_ok=True)
+
+        with pytest.raises(
+            SkillOperationError, match="不能将文件或文件夹移动到其子目录中"
+        ):
+            await markdown_ops.move_skill_file("test-skill", "source", "source/subdir")
+
+    @pytest.mark.asyncio
+    async def test_move_skill_file_nonexistent_source_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试移动不存在的文件抛出异常"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        with pytest.raises(SkillFileNotFoundError, match="不存在"):
+            await markdown_ops.move_skill_file("test-skill", "nonexistent.txt", "")
+
+    @pytest.mark.asyncio
+    async def test_move_skill_file_nonexistent_target_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试移动到不存在的目标目录抛出异常"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+        (skill_dir / "source.txt").write_text("Content", encoding="utf-8")
+
+        with pytest.raises(SkillOperationError, match="目标文件夹.*不存在"):
+            await markdown_ops.move_skill_file(
+                "test-skill", "source.txt", "nonexistent_dir"
+            )
+
+    @pytest.mark.asyncio
+    async def test_move_skill_file_target_not_directory_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试移动到非目录目标抛出异常"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+        (skill_dir / "source.txt").write_text("Content", encoding="utf-8")
+        (skill_dir / "target.txt").write_text("Target", encoding="utf-8")
+
+        with pytest.raises(SkillOperationError, match="不是文件夹"):
+            await markdown_ops.move_skill_file("test-skill", "source.txt", "target.txt")
+
+    @pytest.mark.asyncio
+    async def test_move_skill_file_name_conflict_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试移动到已存在同名文件的位置抛出异常"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        # 创建目标目录和同名文件
+        target_dir = skill_dir / "target"
+        target_dir.mkdir(parents=True, exist_ok=True)
+        (target_dir / "source.txt").write_text("Existing", encoding="utf-8")
+
+        (skill_dir / "source.txt").write_text("Content", encoding="utf-8")
+
+        with pytest.raises(SkillOperationError, match="已存在同名"):
+            await markdown_ops.move_skill_file("test-skill", "source.txt", "target")
+
+    @pytest.mark.asyncio
+    async def test_move_skill_file_path_traversal_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试源路径遍历攻击被阻止"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        # 尝试路径遍历攻击
+        with pytest.raises(SkillPathTraversalError, match="超出了 skill 目录范围"):
+            await markdown_ops.move_skill_file("test-skill", "../source.txt", "")
+
+    @pytest.mark.asyncio
+    async def test_move_skill_file_plugin_scope_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试 plugin 作用域抛出异常（不允许移动）"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        with pytest.raises(SkillOperationError, match="不允许移动插件作用域"):
+            await markdown_ops.move_skill_file(
+                "test-skill", "source.txt", "", scope=ConfigScope.plugin
+            )
+
+    # ========== 测试 rename_skill_file ==========
+
+    @pytest.mark.asyncio
+    async def test_rename_skill_file_success(self, markdown_ops, temp_project_dir):
+        """测试成功重命名文件"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "old_name.txt").write_text("Content", encoding="utf-8")
+
+        await markdown_ops.rename_skill_file(
+            "test-skill", "old_name.txt", "new_name.txt"
+        )
+
+        # 验证文件已重命名
+        assert not (skill_dir / "old_name.txt").exists()
+        assert (skill_dir / "new_name.txt").exists()
+
+    @pytest.mark.asyncio
+    async def test_rename_skill_directory_success(self, markdown_ops, temp_project_dir):
+        """测试成功重命名目录"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        lib_dir = skill_dir / "lib"
+        lib_dir.mkdir(parents=True, exist_ok=True)
+        (lib_dir / "helper.py").write_text("Helper", encoding="utf-8")
+
+        await markdown_ops.rename_skill_file("test-skill", "lib", "utils")
+
+        # 验证目录已重命名
+        assert not lib_dir.exists()
+        assert (skill_dir / "utils").exists()
+        assert (skill_dir / "utils" / "helper.py").exists()
+
+    @pytest.mark.asyncio
+    async def test_rename_skill_file_nonexistent_skill_raises_error(self, markdown_ops):
+        """测试重命名不存在的 skill 抛出异常"""
+        with pytest.raises(SkillOperationError, match="不存在"):
+            await markdown_ops.rename_skill_file(
+                "nonexistent-skill", "old.txt", "new.txt"
+            )
+
+    @pytest.mark.asyncio
+    async def test_rename_skill_file_nonexistent_file_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试重命名不存在的文件抛出异常"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        with pytest.raises(SkillFileNotFoundError, match="不存在"):
+            await markdown_ops.rename_skill_file(
+                "test-skill", "nonexistent.txt", "new.txt"
+            )
+
+    @pytest.mark.asyncio
+    async def test_rename_skill_file_already_exists_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试重命名为已存在的名称抛出异常"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "file1.txt").write_text("Content1", encoding="utf-8")
+        (skill_dir / "file2.txt").write_text("Content2", encoding="utf-8")
+
+        with pytest.raises(SkillOperationError, match="已存在同名"):
+            await markdown_ops.rename_skill_file("test-skill", "file1.txt", "file2.txt")
+
+    @pytest.mark.asyncio
+    async def test_rename_skill_file_path_traversal_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试路径遍历攻击被阻止（超出 skill 目录）"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "file.txt").write_text("Content", encoding="utf-8")
+
+        # 尝试使用 ../ 超出 skill 目录
+        with pytest.raises(SkillPathTraversalError, match="超出了.*目录范围"):
+            await markdown_ops.rename_skill_file("test-skill", "file.txt", "../new.txt")
+
+    @pytest.mark.asyncio
+    async def test_rename_skill_file_move_to_subdirectory_success(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试重命名文件到子目录（移动文件）"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "file.txt").write_text("Content", encoding="utf-8")
+        (skill_dir / "subdir").mkdir()
+
+        # 重命名到子目录
+        await markdown_ops.rename_skill_file(
+            "test-skill", "file.txt", "subdir/new_file.txt"
+        )
+
+        # 验证文件已被移动
+        assert not (skill_dir / "file.txt").exists()
+        assert (skill_dir / "subdir" / "new_file.txt").exists()
+        assert (skill_dir / "subdir" / "new_file.txt").read_text(
+            encoding="utf-8"
+        ) == "Content"
+
+    @pytest.mark.asyncio
+    async def test_rename_skill_file_move_to_subdirectory_creates_directory(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试重命名文件到不存在的子目录时自动创建目录"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "file.txt").write_text("Content", encoding="utf-8")
+
+        # 重命名到不存在的子目录
+        await markdown_ops.rename_skill_file(
+            "test-skill", "file.txt", "newdir/subdir/file.txt"
+        )
+
+        # 验证目录和文件都已创建
+        assert not (skill_dir / "file.txt").exists()
+        assert (skill_dir / "newdir" / "subdir" / "file.txt").exists()
+        assert (skill_dir / "newdir" / "subdir" / "file.txt").read_text(
+            encoding="utf-8"
+        ) == "Content"
+
+    @pytest.mark.asyncio
+    async def test_rename_skill_file_move_out_of_subdirectory_success(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试重命名文件从子目录移动到根目录"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "subdir").mkdir()
+        (skill_dir / "subdir" / "file.txt").write_text("Content", encoding="utf-8")
+
+        # 从子目录移动到根目录
+        await markdown_ops.rename_skill_file(
+            "test-skill", "subdir/file.txt", "new_file.txt"
+        )
+
+        # 验证文件已被移动
+        assert not (skill_dir / "subdir" / "file.txt").exists()
+        assert (skill_dir / "new_file.txt").exists()
+        assert (skill_dir / "new_file.txt").read_text(encoding="utf-8") == "Content"
+
+    @pytest.mark.asyncio
+    async def test_rename_skill_file_main_file_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试重命名 SKILL.md 主文件抛出异常"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "SKILL.md").write_text("# Test", encoding="utf-8")
+
+        with pytest.raises(SkillOperationError, match="不允许重命名 SKILL.md"):
+            await markdown_ops.rename_skill_file("test-skill", "SKILL.md", "NEW.md")
+
+    @pytest.mark.asyncio
+    async def test_rename_skill_file_plugin_scope_raises_error(
+        self, markdown_ops, temp_project_dir
+    ):
+        """测试 plugin 作用域抛出异常（不允许重命名）"""
+        skill_dir = temp_project_dir / ".claude" / "skills" / "test-skill"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        (skill_dir / "file.txt").write_text("Content", encoding="utf-8")
+
+        with pytest.raises(SkillOperationError, match="不允许重命名插件作用域"):
+            await markdown_ops.rename_skill_file(
+                "test-skill", "file.txt", "new.txt", scope=ConfigScope.plugin
+            )

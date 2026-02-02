@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback, useRef, useState } from 'react';
-import { Save, RefreshCw, Copy } from 'lucide-react';
+import { Save, RefreshCw, Copy, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import Editor, { Monaco } from '@monaco-editor/react';
+import Editor from '@monaco-editor/react';
 import type { editor } from 'monaco-editor';
 import { useTranslation } from 'react-i18next';
 import { loadComponentTranslations, getCurrentLanguage } from '@/lib/i18n';
@@ -10,6 +10,7 @@ import {
   getPreloadPromise,
   preloadMonacoEditor,
 } from '@/lib/monaco-preloader';
+import { EditorFileTree, type FileTreeNode } from '@/components/editor/EditorFileTree';
 
 export interface MarkdownEditorProps {
   /** 编辑器标题（支持 string 或 ReactNode） */
@@ -50,6 +51,20 @@ export interface MarkdownEditorProps {
   className?: string;
   /** 是否为只读模式 */
   readonly?: boolean;
+  /** 文件树数据（可选） */
+  files?: FileTreeNode[];
+  /** 当前选中的文件路径 */
+  selectedFile?: string;
+  /** 文件选择回调 */
+  onFileSelect?: (file: FileTreeNode) => void;
+  /** 文件创建回调 */
+  onFileCreate?: (parentPath: string, name: string, type: 'file' | 'directory') => void;
+  /** 文件删除回调 */
+  onFileDelete?: (path: string) => void;
+  /** 文件重命名回调 */
+  onFileRename?: (path: string, newFilePath: string) => void;
+  /** 文件移动回调 */
+  onFileMove?: (sourcePath: string, targetPath: string) => void;
 }
 
 /**
@@ -88,6 +103,13 @@ export function MarkdownEditor({
   customToolbar,
   className = '',
   readonly = false,
+  files,
+  selectedFile,
+  onFileSelect,
+  onFileCreate,
+  onFileDelete,
+  onFileRename,
+  onFileMove,
 }: MarkdownEditorProps) {
   // 加载组件翻译
   loadComponentTranslations('editor', getCurrentLanguage());
@@ -100,6 +122,12 @@ export function MarkdownEditor({
 
   // Monaco 准备状态
   const [isMonacoReady, setIsMonacoReady] = useState(isMonacoPreloaded());
+
+  // 文件树展开/收起状态
+  const [isFileTreeVisible, setIsFileTreeVisible] = useState(true);
+
+  // 是否有文件树
+  const hasFileTree = files && files.length > 0;
 
   // 确定当前应该使用的内容值
   // 受控模式：使用 value；非受控模式：使用 defaultValue（仅初始化）
@@ -131,9 +159,14 @@ export function MarkdownEditor({
     };
   }, [isMonacoReady]);
 
+  // 切换文件树可见性
+  const toggleFileTree = useCallback(() => {
+    setIsFileTreeVisible(prev => !prev);
+  }, []);
+
   // 处理编辑器挂载
   const handleEditorMount = useCallback(
-    (editor: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+    (editor: editor.IStandaloneCodeEditor) => {
       editorRef.current = editor;
       // 初始化 lastProcessedValueRef（使用编辑器当前值）
       lastProcessedValueRef.current = editor.getValue() || currentValue;
@@ -253,11 +286,33 @@ export function MarkdownEditor({
 
   return (
     <div
-      className={`bg-white border border-gray-200 rounded-xl overflow-hidden ${className}`}
+      className={`bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col ${className}`}
+      style={
+        className?.includes('flex-1')
+          ? undefined
+          : { height: typeof height === 'number' ? `${height}px` : height }
+      }
     >
       {/* Editor Toolbar */}
       <div className='flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200'>
         <div className='flex items-center gap-2'>
+          {/* 文件树展开/收起按钮 - 最左侧 */}
+          {hasFileTree && (
+            <Button
+              variant='outline'
+              size='icon'
+              onClick={toggleFileTree}
+              className='h-8 w-8'
+              title={isFileTreeVisible ? 'Collapse file tree' : 'Expand file tree'}
+            >
+              {isFileTreeVisible ? (
+                <PanelLeftClose className='h-4 w-4' />
+              ) : (
+                <PanelLeftOpen className='h-4 w-4' />
+              )}
+            </Button>
+          )}
+
           {icon && (
             <div className='flex items-center gap-2'>
               {icon}
@@ -330,50 +385,60 @@ export function MarkdownEditor({
         )}
       </div>
 
-      {/* Monaco Editor */}
-      <div
-        className={className?.includes('flex-1') ? 'flex-1 flex flex-col' : ''}
-        style={
-          className?.includes('flex-1')
-            ? undefined
-            : { height: typeof height === 'number' ? `${height}px` : height }
-        }
-      >
-        {!isMonacoReady ? (
-          // Monaco 预加载中
-          <div className='flex items-center justify-center h-full bg-gray-50'>
-            <div className='text-center space-y-2'>
-              <div className='w-8 h-8 mx-auto border-2 border-blue-600 border-t-transparent rounded-full animate-spin'></div>
-              <p className='text-sm text-muted-foreground'>
-                {t('loading') || 'Loading editor...'}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <Editor
-            height='100%'
-            defaultLanguage={language}
-            // 使用 defaultValue 实现非受控模式，避免频繁更新
-            defaultValue={currentValue}
-            value={undefined}
-            onMount={handleEditorMount}
-            onChange={readonly ? undefined : handleEditorChange}
-            loading={isLoading ? t('loading') : undefined}
-            options={{
-              minimap: { enabled: false },
-              wordWrap: 'on',
-              lineNumbers: 'on',
-              scrollBeyondLastLine: false,
-              fontSize: 14,
-              fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
-              theme: 'vs-light',
-              automaticLayout: true,
-              tabSize: 2,
-              insertSpaces: true,
-              readOnly: readonly,
-            }}
+      {/* 主内容区：文件树 + 编辑器 */}
+      <div className='flex flex-1 overflow-hidden'>
+        {/* 文件树侧边栏 */}
+        {hasFileTree && isFileTreeVisible && (
+          <EditorFileTree
+            files={files!}
+            selectedFile={selectedFile || ''}
+            onFileSelect={file => onFileSelect?.(file)}
+            onFileCreate={onFileCreate}
+            onFileDelete={onFileDelete}
+            onFileRename={onFileRename}
+            onFileMove={onFileMove}
+            readonly={readonly}
           />
         )}
+
+        {/* Monaco Editor */}
+        <div className='flex-1 min-h-0'>
+          {!isMonacoReady ? (
+            // Monaco 预加载中
+            <div className='flex items-center justify-center h-full bg-gray-50'>
+              <div className='text-center space-y-2'>
+                <div className='w-8 h-8 mx-auto border-2 border-blue-600 border-t-transparent rounded-full animate-spin'></div>
+                <p className='text-sm text-muted-foreground'>
+                  {t('loading') || 'Loading editor...'}
+                </p>
+              </div>
+            </div>
+          ) : (
+            <Editor
+              height='100%'
+              defaultLanguage={language}
+              // 使用 defaultValue 实现非受控模式，避免频繁更新
+              defaultValue={currentValue}
+              value={undefined}
+              onMount={handleEditorMount}
+              onChange={readonly ? undefined : handleEditorChange}
+              loading={isLoading ? t('loading') : undefined}
+              options={{
+                minimap: { enabled: false },
+                wordWrap: 'on',
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+                fontSize: 14,
+                fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace',
+                theme: 'vs-light',
+                automaticLayout: true,
+                tabSize: 2,
+                insertSpaces: true,
+                readOnly: readonly,
+              }}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

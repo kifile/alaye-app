@@ -5,10 +5,10 @@ import { useDetailHeader } from '../context/DetailHeaderContext';
 import { EmptyView } from '@/components/EmptyView';
 import { ClaudeToolSelectBar, ToolGroup } from './ClaudeToolSelectBar';
 import { SkillContentView } from './SkillContentView';
-import { NewSkillContentView } from './NewSkillContentView';
-import { scanClaudeSkills } from '@/api/api';
+import { scanClaudeSkills, saveClaudeMarkdownContent } from '@/api/api';
 import { ConfigScope, SkillInfo } from '@/api/types';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 // 分组函数：按照 scope + pluginName 分组
 function groupSkillsByScope(
@@ -85,7 +85,7 @@ function LoadingState({ message }: { message: string }) {
   );
 }
 
-type ViewMode = 'select' | 'new' | 'edit';
+type ViewMode = 'select' | 'edit';
 
 interface SkillsDetailProps {
   projectId: number;
@@ -99,6 +99,9 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
 
   // 视图模式
   const [viewMode, setViewMode] = useState<ViewMode>('select');
+
+  // Popover 控制状态
+  const [newPopoverOpen, setNewPopoverOpen] = useState<boolean>(false);
 
   // 选中的 skill
   const [selectedSkill, setSelectedSkill] = useState<{
@@ -170,7 +173,7 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
               }
               setViewMode('edit');
             } else {
-              // 目标 skill 不在列表中，选中第一个
+              // 没有选中项，选中第一个
               const firstSkill = response.data[0];
               setSelectedSkill({
                 name: firstSkill.name,
@@ -218,27 +221,49 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
     };
   }, [setScopeSwitcher, clearScopeSwitcher, currentScope]);
 
+  // 新建 skill - 通过 Popover 创建空 skill
+  const handleCreateSkill = useCallback(
+    async (name: string, scope: ConfigScope) => {
+      try {
+        const response = await saveClaudeMarkdownContent({
+          project_id: projectId,
+          content_type: 'skill',
+          name: name.trim(),
+          content: '', // 内容为空
+          scope,
+        });
+
+        if (response.success) {
+          toast.success(t('skills.createSuccess'), {
+            description: t('skills.createSuccessDesc', { name }),
+          });
+          // 关闭 Popover
+          setNewPopoverOpen(false);
+          // 选中新建的 skill 并切换到编辑模式
+          setSelectedSkill({ name: name.trim(), scope });
+          setViewMode('edit');
+          // 重新扫描列表
+          scanSkillsList({ name: name.trim(), scope });
+        } else {
+          toast.error(t('skills.createFailed'), {
+            description: response.error || t('unknownError'),
+          });
+        }
+      } catch (error) {
+        console.error('Create skill error:', error);
+        toast.error(t('skills.createFailed'), {
+          description: error instanceof Error ? error.message : t('networkError'),
+        });
+      }
+    },
+    [projectId, t, scanSkillsList]
+  );
+
   // 选择 skill - 切换到编辑模式
   const handleSelectSkill = useCallback((skill: SkillInfo) => {
     setSelectedSkill({ name: skill.name, scope: skill.scope });
     setViewMode('edit');
   }, []);
-
-  // 新建 skill - 切换到新建模式
-  const handleNewSkill = useCallback(() => {
-    setViewMode('new');
-  }, []);
-
-  // skill 保存完成 - 切换到编辑模式
-  const handleSkillSaved = useCallback(
-    (name: string, scope: ConfigScope) => {
-      setSelectedSkill({ name, scope });
-      setViewMode('edit');
-      // 重新扫描列表
-      scanSkillsList();
-    },
-    [scanSkillsList]
-  );
 
   // skill 删除完成 - 切换到选择模式
   const handleSkillDeleted = useCallback(() => {
@@ -257,17 +282,22 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
     [scanSkillsList]
   );
 
-  // 取消新建 - 返回选择模式
-  const handleCancelNew = useCallback(() => {
-    setViewMode(selectedSkill ? 'edit' : 'select');
-  }, [selectedSkill]);
-
   // 跳转到插件页面
   const handleGoToPlugins = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('section', 'plugins');
     router.push(`?${params.toString()}`);
   }, [router, searchParams]);
+
+  // 打开新建 Popover
+  const handleOpenNewPopover = useCallback(() => {
+    setNewPopoverOpen(true);
+  }, []);
+
+  // 处理 Popover 状态变化
+  const handlePopoverOpenChange = useCallback((open: boolean) => {
+    setNewPopoverOpen(open);
+  }, []);
 
   // 根据视图模式渲染不同内容
   return (
@@ -278,28 +308,6 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
       {/* 视图内容 */}
       {!isLoading && (
         <>
-          {viewMode === 'new' && (
-            <>
-              <div className='mb-4 flex-shrink-0'>
-                <ClaudeToolSelectBar
-                  groups={groupedSkills}
-                  selectedItem={selectedSkill}
-                  onSelectItem={handleSelectSkill}
-                  onRefresh={() => selectedSkill && scanSkillsList(selectedSkill)}
-                  onNew={handleNewSkill}
-                />
-              </div>
-              <div className='flex-1 min-h-0'>
-                <NewSkillContentView
-                  projectId={projectId}
-                  initialScope={ConfigScope.PROJECT}
-                  onSaved={handleSkillSaved}
-                  onCancelled={handleCancelNew}
-                />
-              </div>
-            </>
-          )}
-
           {viewMode === 'edit' && selectedSkill && currentSkill && (
             <>
               {/* skill 选择器 */}
@@ -309,13 +317,16 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
                   selectedItem={selectedSkill}
                   onSelectItem={handleSelectSkill}
                   onRefresh={() => selectedSkill && scanSkillsList(selectedSkill)}
-                  onNew={handleNewSkill}
+                  onCreateItem={handleCreateSkill}
+                  newPopoverOpen={newPopoverOpen}
+                  onPopoverOpenChange={handlePopoverOpenChange}
                 />
               </div>
 
               {/* 编辑 skill 内容 */}
               <div className='flex-1 min-h-0'>
                 <SkillContentView
+                  key={`${selectedSkill.scope}-${selectedSkill.name}`}
                   projectId={projectId}
                   selectedSkill={selectedSkill}
                   currentSkill={currentSkill}
@@ -335,7 +346,9 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
                   selectedItem={selectedSkill}
                   onSelectItem={handleSelectSkill}
                   onRefresh={() => selectedSkill && scanSkillsList(selectedSkill)}
-                  onNew={handleNewSkill}
+                  onCreateItem={handleCreateSkill}
+                  newPopoverOpen={newPopoverOpen}
+                  onPopoverOpenChange={handlePopoverOpenChange}
                 />
               </div>
 
@@ -355,7 +368,7 @@ export function SkillsDetail({ projectId }: SkillsDetailProps) {
                   title={t('skills.noSelection')}
                   description={t('skills.noSelectionDesc')}
                   actionLabel={t('skills.createNew')}
-                  onAction={handleNewSkill}
+                  onAction={handleOpenNewPopover}
                   actionIcon={<Plus className='h-4 w-4' />}
                 />
               )}

@@ -498,7 +498,8 @@
     "cancel": "Cancel",
     "delete": "Delete",
     "deleteConfirm": "Confirm Delete",
-    "deleteConfirmMessage": "Are you sure you want to delete skill \"{{name}}\"?"
+    "deleteConfirmMessage": "Are you sure you want to delete skill \"{{name}}\"?",
+    "unsavedChanges": "You have unsaved changes. Are you sure you want to switch files?"
   },
   "subAgents": {
     "scanFailed": "Failed to scan Agents",
@@ -853,7 +854,7 @@
     "agentsList": "Agents List",
     "newAgent": "New Agent",
     "groups": {
-      "user": "User (Global)",
+      "user": "User",
       "project": "Project",
       "local": "Local",
       "plugin": "Plugin: {{name}}"

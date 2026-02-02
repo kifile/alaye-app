@@ -24,6 +24,7 @@ from ..claude.models import (
     MCPInfo,
     PluginInfo,
     PluginMarketplaceInfo,
+    SkillFileTreeNode,
     SkillInfo,
 )
 from ..config import config_service
@@ -41,8 +42,10 @@ from .api_models import (
     ApiResponse,
     ClearRemovedProjectsRequest,
     CloseTerminalRequest,
+    CreateSkillFileRequest,
     DeleteMarkdownContentRequest,
     DeleteMCPServerRequest,
+    DeleteSkillFileRequest,
     DisableClaudePluginRequest,
     DisableMCPServerRequest,
     EnableClaudePluginRequest,
@@ -52,6 +55,7 @@ from .api_models import (
     InstallClaudePluginMarketplaceRequest,
     InstallClaudePluginRequest,
     ListProjectsRequest,
+    ListSkillContentRequest,
     LoadMarkdownContentRequest,
     LoadSettingsData,
     LoadSettingsRequest,
@@ -59,12 +63,15 @@ from .api_models import (
     LogLevel,
     LogRequest,
     MoveClaudePluginRequest,
+    MoveSkillFileRequest,
     NewTerminalRequest,
     ReadPluginReadmeRequest,
     ReadSessionContentsRequest,
+    ReadSkillFileRequest,
     RemoveClaudeHookRequest,
     RenameMarkdownContentRequest,
     RenameMCPServerRequest,
+    RenameSkillFileRequest,
     SaveMarkdownContentRequest,
     ScanAllProjectsRequest,
     ScanClaudeAgentsRequest,
@@ -88,6 +95,7 @@ from .api_models import (
     UpdateMarkdownContentRequest,
     UpdateMCPServerRequest,
     UpdateSettingRequest,
+    UpdateSkillFileRequest,
     WriteToTerminalRequest,
 )
 from .auto_register import expose_api
@@ -984,6 +992,201 @@ class APICore:
             content_type=request.content_type,
             name=request.name,
             scope=request.scope,
+        )
+        return ApiResponse.success_response(True)
+
+    @expose_api(
+        ListSkillContentRequest,
+        List[SkillFileTreeNode],
+        "列出指定 Skill 的文件树结构API",
+    )
+    @api_logging
+    @api_exception_handler
+    async def list_skill_content(
+        self, input_data: ListSkillContentRequest
+    ) -> ApiResponse[List[SkillFileTreeNode]]:
+        """
+        列出指定 Skill 的文件树结构的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - project_id: 项目ID
+                - name: Skill 名称
+                - scope: 配置作用域
+
+        Returns:
+            包含 Skill 文件树结构的响应（目录优先，按名称排序）
+        """
+        config_manager = await self._get_config_manager(input_data.project_id)
+        file_tree = await config_manager.list_skill_content(
+            input_data.name, input_data.scope
+        )
+        return ApiResponse.success_response(file_tree)
+
+    @expose_api(ReadSkillFileRequest, str, "读取指定 Skill 文件内容API")
+    @api_logging
+    @api_exception_handler
+    async def read_skill_file_content(
+        self, input_data: ReadSkillFileRequest
+    ) -> ApiResponse[str]:
+        """
+        读取指定 Skill 文件内容的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - project_id: 项目ID
+                - name: Skill 名称
+                - file_path: 相对于 skill 目录的文件路径
+                - scope: 配置作用域
+
+        Returns:
+            包含文件内容的响应
+        """
+        config_manager = await self._get_config_manager(input_data.project_id)
+        content = await config_manager.read_skill_file_content(
+            input_data.name, input_data.file_path, input_data.scope
+        )
+        return ApiResponse.success_response(content)
+
+    @expose_api(UpdateSkillFileRequest, bool, "更新指定 Skill 文件内容API")
+    @api_logging
+    @api_exception_handler
+    async def update_skill_file_content(
+        self, input_data: UpdateSkillFileRequest
+    ) -> ApiResponse[bool]:
+        """
+        更新指定 Skill 文件内容的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - project_id: 项目ID
+                - name: Skill 名称
+                - file_path: 相对于 skill 目录的文件路径
+                - content: 新的文件内容
+                - scope: 配置作用域
+
+        Returns:
+            操作是否成功完成
+        """
+        config_manager = await self._get_config_manager(input_data.project_id)
+        await config_manager.update_skill_file_content(
+            input_data.name, input_data.file_path, input_data.content, input_data.scope
+        )
+        return ApiResponse.success_response(True)
+
+    @expose_api(DeleteSkillFileRequest, bool, "删除指定 Skill 文件API")
+    @api_logging
+    @api_exception_handler
+    async def delete_skill_file(
+        self, input_data: DeleteSkillFileRequest
+    ) -> ApiResponse[bool]:
+        """
+        删除指定 Skill 文件或文件夹的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - project_id: 项目ID
+                - name: Skill 名称
+                - file_path: 相对于 skill 目录的文件或文件夹路径
+                - scope: 配置作用域
+
+        Returns:
+            操作是否成功完成
+        """
+        config_manager = await self._get_config_manager(input_data.project_id)
+        await config_manager.delete_skill_file(
+            input_data.name, input_data.file_path, input_data.scope
+        )
+        return ApiResponse.success_response(True)
+
+    @expose_api(CreateSkillFileRequest, bool, "创建Skill文件或文件夹API")
+    @api_logging
+    @api_exception_handler
+    async def create_skill_file(
+        self, input_data: CreateSkillFileRequest
+    ) -> ApiResponse[bool]:
+        """
+        创建 Skill 文件或文件夹的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - project_id: 项目ID
+                - name: Skill 名称
+                - parent_path: 父目录路径（相对于 skill 目录）
+                - new_name: 新文件或文件夹的名称
+                - file_type: 类型，'file' 或 'directory'
+                - scope: 配置作用域
+
+        Returns:
+            操作是否成功完成
+        """
+        config_manager = await self._get_config_manager(input_data.project_id)
+        await config_manager.create_skill_file(
+            input_data.name,
+            input_data.parent_path,
+            input_data.new_name,
+            input_data.file_type,
+            input_data.scope,
+        )
+        return ApiResponse.success_response(True)
+
+    @expose_api(RenameSkillFileRequest, bool, "重命名Skill文件或文件夹API")
+    @api_logging
+    @api_exception_handler
+    async def rename_skill_file(
+        self, input_data: RenameSkillFileRequest
+    ) -> ApiResponse[bool]:
+        """
+        重命名/移动 Skill 文件或文件夹的核心业务逻辑
+
+        支持路径分隔符，可以将文件移动到不同目录，只要目标路径仍在 skill 目录内。
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - project_id: 项目ID
+                - name: Skill 名称
+                - file_path: 相对于 skill 目录的文件或文件夹路径
+                - new_file_path: 新的文件或文件夹路径（支持路径分隔符，可包含目录）
+                - scope: 配置作用域
+
+        Returns:
+            操作是否成功完成
+        """
+        config_manager = await self._get_config_manager(input_data.project_id)
+        await config_manager.rename_skill_file(
+            input_data.name,
+            input_data.file_path,
+            input_data.new_file_path,
+            input_data.scope,
+        )
+        return ApiResponse.success_response(True)
+
+    @expose_api(MoveSkillFileRequest, bool, "移动Skill文件或文件夹API")
+    @api_logging
+    @api_exception_handler
+    async def move_skill_file(
+        self, input_data: MoveSkillFileRequest
+    ) -> ApiResponse[bool]:
+        """
+        移动 Skill 文件或文件夹的核心业务逻辑
+
+        Args:
+            input_data: 经过验证的输入数据，包含：
+                - project_id: 项目ID
+                - name: Skill 名称
+                - source_path: 源文件或文件夹路径（相对于 skill 目录）
+                - target_path: 目标文件夹路径（相对于 skill 目录）
+                - scope: 配置作用域
+
+        Returns:
+            操作是否成功完成
+        """
+        config_manager = await self._get_config_manager(input_data.project_id)
+        await config_manager.move_skill_file(
+            input_data.name,
+            input_data.source_path,
+            input_data.target_path,
+            input_data.scope,
         )
         return ApiResponse.success_response(True)
 
